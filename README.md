@@ -17,7 +17,7 @@ built from scratch.
 </p>
 
 > [!NOTE]
-> Early development (**M2: Files & Projects** in progress). Most features below are the project's
+> Early development (**M3: Editor core** in progress). Most features below are the project's
 > planned scope, not yet built — see [Milestones](#-milestones) for what's actually done.
 
 ---
@@ -173,7 +173,7 @@ requests, and on manual dispatch:
 
 - [x] **M1: Skeleton** — project setup, Compose theme, navigation, permission flow
 - [x] **M2: Files** — file tree, CRUD, workspace open *(part 1: file tree core; part 2: Open Project sheet, recents, backup ZIP, pins — done)*
-- [ ] **M3: Editor core** — Sora embed, tabs, save, TextMate highlighting
+- [ ] **M3: Editor core** — Sora embed, tabs, save, TextMate highlighting *(part 1: Sora editor, tabs, save, unsaved dialog — done)*
 - [ ] **M4: Editor extras** — find/replace, symbol bar, autocomplete, settings
 - [ ] **M5: Preview** — Markdown, HTML, SVG, Image preview + toggle
 - [ ] **M6: Git basics** — credentials store, clone, status, stage, commit, push, pull

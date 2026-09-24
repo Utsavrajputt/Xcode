@@ -9,6 +9,7 @@ lifecycle = "2.8.4"
 coroutines = "1.8.1"
 ksp = "2.3.3"
 room = "2.8.4"
+sora = "0.24.5"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -25,6 +26,7 @@ androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+sora-editor = { module = "io.github.rosemoe:editor", version.ref = "sora" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 
 [plugins]

@@ -54,12 +54,13 @@ import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
 import com.invictus.xcode.feature.project.ProjectsViewModel
 import com.invictus.xcode.ui.icons.XIcons
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Workspace home: the file tree. [onOpenFile] is where the editor (M3) plugs in; until then
- * tapping a file just says so.
+ * Workspace home: the file tree. [onOpenFile] hands a tapped file to the editor;
+ * [externalMessages] carries errors from it (e.g. a file that failed to open).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +69,7 @@ fun WorkspaceScreen(
     viewModel: FileTreeViewModel = viewModel(factory = FileTreeViewModel.Factory),
     projectsViewModel: ProjectsViewModel = viewModel(factory = ProjectsViewModel.Factory),
     onOpenFile: ((File) -> Unit)? = null,
+    externalMessages: Flow<UiText>? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val projectsState by projectsViewModel.uiState.collectAsStateWithLifecycle()
@@ -103,6 +105,12 @@ fun WorkspaceScreen(
                         }
                     }
             }
+        }
+    }
+
+    LaunchedEffect(externalMessages) {
+        externalMessages?.collect { text ->
+            scope.launch { snackbarHostState.showSnackbar(text.resolve(context)) }
         }
     }
 
