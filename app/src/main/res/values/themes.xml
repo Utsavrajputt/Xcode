@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Only the window/splash theme; all real theming is Compose Material 3. -->
-    <style name="Theme.Xcode" parent="android:Theme.Material.DayNight.NoActionBar" />
+    <!-- Only the window/splash theme; all real theming is Compose Material 3.
+         "DayNight" isn't a platform (android:) theme -- that's an AppCompat/
+         Material Components concept and this app has neither dependency --
+         so light/dark here is done the plain Android way: this file (light
+         parent) plus a values-night/ override (dark parent), same style name. -->
+    <style name="Theme.Xcode" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

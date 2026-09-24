@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark counterpart of values/themes.xml -- same style name, resolved
+         automatically by the system's night-mode setting. -->
+    <style name="Theme.Xcode" parent="android:Theme.Material.NoActionBar" />
+</resources>
