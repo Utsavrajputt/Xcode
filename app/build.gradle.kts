@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ktlint.gradle)
 }
 
 // CI passes the keystore through env vars (see .github/workflows in Part 5).
@@ -59,6 +60,14 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
+}
+
+// Rules come from .editorconfig at the repo root (ktlint_standard_*, the
+// Composable naming exception, 120-char line length). `android.set(true)`
+// turns on the Android-specific rule set on top of that.
+ktlint {
+    android.set(true)
+    ignoreFailures.set(false)
 }
 
 dependencies {
