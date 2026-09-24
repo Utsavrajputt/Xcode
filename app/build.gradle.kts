@@ -2,12 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ktlint.gradle)
 }
-
-// CI passes the keystore through env vars (see .github/workflows in Part 5).
-// Locally these are unset, so debug builds use the default debug keystore.
-val ciKeystoreFile: String? = System.getenv("KEYSTORE_FILE")
 
 android {
     namespace = "com.invictus.xcode"
@@ -21,28 +16,25 @@ android {
         versionName = "0.1.0"
     }
 
-    signingConfigs {
-        if (ciKeystoreFile != null) {
-            create("ci") {
-                storeFile = file(ciKeystoreFile)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
-            }
-        }
-    }
-
     buildTypes {
         debug {
-            signingConfigs.findByName("ci")?.let { signingConfig = it }
+            applicationIdSuffix = ".debug"
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // Off for now while the app is still early (M1) -- flip these
+            // back on once the shape of the codebase has settled, so R8
+            // isn't fighting churn every milestone.
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // No signingConfig here on purpose: this build type produces an
+            // unsigned APK (app-release-unsigned.apk). Signing is done
+            // explicitly with apksigner in .github/workflows/android-build.yml
+            // (or manually for local release testing), keeping build and
+            // sign as separate, visible steps.
         }
     }
 
@@ -60,14 +52,6 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
-}
-
-// Rules come from .editorconfig at the repo root (ktlint_standard_*, the
-// Composable naming exception, 120-char line length). `android.set(true)`
-// turns on the Android-specific rule set on top of that.
-ktlint {
-    android.set(true)
-    ignoreFailures.set(false)
 }
 
 dependencies {

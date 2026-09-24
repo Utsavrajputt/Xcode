@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Build & sign release APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -42,19 +42,30 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # app/build.gradle.kts reads KEYSTORE_FILE/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD
-      # from the environment and signs the debug build type with them when present.
-      # The secrets context isn't valid in a step-level `if:`, so the presence
-      # check happens inside this run: script instead (same pattern as xmd's
-      # android-build.yml). On fork PRs the secrets aren't available, so the
-      # build falls back to Gradle's default debug keystore.
-      - name: Decode signing keystore
+      - name: Build unsigned release APK
+        shell: bash
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Sign release APK
         shell: bash
         run: |
           set -euo pipefail
+          build_tools_dir=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
+          apksigner="$ANDROID_HOME/build-tools/$build_tools_dir/apksigner"
+          test -x "$apksigner"
+
+          mkdir -p app/build/outputs/apk/signed
+
+          unsigned=$(compgen -G "app/build/outputs/apk/release/*-unsigned.apk" | head -n1 || true)
+          if [[ -z "$unsigned" ]]; then
+            echo "Missing expected unsigned release APK"
+            find app/build/outputs/apk -type f -name '*.apk' -print || true
+            exit 1
+          fi
 
           if [[ -z "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
-            echo "KEYSTORE_BASE64 is not set (expected for fork PRs); using the default debug keystore."
+            echo "KEYSTORE_BASE64 is not set (expected for fork PRs); leaving it unsigned."
+            cp "$unsigned" "app/build/outputs/apk/signed/xcode-unsigned.apk"
             exit 0
           fi
 
@@ -63,28 +74,38 @@ jobs:
             exit 1
           fi
 
-          keystore_path="$RUNNER_TEMP/xcode-debug.jks"
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$keystore_path"
-          {
-            echo "KEYSTORE_FILE=$keystore_path"
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}"
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}"
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}"
-          } >> "$GITHUB_ENV"
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.jks
 
-      - name: Build debug APK
+          "$apksigner" sign \
+            --ks release.jks \
+            --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+            --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
+            --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
+            --out "app/build/outputs/apk/signed/xcode.apk" \
+            "$unsigned"
+          rm -f release.jks
+
+      - name: Verify APK signature
         shell: bash
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: |
+          set -euo pipefail
+          build_tools_dir=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
+          apksigner="$ANDROID_HOME/build-tools/$build_tools_dir/apksigner"
+          shopt -s nullglob
+          signed=(app/build/outputs/apk/signed/*.apk)
+          if [[ ${#signed[@]} -eq 0 ]]; then
+            echo "No signed APKs found -- skipping verification (unsigned build)."
+          else
+            for apk in "${signed[@]}"; do
+              [[ "$apk" == *-unsigned.apk ]] && continue
+              "$apksigner" verify --verbose --print-certs "$apk"
+            done
+          fi
 
-      - name: Remove decoded keystore
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/xcode-debug.jks"
-
-      - name: Upload debug APK
+      - name: Upload Xcode APK
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-debug-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: xcode-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/*.apk
           if-no-files-found: error
           retention-days: 14
