@@ -172,7 +172,7 @@ requests, and on manual dispatch:
 ## 🗺️ Milestones
 
 - [x] **M1: Skeleton** — project setup, Compose theme, navigation, permission flow
-- [ ] **M2: Files** — file tree, CRUD, workspace open *(part 1 done: file tree core; part 2: Open Project sheet, recents, pins)*
+- [x] **M2: Files** — file tree, CRUD, workspace open *(part 1: file tree core; part 2: Open Project sheet, recents, backup ZIP, pins — done)*
 - [ ] **M3: Editor core** — Sora embed, tabs, save, TextMate highlighting
 - [ ] **M4: Editor extras** — find/replace, symbol bar, autocomplete, settings
 - [ ] **M5: Preview** — Markdown, HTML, SVG, Image preview + toggle

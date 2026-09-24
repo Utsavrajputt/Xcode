@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.BasicTextField
@@ -71,17 +73,22 @@ fun FileTree(
     onEvent: (FileTreeEvent) -> Unit,
     onCopyPath: (File) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val rootLabel = state.rootName ?: stringResource(R.string.workspace_root_internal)
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
         items(items = state.rows, key = { it.key }) { row ->
             when (row) {
+                TreeRow.PinnedHeader -> PinnedHeader()
+                TreeRow.Divider -> HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                is TreeRow.Pinned -> PinnedRow(row = row, onEvent = onEvent, onCopyPath = onCopyPath)
                 is TreeRow.Entry -> FileRow(
                     row = row,
                     displayName = if (row.isRoot) rootLabel else row.file.name,
                     renaming = state.renaming?.takeIf { it.file.path == row.file.path },
                     isCutMarked = state.clipboard?.let { it.isCut && it.file.path == row.file.path } == true,
                     canPaste = state.clipboard != null,
+                    isPinned = row.file.path in state.pinnedPaths,
                     onEvent = onEvent,
                     onCopyPath = onCopyPath,
                 )
@@ -98,6 +105,7 @@ private fun FileRow(
     renaming: RenameState?,
     isCutMarked: Boolean,
     canPaste: Boolean,
+    isPinned: Boolean,
     onEvent: (FileTreeEvent) -> Unit,
     onCopyPath: (File) -> Unit,
 ) {
@@ -208,6 +216,10 @@ private fun FileRow(
                     close()
                     onEvent(FileTreeEvent.Copy(row.file))
                 }
+                MenuItem(if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin) {
+                    close()
+                    onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
+                }
             }
             if (canPaste) {
                 MenuItem(R.string.tree_menu_paste) {
@@ -225,6 +237,97 @@ private fun FileRow(
                     close()
                     onEvent(FileTreeEvent.RequestDelete(row.file, row.isDirectory))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PinnedHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = XIcons.Pin,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.tree_pinned_header),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Tap opens a pinned file (through the usual binary/large warning) or reveals a pinned folder. */
+@Composable
+private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onCopyPath: (File) -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+    var pressOffset by remember { mutableStateOf(Offset.Zero) }
+    var rowHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val file = row.item.file
+    val menuOffset = with(density) { DpOffset(pressOffset.x.toDp(), (pressOffset.y - rowHeightPx).toDp()) }
+
+    Box(modifier = Modifier.fillMaxWidth().onSizeChanged { rowHeightPx = it.height }) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .pointerInput(file.path) {
+                    detectTapGestures(
+                        onTap = {
+                            if (row.item.isDirectory) {
+                                onEvent(FileTreeEvent.Reveal(file, isDirectory = true))
+                            } else {
+                                onEvent(FileTreeEvent.RowClicked(file, isDirectory = false))
+                            }
+                        },
+                        onLongPress = { position ->
+                            pressOffset = position
+                            menuOpen = true
+                        },
+                    )
+                }
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FileTypeIcon(name = file.name, isDirectory = row.item.isDirectory)
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (row.parentLabel.isNotEmpty()) {
+                    Text(
+                        text = row.parentLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, offset = menuOffset) {
+            MenuItem(R.string.tree_menu_unpin) {
+                menuOpen = false
+                onEvent(FileTreeEvent.TogglePin(file, row.item.isDirectory))
+            }
+            MenuItem(R.string.tree_menu_reveal) {
+                menuOpen = false
+                onEvent(FileTreeEvent.Reveal(file, isDirectory = false))
+            }
+            MenuItem(R.string.tree_menu_copy_path) {
+                menuOpen = false
+                onCopyPath(file)
             }
         }
     }

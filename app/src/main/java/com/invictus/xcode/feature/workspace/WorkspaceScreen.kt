@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +49,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
+import com.invictus.xcode.feature.project.OpenProjectSheet
+import com.invictus.xcode.feature.project.ProjectsEffect
+import com.invictus.xcode.feature.project.ProjectsEvent
+import com.invictus.xcode.feature.project.ProjectsViewModel
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.launch
 import java.io.File
@@ -59,9 +66,13 @@ import java.io.File
 fun WorkspaceScreen(
     modifier: Modifier = Modifier,
     viewModel: FileTreeViewModel = viewModel(factory = FileTreeViewModel.Factory),
+    projectsViewModel: ProjectsViewModel = viewModel(factory = ProjectsViewModel.Factory),
     onOpenFile: ((File) -> Unit)? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val projectsState by projectsViewModel.uiState.collectAsStateWithLifecycle()
+    var showProjectSheet by rememberSaveable { mutableStateOf(false) }
+    val listState = rememberLazyListState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -76,6 +87,11 @@ fun WorkspaceScreen(
             when (effect) {
                 is FileTreeEffect.Message ->
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
+                is FileTreeEffect.ScrollTo -> {
+                    val index = viewModel.uiState.value.rows
+                        .indexOfFirst { it is TreeRow.Entry && it.file.path == effect.path }
+                    if (index >= 0) listState.animateScrollToItem(index)
+                }
                 is FileTreeEffect.OpenFile ->
                     if (onOpenFile != null) {
                         onOpenFile(effect.file)
@@ -86,6 +102,17 @@ fun WorkspaceScreen(
                             )
                         }
                     }
+            }
+        }
+    }
+
+    LaunchedEffect(projectsViewModel) {
+        projectsViewModel.effects.collect { effect ->
+            when (effect) {
+                is ProjectsEffect.Message ->
+                    scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
+                is ProjectsEffect.ProjectMoved ->
+                    viewModel.onEvent(FileTreeEvent.ProjectMoved(effect.old, effect.new))
             }
         }
     }
@@ -101,7 +128,14 @@ fun WorkspaceScreen(
 
     Scaffold(
         modifier = modifier,
-        topBar = { WorkspaceTopBar(state = state, onEvent = viewModel::onEvent) },
+        topBar = {
+            WorkspaceTopBar(
+                state = state,
+                onEvent = viewModel::onEvent,
+                onOpenProjectSheet = { showProjectSheet = true },
+                onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             val clipboard = state.clipboard
@@ -125,17 +159,42 @@ fun WorkspaceScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             } else {
-                FileTree(state = state, onEvent = viewModel::onEvent, onCopyPath = copyPath)
+                FileTree(
+                    state = state,
+                    onEvent = viewModel::onEvent,
+                    onCopyPath = copyPath,
+                    listState = listState,
+                )
             }
         }
     }
 
     TreeDialogHost(dialog = state.dialog, onEvent = viewModel::onEvent)
+
+    if (showProjectSheet) {
+        OpenProjectSheet(
+            state = projectsState,
+            currentRoot = state.root,
+            snackbarHostState = snackbarHostState,
+            onEvent = projectsViewModel::onEvent,
+            onOpen = { dir ->
+                showProjectSheet = false
+                viewModel.onEvent(FileTreeEvent.OpenProject(dir))
+            },
+            onCopyPath = copyPath,
+            onDismiss = { showProjectSheet = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WorkspaceTopBar(state: FileTreeUiState, onEvent: (FileTreeEvent) -> Unit) {
+private fun WorkspaceTopBar(
+    state: FileTreeUiState,
+    onEvent: (FileTreeEvent) -> Unit,
+    onOpenProjectSheet: () -> Unit,
+    onBackup: () -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
@@ -143,9 +202,13 @@ private fun WorkspaceTopBar(state: FileTreeUiState, onEvent: (FileTreeEvent) -> 
                 text = state.rootName ?: stringResource(R.string.workspace_root_internal),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(onClick = onOpenProjectSheet),
             )
         },
         actions = {
+            IconButton(onClick = onOpenProjectSheet) {
+                Icon(XIcons.FolderOpen, contentDescription = stringResource(R.string.menu_open_project))
+            }
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
             }
@@ -164,6 +227,15 @@ private fun WorkspaceTopBar(state: FileTreeUiState, onEvent: (FileTreeEvent) -> 
                         onClick = { onEvent(FileTreeEvent.SetShowGitFolder(!state.showGitFolder)) },
                         trailingIcon = { Checkbox(checked = state.showGitFolder, onCheckedChange = null) },
                     )
+                    if (state.rootName != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_backup_project)) },
+                            onClick = {
+                                menuOpen = false
+                                onBackup()
+                            },
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_collapse_all)) },
                         onClick = {

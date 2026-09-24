@@ -15,15 +15,24 @@ import com.invictus.xcode.core.fs.FsEntry
 import com.invictus.xcode.core.fs.FsError
 import com.invictus.xcode.core.fs.FsResult
 import com.invictus.xcode.core.fs.OpenDecision
+import com.invictus.xcode.core.project.PathUtil
+import com.invictus.xcode.core.project.ProjectRepository
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -36,9 +45,13 @@ import java.io.File
 class FileTreeViewModel(
     private val fileOps: FileOps,
     private val openPolicy: FileOpenPolicy,
-    private val root: File,
-    isDeviceStorage: Boolean,
+    private val projects: ProjectRepository,
+    private val storageRoot: File,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+
+    /** The open project folder. Starts on device storage until the last project is restored. */
+    private var root: File = storageRoot
 
     private val expanded = linkedSetOf(root.path)
     private val children = HashMap<String, List<FsEntry>>()
@@ -48,7 +61,7 @@ class FileTreeViewModel(
     private val _uiState = MutableStateFlow(
         FileTreeUiState(
             root = root,
-            rootName = if (isDeviceStorage) null else root.name.ifEmpty { root.path },
+            rootName = null,
         ),
     )
     val uiState: StateFlow<FileTreeUiState> = _uiState.asStateFlow()
@@ -59,10 +72,16 @@ class FileTreeViewModel(
     private val watchEvents = Channel<String>(Channel.UNLIMITED)
     private val watcher = DirectoryWatcher { dir -> watchEvents.trySend(dir.path) }
 
+    /** False until the last project is restored, so the tree never flashes the wrong root. */
+    private var ready = false
+
+    private val rootPath = MutableStateFlow(root.path)
+    private val pinTick = MutableStateFlow(0)
+
     init {
         viewModelScope.launch { debounceWatcherEvents() }
-        loadDir(root)
-        syncWatcher()
+        viewModelScope.launch { observePins() }
+        viewModelScope.launch { restoreLastProject() }
     }
 
     fun onEvent(event: FileTreeEvent) {
@@ -95,8 +114,97 @@ class FileTreeViewModel(
                 publish { copy(dialog = null) }
                 _effects.trySend(FileTreeEffect.OpenFile(event.file))
             }
+
+            is FileTreeEvent.OpenProject -> openProject(event.dir)
+            is FileTreeEvent.ProjectMoved -> onProjectMoved(event.old, event.new)
+            is FileTreeEvent.TogglePin -> togglePin(event.file, event.isDirectory)
+            is FileTreeEvent.Reveal -> reveal(event.file, event.isDirectory)
         }
     }
+
+    // region project / pins
+
+    private suspend fun restoreLastProject() {
+        val last = projects.latestRecent()?.takeIf { withContext(io) { it.isDirectory && it.canRead() } }
+        switchRoot(last ?: storageRoot, record = false)
+    }
+
+    private fun openProject(dir: File) {
+        viewModelScope.launch {
+            val ok = withContext(io) { dir.isDirectory && dir.canRead() }
+            if (!ok) {
+                _effects.send(FileTreeEffect.Message(UiText(R.string.msg_folder_unavailable)))
+                return@launch
+            }
+            // Already open: nothing to reload, just bump it to the top of recents.
+            if (dir.path == root.path) projects.recordOpened(dir) else switchRoot(dir, record = true)
+        }
+    }
+
+    private fun onProjectMoved(old: File, new: File) {
+        if (!PathUtil.isSameOrUnder(root.path, old.path)) return
+        switchRoot(File(PathUtil.rebase(root.path, old.path, new.path)), record = false)
+    }
+
+    /** Points the tree at [newRoot], dropping the previous project's expansion state. */
+    private fun switchRoot(newRoot: File, record: Boolean) {
+        loadJobs.values.forEach { it.cancel() }
+        loadJobs.clear()
+        loading.clear()
+        children.clear()
+        expanded.clear()
+        root = newRoot
+        ready = true
+        expanded += newRoot.path
+        rootPath.value = newRoot.path
+        publish {
+            copy(
+                root = newRoot,
+                rootName = if (newRoot.path == storageRoot.path) null else newRoot.name.ifEmpty { newRoot.path },
+                renaming = null,
+                dialog = null,
+                rootError = null,
+            )
+        }
+        loadDir(newRoot)
+        syncWatcher()
+        if (record) viewModelScope.launch { projects.recordOpened(newRoot) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun observePins() {
+        combine(rootPath.flatMapLatest { projects.observePins(it) }, pinTick) { pins, _ -> pins }
+            // Pins whose file was deleted/moved outside the app are hidden, not shown as dead rows.
+            .mapLatest { pins -> withContext(io) { pins.filter { it.file.exists() } } }
+            .collect { pins ->
+                publish { copy(pins = pins, pinnedPaths = pins.mapTo(HashSet()) { it.file.path }) }
+            }
+    }
+
+    private fun togglePin(file: File, isDirectory: Boolean) {
+        if (file.path == root.path) return
+        val pinned = file.path !in _uiState.value.pinnedPaths
+        viewModelScope.launch { projects.setPinned(root.path, file, isDirectory, pinned) }
+    }
+
+    private fun reveal(file: File, isDirectory: Boolean) {
+        if (!PathUtil.isSameOrUnder(file.path, root.path)) return
+        viewModelScope.launch {
+            val chain = generateSequence(file.parentFile) { it.parentFile }
+                .takeWhile { PathUtil.isSameOrUnder(it.path, root.path) }
+                .toList()
+                .asReversed() + if (isDirectory) listOf(file) else emptyList()
+            for (dir in chain) {
+                if (expanded.add(dir.path)) loadDir(dir)
+                loadJobs[dir.path]?.join()
+            }
+            publish()
+            syncWatcher()
+            _effects.send(FileTreeEffect.ScrollTo(file.path))
+        }
+    }
+
+    // endregion
 
     // region tree state
 
@@ -131,6 +239,7 @@ class FileTreeViewModel(
 
     private fun refreshAll() {
         expanded.toList().forEach { loadDir(File(it)) }
+        pinTick.update { it + 1 }
     }
 
     private fun reloadIfExpanded(dir: File) {
@@ -251,6 +360,7 @@ class FileTreeViewModel(
         viewModelScope.launch {
             when (val result = fileOps.rename(state.file, newName)) {
                 is FsResult.Ok -> {
+                    projects.onPathMoved(state.file, result.value)
                     remapExpanded(state.file, result.value)
                     publish { copy(renaming = null) }
                     state.file.parentFile?.let(::reloadIfExpanded)
@@ -272,6 +382,7 @@ class FileTreeViewModel(
         viewModelScope.launch {
             when (val result = fileOps.delete(pending.file)) {
                 is FsResult.Ok -> {
+                    projects.onPathDeleted(pending.file)
                     forget(pending.file)
                     val below = pending.file.path + File.separator
                     publish {
@@ -314,6 +425,7 @@ class FileTreeViewModel(
             when (result) {
                 is FsResult.Ok -> {
                     if (clip.isCut) {
+                        projects.onPathMoved(clip.file, result.value)
                         remapExpanded(clip.file, result.value)
                         publish { copy(clipboard = null) }
                         clip.file.parentFile?.let(::reloadIfExpanded)
@@ -336,7 +448,7 @@ class FileTreeViewModel(
     private fun publish(transform: FileTreeUiState.() -> FileTreeUiState = { this }) {
         _uiState.update { current ->
             val next = current.transform()
-            next.copy(rows = buildRows(next))
+            next.copy(rows = if (ready) buildRows(next) else emptyList())
         }
     }
 
@@ -370,6 +482,20 @@ class FileTreeViewModel(
             }
         }
 
+        if (state.pins.isNotEmpty()) {
+            rows += TreeRow.PinnedHeader
+            state.pins.forEach { pin ->
+                val parent = pin.file.parentFile?.path.orEmpty()
+                val label = if (PathUtil.isSameOrUnder(parent, root.path)) {
+                    parent.removePrefix(root.path).trimStart(File.separatorChar)
+                } else {
+                    parent
+                }
+                rows += TreeRow.Pinned(pin, label)
+            }
+            rows += TreeRow.Divider
+        }
+
         val rootOpen = root.path in expanded
         rows += TreeRow.Entry(
             file = root,
@@ -389,15 +515,6 @@ class FileTreeViewModel(
         watcher.stop()
     }
 
-    private fun FsResult.Err.toUiText(): UiText = when (error) {
-        FsError.INVALID_NAME -> UiText(R.string.fs_err_invalid_name)
-        FsError.ALREADY_EXISTS -> UiText(R.string.fs_err_exists)
-        FsError.NOT_FOUND -> UiText(R.string.fs_err_not_found)
-        FsError.INSIDE_ITSELF -> UiText(R.string.fs_err_inside_itself)
-        FsError.PERMISSION -> UiText(R.string.fs_err_permission)
-        FsError.IO -> UiText(R.string.fs_err_io)
-    }
-
     companion object {
         private const val GIT_DIR = ".git"
         private const val WATCH_DEBOUNCE_MS = 250L
@@ -405,12 +522,11 @@ class FileTreeViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as XcodeApp
-                val storageRoot = Environment.getExternalStorageDirectory()
                 FileTreeViewModel(
                     fileOps = app.container.fileOps,
                     openPolicy = app.container.fileOpenPolicy,
-                    root = storageRoot,
-                    isDeviceStorage = true,
+                    projects = app.container.projectRepository,
+                    storageRoot = Environment.getExternalStorageDirectory(),
                 )
             }
         }

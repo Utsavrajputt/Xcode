@@ -10,6 +10,8 @@
     <string name="action_delete">Delete</string>
     <string name="action_open_anyway">Open anyway</string>
     <string name="action_clear">Clear</string>
+    <string name="action_back">Back</string>
+    <string name="action_open_folder">Open</string>
 
     <string name="menu_show_hidden">Show hidden files</string>
     <string name="menu_show_git">Show .git folder</string>

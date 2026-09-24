@@ -3,6 +3,7 @@ package com.invictus.xcode.feature.workspace
 import android.content.Context
 import androidx.annotation.StringRes
 import com.invictus.xcode.core.fs.OpenDecision
+import com.invictus.xcode.core.project.PinnedItem
 import java.io.File
 
 /** A string resource + args, so ViewModels can talk to the UI without holding a Context. */
@@ -23,6 +24,19 @@ sealed interface TreeRow {
         val isRoot: Boolean,
     ) : TreeRow {
         override val key: String get() = file.path
+    }
+
+    data object PinnedHeader : TreeRow {
+        override val key: String get() = "pin:header"
+    }
+
+    /** A pinned file/folder shown above the tree. [parentLabel] is its folder relative to the project. */
+    data class Pinned(val item: PinnedItem, val parentLabel: String) : TreeRow {
+        override val key: String get() = "pin:" + item.file.path
+    }
+
+    data object Divider : TreeRow {
+        override val key: String get() = "pin:divider"
     }
 
     /** Placeholder shown under an expanded folder that has nothing (visible) in it. */
@@ -53,6 +67,8 @@ data class FileTreeUiState(
     val renaming: RenameState? = null,
     val dialog: TreeDialog? = null,
     val rootError: UiText? = null,
+    val pins: List<PinnedItem> = emptyList(),
+    val pinnedPaths: Set<String> = emptySet(),
 )
 
 sealed interface FileTreeEvent {
@@ -81,10 +97,22 @@ sealed interface FileTreeEvent {
 
     /** User accepted the binary / large-file warning. */
     data class ConfirmOpen(val file: File) : FileTreeEvent
+
+    /** Switch the workspace to [dir] (from the Open Project sheet). */
+    data class OpenProject(val dir: File) : FileTreeEvent
+
+    /** A project folder was renamed on disk (from recents): follow it if it is the open one. */
+    data class ProjectMoved(val old: File, val new: File) : FileTreeEvent
+
+    data class TogglePin(val file: File, val isDirectory: Boolean) : FileTreeEvent
+
+    /** Expand down to [file] and scroll to it (a directory is expanded too). */
+    data class Reveal(val file: File, val isDirectory: Boolean) : FileTreeEvent
 }
 
 /** One-shot things the screen must react to. */
 sealed interface FileTreeEffect {
     data class Message(val text: UiText) : FileTreeEffect
     data class OpenFile(val file: File) : FileTreeEffect
+    data class ScrollTo(val path: String) : FileTreeEffect
 }
