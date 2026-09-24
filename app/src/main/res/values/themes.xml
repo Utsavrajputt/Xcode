@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Only the window/splash theme; all real theming is Compose Material 3. -->
+    <style name="Theme.Xcode" parent="android:Theme.Material.DayNight.NoActionBar" />
+</resources>
