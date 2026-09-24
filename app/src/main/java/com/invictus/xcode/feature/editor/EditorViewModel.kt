@@ -2,11 +2,14 @@ package com.invictus.xcode.feature.editor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
+import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.editor.FileTooLargeException
 import com.invictus.xcode.core.editor.TabBuffer
+import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.editor.TextFileIo
 import com.invictus.xcode.feature.workspace.UiText
 import io.github.rosemoe.sora.text.Content
@@ -29,8 +32,14 @@ import java.io.IOException
  * Everything mutable is touched on the main thread; disk work runs on [io].
  */
 class EditorViewModel(
+    val textMate: TextMateSupport,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+
+    init {
+        // Grammars load while the user is still browsing the tree; editors upgrade when ready.
+        viewModelScope.launch { textMate.ensureLoaded() }
+    }
 
     private val buffers = LinkedHashMap<String, TabBuffer>()
     private val loading = HashSet<String>()
@@ -216,7 +225,10 @@ class EditorViewModel(
 
     companion object {
         val Factory = viewModelFactory {
-            initializer { EditorViewModel() }
+            initializer {
+                val app = this[APPLICATION_KEY] as XcodeApp
+                EditorViewModel(app.container.textMate)
+            }
         }
     }
 }

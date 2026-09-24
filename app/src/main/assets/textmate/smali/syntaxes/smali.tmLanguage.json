@@ -1,0 +1,65 @@
+{
+ "name": "Smali",
+ "scopeName": "source.smali",
+ "patterns": [
+  {
+   "name": "comment.line.smali",
+   "match": "#.*$"
+  },
+  {
+   "name": "string.quoted.double.smali",
+   "begin": "\"",
+   "end": "(\")|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.single.smali",
+   "match": "'(?:\\\\.|[^'\\\\])'"
+  },
+  {
+   "name": "keyword.control.directive.smali",
+   "match": "(?<![\\w-])\\.[a-z][a-z-]*(?:\\s(?:method|annotation|packed-switch|sparse-switch|array-data|subannotation|local))?"
+  },
+  {
+   "name": "storage.modifier.smali",
+   "match": "\\b(?:public|private|protected|static|final|abstract|synthetic|bridge|varargs|native|interface|enum|annotation|constructor|declared-synchronized|volatile|transient|synchronized|strict|system|runtime|build)\\b"
+  },
+  {
+   "name": "entity.name.type.class.smali",
+   "match": "\\[*L[\\w$/]+;"
+  },
+  {
+   "name": "entity.name.function.smali",
+   "match": "(?<=->)[\\w$<>]+"
+  },
+  {
+   "name": "punctuation.separator.smali",
+   "match": "->"
+  },
+  {
+   "name": "variable.language.register.smali",
+   "match": "\\b[vp]\\d+\\b"
+  },
+  {
+   "name": "entity.name.label.smali",
+   "match": "(?<![\\w;>)]):\\w+"
+  },
+  {
+   "name": "keyword.other.opcode.smali",
+   "match": "(?<![\\w-])(?:nop|move[\\w/-]*|return[\\w-]*|const[\\w/-]*|monitor-(?:enter|exit)|check-cast|instance-of|array-length|new-instance|new-array|filled-new-array[\\w/]*|fill-array-data|throw|goto[\\w/]*|packed-switch|sparse-switch|cmp[\\w-]*|if-[a-z]+|[ais](?:get|put)[\\w-]*|invoke-[\\w/-]+|(?:int|long|float|double)-to-\\w+|(?:neg|not)-\\w+|(?:add|sub|mul|div|rem|and|or|xor|shl|shr|ushr|rsub)-[a-z]+(?:/[\\w]+)?)(?![\\w-])"
+  },
+  {
+   "name": "constant.numeric.smali",
+   "match": "-?\\b0x[0-9a-fA-F]+[LSt]?\\b|-?\\b\\d+(?:\\.\\d+)?[fFLSt]?\\b"
+  },
+  {
+   "name": "storage.type.primitive.smali",
+   "match": "(?<=[\\s(\\[)])\\[*[ZBSCIJFDV](?=[\\s)\\[;]|$)"
+  }
+ ]
+}

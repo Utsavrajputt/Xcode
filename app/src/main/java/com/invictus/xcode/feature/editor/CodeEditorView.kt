@@ -7,6 +7,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.invictus.xcode.core.editor.TabBuffer
+import com.invictus.xcode.core.editor.TextMateSupport
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -28,6 +29,8 @@ private const val DEFAULT_TEXT_SIZE_SP = 14f
 fun CodeEditorView(
     buffer: TabBuffer,
     darkTheme: Boolean,
+    textMate: TextMateSupport,
+    highlightReady: Boolean,
     handle: EditorHandle,
     onEdited: () -> Unit,
     onViewState: (line: Int, column: Int, textSizePx: Float) -> Unit,
@@ -43,8 +46,7 @@ fun CodeEditorView(
                 typefaceText = Typeface.MONOSPACE
                 setTextSize(DEFAULT_TEXT_SIZE_SP)
                 if (buffer.textSizePx > 0f) textSizePx = buffer.textSizePx
-                colorScheme = schemeFor(darkTheme)
-                tag = darkTheme
+                applyLook(this, buffer, textMate, darkTheme, highlightReady)
 
                 // Same Content object as last time, so undo/redo history comes along.
                 setText(buffer.content)
@@ -63,9 +65,8 @@ fun CodeEditorView(
             }
         },
         update = { editor ->
-            if (editor.tag != darkTheme) {
-                editor.colorScheme = schemeFor(darkTheme)
-                editor.tag = darkTheme
+            if (editor.tag != Look(darkTheme, highlightReady)) {
+                applyLook(editor, buffer, textMate, darkTheme, highlightReady)
             }
         },
         onRelease = { editor ->
@@ -79,5 +80,18 @@ fun CodeEditorView(
     )
 }
 
-private fun schemeFor(dark: Boolean): EditorColorScheme =
-    if (dark) SchemeDarcula() else EditorColorScheme()
+/** What an editor view is currently dressed in; kept in its `tag` to skip redundant work. */
+private data class Look(val dark: Boolean, val highlighted: Boolean)
+
+private fun applyLook(
+    editor: CodeEditor,
+    buffer: TabBuffer,
+    textMate: TextMateSupport,
+    dark: Boolean,
+    highlightReady: Boolean,
+) {
+    val highlighted = highlightReady && textMate.applyTo(editor, buffer.file, dark)
+    // Plain-text fallback (grammars still loading, or TextMate failed): built-in schemes.
+    if (!highlighted) editor.colorScheme = if (dark) SchemeDarcula() else EditorColorScheme()
+    editor.tag = Look(dark, highlightReady)
+}

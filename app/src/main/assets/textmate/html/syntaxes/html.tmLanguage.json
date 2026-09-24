@@ -1,0 +1,155 @@
+{
+ "name": "HTML",
+ "scopeName": "text.html.basic",
+ "patterns": [
+  {
+   "name": "comment.block.html",
+   "begin": "<!--",
+   "end": "-->"
+  },
+  {
+   "name": "meta.doctype.html",
+   "match": "<!DOCTYPE[^>]*>"
+  },
+  {
+   "begin": "(<)(style)(?=[\\s>])([^>]*)(>)",
+   "end": "(</)(style)(\\s*>)",
+   "beginCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    },
+    "2": {
+     "name": "entity.name.tag"
+    },
+    "3": {
+     "patterns": [
+      {
+       "include": "#attrs"
+      }
+     ]
+    },
+    "4": {
+     "name": "punctuation.definition.tag"
+    }
+   },
+   "endCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    },
+    "2": {
+     "name": "entity.name.tag"
+    },
+    "3": {
+     "name": "punctuation.definition.tag"
+    }
+   },
+   "contentName": "meta.embedded",
+   "patterns": [
+    {
+     "include": "source.css"
+    }
+   ]
+  },
+  {
+   "begin": "(<)(script)(?=[\\s>])([^>]*)(>)",
+   "end": "(</)(script)(\\s*>)",
+   "beginCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    },
+    "2": {
+     "name": "entity.name.tag"
+    },
+    "3": {
+     "patterns": [
+      {
+       "include": "#attrs"
+      }
+     ]
+    },
+    "4": {
+     "name": "punctuation.definition.tag"
+    }
+   },
+   "endCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    },
+    "2": {
+     "name": "entity.name.tag"
+    },
+    "3": {
+     "name": "punctuation.definition.tag"
+    }
+   },
+   "contentName": "meta.embedded",
+   "patterns": [
+    {
+     "include": "source.js"
+    }
+   ]
+  },
+  {
+   "begin": "(</?)([A-Za-z][\\w:.-]*)",
+   "end": "(/?>)",
+   "beginCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    },
+    "2": {
+     "name": "entity.name.tag"
+    }
+   },
+   "endCaptures": {
+    "1": {
+     "name": "punctuation.definition.tag"
+    }
+   },
+   "patterns": [
+    {
+     "include": "#attrs"
+    }
+   ]
+  },
+  {
+   "name": "constant.character.entity",
+   "match": "&[\\w#]+;"
+  }
+ ],
+ "repository": {
+  "attrs": {
+   "patterns": [
+    {
+     "name": "string.quoted.double.xml",
+     "begin": "\"",
+     "end": "\"",
+     "patterns": [
+      {
+       "name": "constant.character.entity",
+       "match": "&[\\w#]+;"
+      }
+     ]
+    },
+    {
+     "name": "string.quoted.single.xml",
+     "begin": "'",
+     "end": "'",
+     "patterns": [
+      {
+       "name": "constant.character.entity",
+       "match": "&[\\w#]+;"
+      }
+     ]
+    },
+    {
+     "name": "entity.other.attribute-name",
+     "match": "[A-Za-z_:@][\\w:.@-]*"
+    },
+    {
+     "name": "punctuation.separator.key-value",
+     "match": "="
+    }
+   ]
+  }
+ }
+}

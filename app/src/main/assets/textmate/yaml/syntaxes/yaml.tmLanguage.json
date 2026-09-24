@@ -1,0 +1,54 @@
+{
+ "name": "YAML",
+ "scopeName": "source.yaml",
+ "patterns": [
+  {
+   "name": "comment.line.number-sign.yaml",
+   "match": "(?:^|(?<=\\s))#.*$"
+  },
+  {
+   "name": "meta.document.yaml",
+   "match": "^(?:---|\\.\\.\\.)(?=\\s|$)"
+  },
+  {
+   "name": "entity.name.tag.yaml",
+   "match": "^\\s*(?:-\\s+)*(?:\"[^\"\\n]*\"|'[^'\\n]*'|[^\\s:#'\"\\-\\[\\]{},&*!|>%@`][^:#\\n]*?)(?=\\s*:(?:\\s|$))"
+  },
+  {
+   "name": "string.quoted.double.yaml",
+   "begin": "\"",
+   "end": "(\")|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.single.yaml",
+   "begin": "'",
+   "end": "(')|$"
+  },
+  {
+   "name": "variable.other.anchor.yaml",
+   "match": "[&*][\\w-]+"
+  },
+  {
+   "name": "storage.type.tag.yaml",
+   "match": "!{1,2}[\\w!<>:/.-]*"
+  },
+  {
+   "name": "constant.language.yaml",
+   "match": "\\b(?:true|false|null|yes|no|on|off)\\b|~"
+  },
+  {
+   "name": "constant.numeric.yaml",
+   "match": "(?<![\\w.-])[-+]?(?:0x[0-9a-fA-F]+|\\d[\\d_]*(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)(?![\\w.-])"
+  },
+  {
+   "name": "keyword.control.block-scalar.yaml",
+   "match": "[|>][+-]?\\d*(?=\\s*$)"
+  }
+ ]
+}

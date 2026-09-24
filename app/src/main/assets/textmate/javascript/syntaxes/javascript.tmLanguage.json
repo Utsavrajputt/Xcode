@@ -1,0 +1,124 @@
+{
+ "name": "JavaScript / TypeScript",
+ "scopeName": "source.js",
+ "patterns": [
+  {
+   "name": "comment.block.js",
+   "begin": "/\\*",
+   "end": "\\*/"
+  },
+  {
+   "name": "comment.line.js",
+   "match": "//.*$"
+  },
+  {
+   "name": "comment.line.shebang.js",
+   "match": "^#!.*$"
+  },
+  {
+   "name": "string.template.js",
+   "begin": "`",
+   "end": "`",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    },
+    {
+     "name": "meta.template.expression.js",
+     "begin": "\\$\\{",
+     "end": "\\}",
+     "patterns": [
+      {
+       "include": "$self"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.double.js",
+   "begin": "\"",
+   "end": "(\")|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.single.js",
+   "begin": "'",
+   "end": "(')|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "storage.type.annotation.js",
+   "match": "@[A-Za-z_$][\\w$.]*"
+  },
+  {
+   "match": "\\b(class|interface|enum|namespace|type)\\s+([A-Za-z_$][\\w$]*)",
+   "captures": {
+    "1": {
+     "name": "storage.type.js"
+    },
+    "2": {
+     "name": "entity.name.type.js"
+    }
+   }
+  },
+  {
+   "match": "\\b(function)\\*?\\s+([A-Za-z_$][\\w$]*)",
+   "captures": {
+    "1": {
+     "name": "storage.type.function.js"
+    },
+    "2": {
+     "name": "entity.name.function.js"
+    }
+   }
+  },
+  {
+   "name": "keyword.control.js",
+   "match": "\\b(?:if|else|switch|case|default|for|while|do|return|break|continue|throw|try|catch|finally|in|of|instanceof|typeof|new|delete|void|await|yield|import|export|from|as|with)\\b"
+  },
+  {
+   "name": "storage.type.js",
+   "match": "\\b(?:var|let|const|function|class|extends|interface|type|enum|namespace|module|declare|async|static|get|set)\\b"
+  },
+  {
+   "name": "storage.modifier.js",
+   "match": "\\b(?:public|private|protected|readonly|abstract|override|keyof|implements)\\b"
+  },
+  {
+   "name": "constant.language.js",
+   "match": "\\b(?:true|false|null|undefined|NaN|Infinity)\\b"
+  },
+  {
+   "name": "variable.language.js",
+   "match": "\\b(?:this|super|arguments)\\b"
+  },
+  {
+   "name": "support.class.builtin.js",
+   "match": "\\b(?:console|window|document|Math|JSON|Object|Array|String|Number|Boolean|Promise|Map|Set|Date|RegExp|Error|Symbol)\\b"
+  },
+  {
+   "name": "constant.numeric.js",
+   "match": "(?<![\\w.$])(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?)[fFdDlLuUnN]*\\b"
+  },
+  {
+   "name": "entity.name.type.js",
+   "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+  },
+  {
+   "name": "entity.name.function.js",
+   "match": "\\b[A-Za-z_]\\w*(?=\\s*\\()"
+  }
+ ]
+}

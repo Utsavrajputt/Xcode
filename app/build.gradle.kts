@@ -47,6 +47,20 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        resources {
+            // Sora/tm4e pull in several jars that each ship these; harmless to drop.
+            excludes += setOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/INDEX.LIST",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+            )
+        }
+    }
 }
 
 kotlin {
@@ -63,6 +77,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.sora.editor)
+    implementation(libs.sora.textmate)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

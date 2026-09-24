@@ -1,0 +1,142 @@
+{
+ "name": "Groovy / Gradle",
+ "scopeName": "source.groovy",
+ "patterns": [
+  {
+   "name": "comment.block.groovy",
+   "begin": "/\\*",
+   "end": "\\*/"
+  },
+  {
+   "name": "comment.line.groovy",
+   "match": "//.*$"
+  },
+  {
+   "name": "comment.line.shebang.groovy",
+   "match": "^#!.*$"
+  },
+  {
+   "name": "string.quoted.triple.groovy",
+   "begin": "'''",
+   "end": "'''",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.triple.groovy",
+   "begin": "\"\"\"",
+   "end": "\"\"\"",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    },
+    {
+     "name": "variable.other.template",
+     "match": "\\$[A-Za-z_][\\w.]*"
+    },
+    {
+     "name": "meta.template.expression",
+     "begin": "\\$\\{",
+     "end": "\\}",
+     "patterns": [
+      {
+       "include": "$self"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.double.groovy",
+   "begin": "\"",
+   "end": "(\")|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    },
+    {
+     "name": "variable.other.template",
+     "match": "\\$[A-Za-z_][\\w.]*"
+    },
+    {
+     "name": "meta.template.expression",
+     "begin": "\\$\\{",
+     "end": "\\}",
+     "patterns": [
+      {
+       "include": "$self"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "string.quoted.single.groovy",
+   "begin": "'",
+   "end": "(')|$",
+   "patterns": [
+    {
+     "name": "constant.character.escape",
+     "match": "\\\\(?:u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)"
+    }
+   ]
+  },
+  {
+   "name": "storage.type.annotation.groovy",
+   "match": "@[A-Za-z_][\\w.]*"
+  },
+  {
+   "match": "\\b(class|interface|enum|trait)\\s+([A-Za-z_$][\\w$]*)",
+   "captures": {
+    "1": {
+     "name": "storage.type.groovy"
+    },
+    "2": {
+     "name": "entity.name.type.groovy"
+    }
+   }
+  },
+  {
+   "name": "keyword.control.groovy",
+   "match": "\\b(?:if|else|switch|case|default|for|while|do|return|break|continue|throw|try|catch|finally|in|instanceof|new|assert|as)\\b"
+  },
+  {
+   "name": "storage.type.groovy",
+   "match": "\\b(?:class|interface|enum|trait|extends|implements|package|import|def|void|boolean|byte|char|short|int|long|float|double|var)\\b"
+  },
+  {
+   "name": "storage.modifier.groovy",
+   "match": "\\b(?:public|private|protected|static|final|abstract|synchronized|transient|volatile)\\b"
+  },
+  {
+   "name": "constant.language.groovy",
+   "match": "\\b(?:true|false|null)\\b"
+  },
+  {
+   "name": "variable.language.groovy",
+   "match": "\\b(?:this|super|it|project|rootProject)\\b"
+  },
+  {
+   "name": "support.function.gradle",
+   "match": "\\b(?:apply|plugin|plugins|dependencies|repositories|android|buildscript|allprojects|subprojects|task|tasks|ext|implementation|api|compileOnly|runtimeOnly|annotationProcessor|testImplementation|androidTestImplementation|debugImplementation|kapt|classpath|id|version|mavenCentral|google|jcenter|mavenLocal|maven|url|include|rootProject)\\b"
+  },
+  {
+   "name": "constant.numeric.groovy",
+   "match": "(?<![\\w.$])(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?)[fFdDlLuUnN]*\\b"
+  },
+  {
+   "name": "entity.name.type.groovy",
+   "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+  },
+  {
+   "name": "entity.name.function.groovy",
+   "match": "\\b[A-Za-z_]\\w*(?=\\s*\\()"
+  }
+ ]
+}

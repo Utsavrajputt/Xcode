@@ -64,6 +64,7 @@ fun EditorScreen(
     val handle = remember { EditorHandle() }
     val context = LocalContext.current
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val highlightReady by viewModel.textMate.ready.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
@@ -131,6 +132,8 @@ fun EditorScreen(
                         CodeEditorView(
                             buffer = buffer,
                             darkTheme = darkTheme,
+                            textMate = viewModel.textMate,
+                            highlightReady = highlightReady,
                             handle = handle,
                             onEdited = { viewModel.onEdited(path) },
                             onViewState = { line, column, size ->

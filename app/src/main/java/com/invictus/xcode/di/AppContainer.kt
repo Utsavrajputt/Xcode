@@ -1,6 +1,7 @@
 package com.invictus.xcode.di
 
 import android.content.Context
+import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.fs.FileOpenPolicy
 import com.invictus.xcode.core.fs.FileOps
 import com.invictus.xcode.core.data.AppDatabase
@@ -27,4 +28,6 @@ class AppContainer(context: Context) {
     val projectRepository: ProjectRepository by lazy { ProjectRepository(database) }
 
     val projectBackup: ProjectBackup by lazy { ProjectBackup() }
+
+    val textMate: TextMateSupport by lazy { TextMateSupport(appContext) }
 }
