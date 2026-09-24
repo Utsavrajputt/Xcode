@@ -5,5 +5,4 @@
     <string name="permission_button">Grant access</string>
     <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
     <string name="workspace_title">Workspace</string>
-    <string name="workspace_placeholder">File tree and projects arrive in M2.</string>
 </resources>

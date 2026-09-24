@@ -1,6 +1,8 @@
 package com.invictus.xcode.di
 
 import android.content.Context
+import com.invictus.xcode.core.fs.FileOpenPolicy
+import com.invictus.xcode.core.fs.FileOps
 import com.invictus.xcode.core.fs.StoragePermission
 
 /**
@@ -12,4 +14,8 @@ class AppContainer(context: Context) {
     private val appContext = context.applicationContext
 
     val storagePermission: StoragePermission by lazy { StoragePermission(appContext) }
+
+    val fileOps: FileOps by lazy { FileOps() }
+
+    val fileOpenPolicy: FileOpenPolicy by lazy { FileOpenPolicy() }
 }
