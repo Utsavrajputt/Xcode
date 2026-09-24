@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="permission_title">All files access needed</string>
+    <string name="permission_body">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git operations you start.</string>
+    <string name="permission_button">Grant access</string>
+    <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
+    <string name="workspace_title">Workspace</string>
+    <string name="workspace_placeholder">File tree and projects arrive in M2.</string>
+</resources>
