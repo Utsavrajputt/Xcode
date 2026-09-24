@@ -78,13 +78,25 @@ jobs:
 
       # app/build.gradle.kts reads KEYSTORE_FILE/KEYSTORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD
       # from the environment and signs the debug build type with them when present.
-      # On fork PRs the KEYSTORE_BASE64 secret isn't available, so this step is skipped
-      # and the build falls back to Gradle's default debug keystore.
+      # The secrets context isn't valid in a step-level `if:`, so the presence
+      # check happens inside this run: script instead (same pattern as xmd's
+      # android-build.yml). On fork PRs the secrets aren't available, so the
+      # build falls back to Gradle's default debug keystore.
       - name: Decode signing keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ -z "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+            echo "KEYSTORE_BASE64 is not set (expected for fork PRs); using the default debug keystore."
+            exit 0
+          fi
+
+          if [[ -z "${{ secrets.KEY_ALIAS }}" || -z "${{ secrets.KEYSTORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
+            echo "KEYSTORE_BASE64 is set but KEY_ALIAS / KEYSTORE_PASSWORD / KEY_PASSWORD are missing."
+            exit 1
+          fi
+
           keystore_path="$RUNNER_TEMP/xcode-debug.jks"
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "$keystore_path"
           {
