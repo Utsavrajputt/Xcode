@@ -246,6 +246,10 @@ private fun RecentProjectRow(
 private fun Compass(modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
     val outline = MaterialTheme.colorScheme.outlineVariant
+<<<<<<< HEAD
+=======
+    val surface = MaterialTheme.colorScheme.surface
+>>>>>>> 88ee0c4 (fix compile)
     val infiniteTransition = rememberInfiniteTransition(label = "compass")
     val angle by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -307,7 +311,11 @@ private fun Compass(modifier: Modifier = Modifier) {
             }
             drawPath(needle, primary.copy(alpha = 0.85f))
             // clean hole behind the center button
+<<<<<<< HEAD
             drawCircle(MaterialTheme.colorScheme.surface, radius = r * 0.16f, center = c)
+=======
+            drawCircle(surface, radius = r * 0.16f, center = c)
+>>>>>>> 88ee0c4 (fix compile)
             drawCircle(primary, radius = 5f, center = c)
         }
         val labelStyle = MaterialTheme.typography.labelLarge
