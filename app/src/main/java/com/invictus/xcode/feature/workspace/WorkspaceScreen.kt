@@ -70,8 +70,10 @@ fun WorkspaceScreen(
     projectsViewModel: ProjectsViewModel = viewModel(factory = ProjectsViewModel.Factory),
     onOpenFile: ((File) -> Unit)? = null,
     externalMessages: Flow<UiText>? = null,
+    onProjectRoot: (File) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(state.root) { onProjectRoot(state.root) }
     val projectsState by projectsViewModel.uiState.collectAsStateWithLifecycle()
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()

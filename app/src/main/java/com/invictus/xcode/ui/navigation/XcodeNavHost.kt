@@ -39,6 +39,7 @@ fun XcodeNavHost(
             WorkspaceScreen(
                 onOpenFile = { editorViewModel.onEvent(EditorEvent.Open(it)) },
                 externalMessages = editorViewModel.messages,
+                onProjectRoot = { editorViewModel.onProjectOpened(it.path) },
             )
         }
         composable(Routes.EDITOR) {

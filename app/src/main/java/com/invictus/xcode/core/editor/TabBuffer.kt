@@ -30,4 +30,14 @@ class TabBuffer(
 
     /** 0 = editor default. Kept so a pinch-zoomed tab stays zoomed. */
     var textSizePx: Float = 0f
+
+    /** Virtual scroll offset in pixels, restored on tab switch alongside cursor + zoom. */
+    var scrollX: Int = 0
+    var scrollY: Int = 0
+
+    /** Survives close-all/close-others and is placed first in the tab row. */
+    var isPinned: Boolean = false
+
+    /** Hash of the file's content as far as this app instance knows it (set on open + save). */
+    var diskContentHash: String = ""
 }

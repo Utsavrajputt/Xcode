@@ -40,6 +40,7 @@ class TextMateSupport(private val context: Context) {
                 files.addFileProvider(AssetsFileResolver(context.applicationContext.assets))
                 loadTheme(LIGHT_THEME, dark = false)
                 loadTheme(DARK_THEME, dark = true)
+                EditorThemes.ALL.forEach { loadTheme(it.assetName, it.isDark) }
                 ThemeRegistry.getInstance().setTheme(LIGHT_THEME)
                 GrammarRegistry.getInstance().loadGrammars("textmate/languages.json")
                 _ready.value = true
@@ -61,11 +62,20 @@ class TextMateSupport(private val context: Context) {
      * Applies the theme and (for known file types) the language to [editor].
      * Order matters: the theme must be active before the language is created.
      * Returns false if highlighting could not be applied; the editor then stays plain.
+     *
+     * [themeId] is [EditorThemes.SYSTEM_DEFAULT] (mirror the app's own light/dark, the
+     * pre-picker behavior) or one of [EditorThemes.ALL]; an unknown id falls back the same way.
      */
-    fun applyTo(editor: CodeEditor, file: File, dark: Boolean): Boolean {
+    fun applyTo(
+        editor: CodeEditor,
+        file: File,
+        dark: Boolean,
+        themeId: String = EditorThemes.SYSTEM_DEFAULT,
+    ): Boolean {
         if (!_ready.value) return false
         return try {
-            ThemeRegistry.getInstance().setTheme(if (dark) DARK_THEME else LIGHT_THEME)
+            val themeName = EditorThemes.find(themeId)?.assetName ?: if (dark) DARK_THEME else LIGHT_THEME
+            ThemeRegistry.getInstance().setTheme(themeName)
             editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
             val scope = LanguageRegistry.scopeFor(file)
             if (scope != null) {

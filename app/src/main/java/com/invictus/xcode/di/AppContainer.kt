@@ -1,6 +1,8 @@
 package com.invictus.xcode.di
 
 import android.content.Context
+import com.invictus.xcode.core.editor.EditorSessionStore
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.fs.FileOpenPolicy
 import com.invictus.xcode.core.fs.FileOps
@@ -30,4 +32,8 @@ class AppContainer(context: Context) {
     val projectBackup: ProjectBackup by lazy { ProjectBackup() }
 
     val textMate: TextMateSupport by lazy { TextMateSupport(appContext) }
+
+    val editorSessionStore: EditorSessionStore by lazy { EditorSessionStore(appContext) }
+
+    val editorSettingsStore: EditorSettingsStore by lazy { EditorSettingsStore(appContext) }
 }

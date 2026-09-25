@@ -10,6 +10,7 @@ coroutines = "1.8.1"
 ksp = "2.3.3"
 room = "2.8.4"
 sora = "0.24.5"
+datastore = "1.1.7"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -29,6 +30,7 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 sora-editor = { module = "io.github.rosemoe:editor", version.ref = "sora" }
 sora-textmate = { module = "io.github.rosemoe:language-textmate", version.ref = "sora" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

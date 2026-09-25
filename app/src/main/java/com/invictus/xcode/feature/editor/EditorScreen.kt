@@ -2,6 +2,8 @@ package com.invictus.xcode.feature.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,20 +39,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
+import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +75,8 @@ fun EditorScreen(
     val context = LocalContext.current
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val highlightReady by viewModel.textMate.ready.collectAsStateWithLifecycle()
+    val themeId by viewModel.themeId.collectAsStateWithLifecycle()
+    var showThemePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
@@ -109,6 +121,7 @@ fun EditorScreen(
                         activePath = state.activePath,
                         anyDirty = state.tabs.any { it.dirty },
                         onEvent = viewModel::onEvent,
+                        onOpenThemePicker = { showThemePicker = true },
                     )
                 },
             )
@@ -134,10 +147,11 @@ fun EditorScreen(
                             darkTheme = darkTheme,
                             textMate = viewModel.textMate,
                             highlightReady = highlightReady,
+                            themeId = themeId,
                             handle = handle,
                             onEdited = { viewModel.onEdited(path) },
-                            onViewState = { line, column, size ->
-                                viewModel.onViewState(path, line, column, size)
+                            onViewState = { line, column, size, scrollX, scrollY ->
+                                viewModel.onViewState(path, line, column, size, scrollX, scrollY)
                             },
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -150,6 +164,13 @@ fun EditorScreen(
     state.pendingClose?.let { pending ->
         UnsavedChangesDialog(pending = pending, onEvent = viewModel::onEvent)
     }
+    if (showThemePicker) {
+        ThemePickerDialog(
+            selected = themeId,
+            onSelect = { viewModel.setTheme(it) },
+            onDismiss = { showThemePicker = false },
+        )
+    }
 }
 
 @Composable
@@ -157,6 +178,7 @@ private fun EditorOverflowMenu(
     activePath: String?,
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
+    onOpenThemePicker: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -195,28 +217,97 @@ private fun EditorOverflowMenu(
                     onEvent(EditorEvent.CloseAll)
                 },
             )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.editor_theme_picker_title)) },
+                leadingIcon = { Icon(XIcons.Palette, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onOpenThemePicker()
+                },
+            )
         }
     }
 }
 
+/**
+ * Drag-to-reorder tab strip. Long-press starts a drag (a plain tap still just switches tabs);
+ * the dragged tab follows the finger and swaps past a neighbor once it crosses that neighbor's
+ * midpoint -- the usual reorderable-list feel.
+ */
 @Composable
 private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
     val listState = rememberLazyListState()
     LaunchedEffect(state.activePath) {
         val index = state.tabs.indexOfFirst { it.path == state.activePath }
-        if (index >= 0) listState.animateScrollToItem(index)
+        if (index >= 0 && listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
+            listState.animateScrollToItem(index)
+        }
     }
+
+    var draggingPath by remember { mutableStateOf<String?>(null) }
+    var dragOffsetX by remember { mutableFloatStateOf(0f) }
+    // Filled in by each tab's onGloballyPositioned; used to size neighbor swap thresholds.
+    val itemWidths = remember { mutableMapOf<String, Float>() }
+
     LazyRow(
         state = listState,
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer),
         verticalAlignment = Alignment.Bottom,
     ) {
         itemsIndexed(state.tabs, key = { _, tab -> tab.path }) { _, tab ->
+            val isDragging = tab.path == draggingPath
             EditorTab(
                 tab = tab,
                 selected = tab.path == state.activePath,
                 onSelect = { onEvent(EditorEvent.Select(tab.path)) },
                 onClose = { onEvent(EditorEvent.CloseTab(tab.path)) },
+                onTogglePin = { onEvent(EditorEvent.TogglePin(tab.path)) },
+                onCloseOthers = { onEvent(EditorEvent.CloseOthers(tab.path)) },
+                onCloseAll = { onEvent(EditorEvent.CloseAll) },
+                modifier = Modifier
+                    .onGloballyPositioned { coords -> itemWidths[tab.path] = coords.size.width.toFloat() }
+                    .zIndex(if (isDragging) 1f else 0f)
+                    .let { m -> if (isDragging) m.offset { IntOffset(dragOffsetX.roundToInt(), 0) } else m }
+                    .pointerInput(tab.path, state.tabs.size) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggingPath = tab.path
+                                dragOffsetX = 0f
+                            },
+                            onDragEnd = {
+                                draggingPath = null
+                                dragOffsetX = 0f
+                            },
+                            onDragCancel = {
+                                draggingPath = null
+                                dragOffsetX = 0f
+                            },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                dragOffsetX += amount.x
+                                val myWidth = itemWidths[tab.path] ?: return@detectDragGesturesAfterLongPress
+                                val fromIndex = state.tabs.indexOfFirst { it.path == tab.path }
+                                if (fromIndex < 0) return@detectDragGesturesAfterLongPress
+                                if (dragOffsetX > 0) {
+                                    val next = state.tabs.getOrNull(fromIndex + 1) ?: return@detectDragGesturesAfterLongPress
+                                    val nextWidth = itemWidths[next.path] ?: myWidth
+                                    if (dragOffsetX > nextWidth / 2) {
+                                        onEvent(EditorEvent.Reorder(fromIndex, fromIndex + 1))
+                                        dragOffsetX -= nextWidth
+                                    }
+                                } else {
+                                    val prev = if (fromIndex > 0) state.tabs[fromIndex - 1] else null
+                                    if (prev != null) {
+                                        val prevWidth = itemWidths[prev.path] ?: myWidth
+                                        if (-dragOffsetX > prevWidth / 2) {
+                                            onEvent(EditorEvent.Reorder(fromIndex, fromIndex - 1))
+                                            dragOffsetX += prevWidth
+                                        }
+                                    }
+                                }
+                            },
+                        )
+                    },
             )
         }
     }
@@ -228,16 +319,31 @@ private fun EditorTab(
     selected: Boolean,
     onSelect: () -> Unit,
     onClose: () -> Unit,
+    onTogglePin: () -> Unit,
+    onCloseOthers: () -> Unit,
+    onCloseAll: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     Surface(
         color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
-        modifier = Modifier.height(40.dp).clickable(onClick = onSelect),
+        modifier = modifier
+            .height(40.dp)
+            .combinedClickable(onClick = onSelect, onLongClick = { showMenu = true }),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 10.dp, end = 2.dp),
         ) {
+            if (tab.isPinned) {
+                Icon(
+                    imageVector = XIcons.Pin,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp).padding(end = 4.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
             FileTypeIcon(name = tab.name, isDirectory = false, size = 18.dp)
             Text(
                 text = tab.name,
@@ -263,6 +369,71 @@ private fun EditorTab(
                 )
             }
         }
+        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(
+                            if (tab.isPinned) R.string.editor_unpin_tab else R.string.editor_pin_tab,
+                        ),
+                    )
+                },
+                leadingIcon = { Icon(XIcons.Pin, contentDescription = null) },
+                onClick = { showMenu = false; onTogglePin() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.editor_close_others)) },
+                onClick = { showMenu = false; onCloseOthers() },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.editor_close_all)) },
+                onClick = { showMenu = false; onCloseAll() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemePickerDialog(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.editor_theme_picker_title)) },
+        text = {
+            Column {
+                ThemeRow(
+                    name = stringResource(R.string.editor_theme_system_default),
+                    isSelected = selected == EditorThemes.SYSTEM_DEFAULT,
+                    onClick = { onSelect(EditorThemes.SYSTEM_DEFAULT) },
+                )
+                EditorThemes.ALL.forEach { theme ->
+                    ThemeRow(
+                        name = theme.displayName,
+                        isSelected = selected == theme.id,
+                        onClick = { onSelect(theme.id) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close_dialog)) }
+        },
+    )
+}
+
+@Composable
+private fun ThemeRow(name: String, isSelected: Boolean, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
+    ) {
+        Box(modifier = Modifier.size(24.dp)) {
+            if (isSelected) Icon(XIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        }
+        Text(text = name, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
