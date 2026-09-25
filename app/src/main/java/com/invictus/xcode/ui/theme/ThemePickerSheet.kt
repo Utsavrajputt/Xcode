@@ -73,7 +73,7 @@ fun ThemePickerSheet(
                 ThemeMode.values().forEach { m ->
                     FilterChip(
                         selected = ThemeSettings.mode == m,
-                        onClick = { ThemeSettings.setMode(m) },
+                        onClick = { ThemeSettings.updateMode(m) },
                         label = {
                             Text(
                                 when (m) {
@@ -97,7 +97,7 @@ fun ThemePickerSheet(
                     Text("Pure black (AMOLED)", style = MaterialTheme.typography.bodyLarge)
                     Switch(
                         checked = ThemeSettings.amoled,
-                        onCheckedChange = { ThemeSettings.setAmoled(it) },
+                        onCheckedChange = { ThemeSettings.updateAmoled(it) },
                     )
                 }
             }
@@ -116,7 +116,7 @@ fun ThemePickerSheet(
                         selected = ThemeSettings.theme == theme,
                         onSelect = { tapPosition ->
                             transitionController.begin(view, tapPosition) {
-                                ThemeSettings.setTheme(theme)
+                                ThemeSettings.updateTheme(theme)
                             }
                         },
                     )

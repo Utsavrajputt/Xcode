@@ -32,17 +32,17 @@ object ThemeSettings {
         amoled = p.getBoolean(KEY_AMOLED, false)
     }
 
-    fun setTheme(value: AppTheme) {
+    fun updateTheme(value: AppTheme) {
         theme = value
         prefs?.edit()?.putString(KEY_THEME, value.name)?.apply()
     }
 
-    fun setMode(value: ThemeMode) {
+    fun updateMode(value: ThemeMode) {
         mode = value
         prefs?.edit()?.putString(KEY_MODE, value.name)?.apply()
     }
 
-    fun setAmoled(value: Boolean) {
+    fun updateAmoled(value: Boolean) {
         amoled = value
         prefs?.edit()?.putBoolean(KEY_AMOLED, value)?.apply()
     }
