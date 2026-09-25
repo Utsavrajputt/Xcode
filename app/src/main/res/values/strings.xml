@@ -1,4 +1,173 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- strings.xml -->
     <string name="app_name">Xcode</string>
+
+    <!-- strings_m1.xml -->
+    <string name="permission_title">All files access needed</string>
+    <string name="permission_body">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git operations you start.</string>
+    <string name="permission_button">Grant access</string>
+    <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
+    <string name="workspace_title">Workspace</string>
+
+    <!-- strings_m2.xml -->
+    <string name="workspace_root_internal">Internal storage</string>
+    <string name="workspace_open_placeholder">Editor arrives in M3 (%1$s)</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_more">More options</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_create">Create</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_open_anyway">Open anyway</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_back">Back</string>
+    <string name="action_open_folder">Open</string>
+    <string name="menu_show_hidden">Show hidden files</string>
+    <string name="menu_show_git">Show .git folder</string>
+    <string name="menu_collapse_all">Collapse all</string>
+    <string name="tree_menu_new_file">New file</string>
+    <string name="tree_menu_new_folder">New folder</string>
+    <string name="tree_menu_rename">Rename</string>
+    <string name="tree_menu_duplicate">Duplicate</string>
+    <string name="tree_menu_cut">Cut</string>
+    <string name="tree_menu_copy">Copy</string>
+    <string name="tree_menu_paste">Paste</string>
+    <string name="tree_menu_copy_path">Copy path</string>
+    <string name="tree_menu_delete">Delete</string>
+    <string name="tree_empty_folder">Empty folder</string>
+    <string name="dialog_new_file_title">New file</string>
+    <string name="dialog_new_folder_title">New folder</string>
+    <string name="dialog_name_label_file">File name (e.g. main.kt)</string>
+    <string name="dialog_name_label_folder">Folder name</string>
+    <string name="dialog_delete_title">Delete “%1$s”?</string>
+    <string name="dialog_delete_file_body">This can\'t be undone.</string>
+    <string name="dialog_delete_folder_body">The folder and everything inside it will be deleted permanently. This can\'t be undone.</string>
+    <string name="dialog_open_binary_title">Binary file</string>
+    <string name="dialog_open_binary_body">“%1$s” looks like a binary file. Opening it as text can show garbage or be slow.</string>
+    <string name="dialog_open_large_title">Large file</string>
+    <string name="dialog_open_large_body">“%1$s” is %2$s. Large files can be slow to edit.</string>
+    <string name="clipboard_bar_copied">Copied: %1$s</string>
+    <string name="clipboard_bar_cut">Cut: %1$s</string>
+    <string name="msg_path_copied">Path copied</string>
+    <string name="msg_pasted">Pasted “%1$s”</string>
+    <string name="msg_moved">Moved “%1$s”</string>
+    <string name="fs_err_invalid_name">That name isn\'t valid.</string>
+    <string name="fs_err_exists">Something with that name already exists.</string>
+    <string name="fs_err_not_found">That item no longer exists.</string>
+    <string name="fs_err_inside_itself">A folder can\'t be put inside itself.</string>
+    <string name="fs_err_permission">Permission denied.</string>
+    <string name="fs_err_io">The operation failed.</string>
+
+    <!-- strings_m2_part2.xml -->
+    <string name="menu_open_project">Open project</string>
+    <string name="menu_backup_project">Back up as ZIP</string>
+    <string name="sheet_title">Open project</string>
+    <string name="sheet_search_hint">Search, or type a path (/storage/…)</string>
+    <string name="sheet_open_path">Open this path</string>
+    <string name="sheet_path_missing">Folder not found</string>
+    <string name="sheet_recent">Recent</string>
+    <string name="sheet_browse">Browse</string>
+    <string name="sheet_no_subfolders">No subfolders</string>
+    <string name="sheet_current">Open now</string>
+    <string name="sheet_folder_missing">Folder missing · %1$s</string>
+    <string name="recent_menu_backup">Back up as ZIP</string>
+    <string name="recent_menu_remove">Remove from recents</string>
+    <string name="dialog_rename_project_title">Rename folder</string>
+    <string name="dialog_rename_project_hint">This renames the folder on your storage.</string>
+    <string name="tree_menu_pin">Pin</string>
+    <string name="tree_menu_unpin">Unpin</string>
+    <string name="tree_menu_reveal">Show in tree</string>
+    <string name="tree_pinned_header">Pinned</string>
+    <string name="msg_folder_unavailable">That folder is missing or can\'t be read.</string>
+    <string name="msg_project_renamed">Renamed to “%1$s”</string>
+    <string name="msg_backup_done">Backup saved to %1$s</string>
+    <string name="msg_backup_failed">Couldn\'t back up “%1$s”. Nothing was changed.</string>
+
+    <!-- strings_m3.xml -->
+    <string name="action_save">Save</string>
+    <string name="action_save_all">Save all</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_redo">Redo</string>
+    <string name="editor_close_tab">Close tab</string>
+    <string name="editor_close_others">Close other tabs</string>
+    <string name="editor_close_all">Close all tabs</string>
+    <string name="editor_unsaved_title">Unsaved changes</string>
+    <string name="editor_unsaved_one">\"%1$s\" has unsaved changes.</string>
+    <string name="editor_unsaved_many">%1$d files have unsaved changes.</string>
+    <string name="editor_err_read">Couldn\'t open %1$s</string>
+    <string name="editor_err_too_large">%1$s is too large to open for now</string>
+    <string name="editor_err_save">Couldn\'t save %1$s</string>
+
+    <!-- strings_m3_part3.xml -->
+    <string name="editor_pin_tab">Pin tab</string>
+    <string name="editor_unpin_tab">Unpin tab</string>
+    <string name="editor_theme_picker_title">Editor theme</string>
+    <string name="editor_theme_system_default">System default</string>
+    <string name="action_close_dialog">Close</string>
+    <string name="editor_session_edits_stale">%1$d unsaved file(s) changed outside the app; restored the file instead</string>
+
+    <!-- strings_m4_part1.xml -->
+    <string name="find_action">Find</string>
+    <string name="find_hint">Find</string>
+    <string name="find_replace_hint">Replace</string>
+    <string name="find_case_sensitive">Aa</string>
+    <string name="find_use_regex">.*</string>
+    <string name="find_replace">Replace</string>
+    <string name="find_replace_one">Replace</string>
+    <string name="find_replace_all">Replace all</string>
+    <string name="find_previous">Previous match</string>
+    <string name="find_next">Next match</string>
+    <string name="find_close">Close find</string>
+    <string name="find_invalid_regex">Invalid</string>
+
+    <!-- strings_m4_part2.xml -->
+    <string name="symbol_bar_customize">Customize symbols</string>
+    <string name="symbol_bar_dialog_title">Symbol bar</string>
+    <string name="symbol_bar_dialog_hint">Symbols separated by spaces, e.g. { } ( ) ;</string>
+    <string name="symbol_bar_reset">Reset to default</string>
+
+    <!-- strings_m4_part3.xml -->
+    <string name="editor_quick_actions">Quick actions</string>
+    <string name="qa_select_all">Select all</string>
+    <string name="qa_cut">Cut</string>
+    <string name="qa_copy">Copy</string>
+    <string name="qa_paste">Paste</string>
+    <string name="qa_duplicate_line">Duplicate line</string>
+    <string name="qa_delete_line">Delete line</string>
+    <string name="qa_move_line_up">Move line up</string>
+    <string name="qa_move_line_down">Move line down</string>
+    <string name="qa_toggle_comment">Toggle comment</string>
+
+    <!-- strings_m4_part6.xml -->
+    <string name="editor_external_modified">"%1$s" changed on disk</string>
+    <string name="editor_external_deleted">"%1$s" was deleted from disk</string>
+    <string name="editor_external_reload">Reload</string>
+    <string name="editor_external_keep_edits">Keep my edits</string>
+    <string name="editor_external_close_tab">Close tab</string>
+    <string name="editor_external_keep_as_new">Keep as new file</string>
+
+    <!-- strings_m4_part7.xml -->
+    <string name="action_settings">Settings</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_no_results">No settings found</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_editing">Editing</string>
+    <string name="settings_section_behavior">Behavior</string>
+    <string name="settings_editor_theme">Editor theme</string>
+    <string name="settings_font_size">Font size</string>
+    <string name="settings_font_size_preview">The quick fox { fn(x) }</string>
+    <string name="settings_symbol_bar">Symbol bar</string>
+    <string name="settings_symbol_bar_visible">Show symbol bar</string>
+    <string name="settings_symbol_bar_visible_desc">Quick-insert symbol strip above the keyboard</string>
+    <string name="settings_autocomplete">Autocomplete</string>
+    <string name="settings_autocomplete_desc">Suggest words and keywords while typing</string>
+    <string name="settings_pair_cursor">Pair cursor</string>
+    <string name="settings_pair_cursor_desc">Tapping ( on the symbol bar also inserts the closing )</string>
+    <string name="settings_external_changes">File changed outside the app</string>
+    <string name="settings_external_changes_ask">Always ask</string>
+    <string name="settings_external_changes_ask_desc">Show Reload / Keep my edits when a file changes on disk</string>
+    <string name="settings_external_changes_auto">Reload automatically</string>
+    <string name="settings_external_changes_auto_desc">Always take the on-disk version, even over unsaved edits</string>
 </resources>
