@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="editor_pin_tab">Pin tab</string>
-    <string name="editor_unpin_tab">Unpin tab</string>
-    <string name="editor_theme_picker_title">Editor theme</string>
-    <string name="editor_theme_system_default">System default</string>
-    <string name="action_close_dialog">Close</string>
-    <string name="editor_session_edits_stale">%1$d unsaved file(s) changed outside the app; restored the file instead</string>
-</resources>

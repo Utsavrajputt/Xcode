@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="editor_external_modified">"%1$s" changed on disk</string>
-    <string name="editor_external_deleted">"%1$s" was deleted from disk</string>
-    <string name="editor_external_reload">Reload</string>
-    <string name="editor_external_keep_edits">Keep my edits</string>
-    <string name="editor_external_close_tab">Close tab</string>
-    <string name="editor_external_keep_as_new">Keep as new file</string>
-</resources>

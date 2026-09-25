@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="symbol_bar_customize">Customize symbols</string>
-    <string name="symbol_bar_dialog_title">Symbol bar</string>
-    <string name="symbol_bar_dialog_hint">Symbols separated by spaces, e.g. { } ( ) ;</string>
-    <string name="symbol_bar_reset">Reset to default</string>
-</resources>
