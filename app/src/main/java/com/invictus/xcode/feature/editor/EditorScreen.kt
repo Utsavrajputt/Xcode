@@ -81,6 +81,7 @@ fun EditorScreen(
     var showThemePicker by remember { mutableStateOf(false) }
     var showSymbolCustomize by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
+    var showQuickActions by remember { mutableStateOf(false) }
     val findState = remember { FindReplaceState() }
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
 
@@ -163,6 +164,17 @@ fun EditorScreen(
                         enabled = active?.dirty == true,
                     ) {
                         Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
+                    }
+                    Box {
+                        IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
+                            Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
+                        }
+                        QuickActionsMenu(
+                            expanded = showQuickActions,
+                            handle = handle,
+                            activePath = activePath,
+                            onDismiss = { showQuickActions = false },
+                        )
                     }
                     EditorOverflowMenu(
                         activePath = state.activePath,

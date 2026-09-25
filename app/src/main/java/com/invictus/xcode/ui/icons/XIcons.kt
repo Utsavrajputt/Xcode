@@ -137,6 +137,11 @@ object XIcons {
         )
     }
 
+    /** Quick actions menu entry point (plan 3.2). */
+    val Bolt: ImageVector by lazy {
+        icon("Bolt", "M7,2v11h3v9l7,-12h-4l4,-8z")
+    }
+
     private fun icon(name: String, pathData: String): ImageVector =
         ImageVector.Builder(
             name = name,
