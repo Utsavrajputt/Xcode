@@ -114,12 +114,10 @@ fun EditorScreen(
             editor.searcher.stopSearch()
         } else {
             try {
-                val type = if (findState.useRegex) {
-                    EditorSearcher.SearchOptions.TYPE_REGULAR_EXPRESSION
-                } else {
-                    EditorSearcher.SearchOptions.TYPE_NORMAL
-                }
-                editor.searcher.search(findState.query, EditorSearcher.SearchOptions(!findState.caseSensitive, type))
+                editor.searcher.search(
+                    findState.query,
+                    EditorSearcher.SearchOptions(!findState.caseSensitive, findState.useRegex),
+                )
             } catch (_: Exception) {
                 // Independent countMatches() above already flags a bad pattern to the user.
             }
