@@ -38,7 +38,7 @@ fun FileTypeIcon(
     Box(
         modifier = modifier
             .size(size)
-            .background(style.background, RoundedCornerShape(5.dp)),
+            .background(style.background, MaterialTheme.shapes.extraSmall),
         contentAlignment = Alignment.Center,
     ) {
         Text(

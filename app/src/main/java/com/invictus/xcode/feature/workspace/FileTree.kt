@@ -78,6 +78,8 @@ fun FileTree(
     val rootLabel = state.rootName ?: stringResource(R.string.workspace_root_internal)
     LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
         items(items = state.rows, key = { it.key }) { row ->
+            // Expressive: rows spring into place when the tree expands/collapses.
+            Box(modifier = Modifier.animateItem()) {
             when (row) {
                 TreeRow.PinnedHeader -> PinnedHeader()
                 TreeRow.Divider -> HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -93,6 +95,7 @@ fun FileTree(
                     onCopyPath = onCopyPath,
                 )
                 is TreeRow.Empty -> EmptyRow(depth = row.depth)
+            }
             }
         }
     }

@@ -1,5 +1,12 @@
 package com.invictus.xcode.feature.editor
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,8 +32,23 @@ import com.invictus.xcode.core.editor.ExternalChange
  */
 @Composable
 fun ExternalChangeBanner(tab: EditorTabUi, onEvent: (EditorEvent) -> Unit) {
-    if (tab.externalChange == ExternalChange.None) return
     val deleted = tab.externalChange == ExternalChange.Deleted
+    // Expressive spring-driven show/hide instead of an abrupt if-return.
+    AnimatedVisibility(
+        visible = tab.externalChange != ExternalChange.None,
+        enter = expandVertically(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        ) + fadeIn(),
+        exit = shrinkVertically(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        ) + fadeOut(),
+    ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (deleted) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer,
@@ -67,5 +89,6 @@ fun ExternalChangeBanner(tab: EditorTabUi, onEvent: (EditorEvent) -> Unit) {
                 }
             }
         }
+    }
     }
 }

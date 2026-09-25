@@ -480,7 +480,7 @@ private fun EditorTab(
     var showMenu by remember { mutableStateOf(false) }
     Surface(
         color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
+        shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
         modifier = modifier
             .height(40.dp)
             .combinedClickable(onClick = onSelect, onLongClick = { showMenu = true }),
