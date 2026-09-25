@@ -246,6 +246,20 @@ fun EditorScreen(
             active?.let { tab ->
                 ExternalChangeBanner(tab = tab, onEvent = viewModel::onEvent)
             }
+            val activePageIndex = active?.pageIndex
+            val activePageCount = active?.pageCount
+            if (activePath != null && activePageIndex != null && activePageCount != null) {
+                PagedFileBar(
+                    currentPage = activePageIndex,
+                    pageCount = activePageCount,
+                    handle = handle,
+                    onChangePage = { toIndex, line, column, scrollX, scrollY ->
+                        viewModel.onEvent(
+                            EditorEvent.ChangePage(activePath, toIndex, line, column, scrollX, scrollY),
+                        )
+                    },
+                )
+            }
             if (showFind) {
                 FindReplacePanel(
                     state = findState,
@@ -275,7 +289,7 @@ fun EditorScreen(
                 val path = activePath
                 val buffer = activeBuffer
                 if (path != null && buffer != null) {
-                    key(path) {
+                    key(path, activePageIndex ?: 0) {
                         CodeEditorView(
                             buffer = buffer,
                             darkTheme = darkTheme,
