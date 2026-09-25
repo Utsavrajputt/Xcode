@@ -89,5 +89,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.compose.material.symbols)
+    implementation(libs.compose.material.symbols.rounded.filled)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
