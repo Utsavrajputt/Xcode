@@ -65,13 +65,49 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setSymbolBar(symbols) }
     }
 
+    /** Settings screen "Font size" slider; also the last size the user zoomed to anywhere. */
+    val fontSizePx: StateFlow<Float> = settingsStore.fontSizePx
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
+
+    fun setFontSizePx(px: Float) {
+        viewModelScope.launch { settingsStore.setFontSizePx(px) }
+    }
+
+    /** Settings screen "Autocomplete" toggle. */
+    val autocompleteEnabled: StateFlow<Boolean> = settingsStore.autocompleteEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setAutocompleteEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setAutocompleteEnabled(enabled) }
+    }
+
+    /** Settings screen "Pair cursor" toggle. */
+    val pairCursorEnabled: StateFlow<Boolean> = settingsStore.pairCursorEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setPairCursorEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setPairCursorEnabled(enabled) }
+    }
+
+    /** Settings screen "File changed outside the app" choice. */
+    val autoReloadExternalChanges: StateFlow<Boolean> = settingsStore.autoReloadExternalChanges
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setAutoReloadExternalChanges(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setAutoReloadExternalChanges(enabled) }
+    }
+
     /** Last font size the user zoomed to anywhere, in px; 0f = editor's own built-in default. */
     private var defaultFontSizePx: Float = 0f
+
+    /** Mirrors [autoReloadExternalChanges] for use inside the non-suspend-friendly disk-check path. */
+    private var autoReloadExternal: Boolean = false
 
     init {
         // Grammars load while the user is still browsing the tree; editors upgrade when ready.
         viewModelScope.launch { textMate.ensureLoaded() }
         viewModelScope.launch { settingsStore.fontSizePx.collect { defaultFontSizePx = it } }
+        viewModelScope.launch { settingsStore.autoReloadExternalChanges.collect { autoReloadExternal = it } }
     }
 
     private val buffers = LinkedHashMap<String, TabBuffer>()
@@ -364,11 +400,12 @@ class EditorViewModel(
             buffer.lastKnownDiskModified = snapshot.mtime
             return
         }
-        if (buffer.isDirty) {
+        if (buffer.isDirty && !autoReloadExternal) {
             buffer.externalChange = ExternalChange.Modified
             setExternalChangeUi(path, ExternalChange.Modified)
         } else {
-            // No unsaved edits to lose: just pull in what changed, silently.
+            // No unsaved edits to lose, or the user has chosen to always reload automatically
+            // (settings screen "File changed outside the app") -- pull in what changed, silently.
             applyReloadedContent(path, snapshot.text, snapshot.mtime, diskHash)
         }
     }

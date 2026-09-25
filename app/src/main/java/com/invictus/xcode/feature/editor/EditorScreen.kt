@@ -64,7 +64,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorSettingsStore
-import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import io.github.rosemoe.sora.widget.EditorSearcher
@@ -76,6 +75,7 @@ import kotlin.math.roundToInt
 fun EditorScreen(
     viewModel: EditorViewModel,
     onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -85,7 +85,8 @@ fun EditorScreen(
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val highlightReady by viewModel.textMate.ready.collectAsStateWithLifecycle()
     val themeId by viewModel.themeId.collectAsStateWithLifecycle()
-    var showThemePicker by remember { mutableStateOf(false) }
+    val autocompleteEnabled by viewModel.autocompleteEnabled.collectAsStateWithLifecycle()
+    val pairCursorEnabled by viewModel.pairCursorEnabled.collectAsStateWithLifecycle()
     var showSymbolCustomize by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
     var showQuickActions by remember { mutableStateOf(false) }
@@ -218,12 +219,13 @@ fun EditorScreen(
                                 onDismiss = { showQuickActions = false },
                             )
                         }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(XIcons.Settings, contentDescription = stringResource(R.string.action_settings))
+                        }
                         EditorOverflowMenu(
                             activePath = state.activePath,
                             anyDirty = state.tabs.any { it.dirty },
                             onEvent = viewModel::onEvent,
-                            onOpenThemePicker = { showThemePicker = true },
-                            onOpenSymbolCustomize = { showSymbolCustomize = true },
                         )
                     },
                 )
@@ -279,6 +281,7 @@ fun EditorScreen(
                             textMate = viewModel.textMate,
                             highlightReady = highlightReady,
                             themeId = themeId,
+                            autocompleteEnabled = autocompleteEnabled,
                             handle = handle,
                             onEdited = {
                                 viewModel.onEdited(path)
@@ -297,6 +300,7 @@ fun EditorScreen(
                 SymbolBar(
                     handle = handle,
                     symbols = symbolBar,
+                    pairCursorEnabled = pairCursorEnabled,
                     onCustomize = { showSymbolCustomize = true },
                 )
             }
@@ -305,13 +309,6 @@ fun EditorScreen(
 
     state.pendingClose?.let { pending ->
         UnsavedChangesDialog(pending = pending, onEvent = viewModel::onEvent)
-    }
-    if (showThemePicker) {
-        ThemePickerDialog(
-            selected = themeId,
-            onSelect = { viewModel.setTheme(it) },
-            onDismiss = { showThemePicker = false },
-        )
     }
     if (showSymbolCustomize) {
         SymbolBarCustomizeDialog(
@@ -328,8 +325,6 @@ private fun EditorOverflowMenu(
     activePath: String?,
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
-    onOpenThemePicker: () -> Unit,
-    onOpenSymbolCustomize: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -366,22 +361,6 @@ private fun EditorOverflowMenu(
                 onClick = {
                     open = false
                     onEvent(EditorEvent.CloseAll)
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.editor_theme_picker_title)) },
-                leadingIcon = { Icon(XIcons.Palette, contentDescription = null) },
-                onClick = {
-                    open = false
-                    onOpenThemePicker()
-                },
-            )
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.symbol_bar_customize)) },
-                leadingIcon = { Icon(XIcons.Edit, contentDescription = null) },
-                onClick = {
-                    open = false
-                    onOpenSymbolCustomize()
                 },
             )
         }
@@ -549,50 +528,6 @@ private fun EditorTab(
                 onClick = { showMenu = false; onCloseAll() },
             )
         }
-    }
-}
-
-@Composable
-private fun ThemePickerDialog(
-    selected: String,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.editor_theme_picker_title)) },
-        text = {
-            Column {
-                ThemeRow(
-                    name = stringResource(R.string.editor_theme_system_default),
-                    isSelected = selected == EditorThemes.SYSTEM_DEFAULT,
-                    onClick = { onSelect(EditorThemes.SYSTEM_DEFAULT) },
-                )
-                EditorThemes.ALL.forEach { theme ->
-                    ThemeRow(
-                        name = theme.displayName,
-                        isSelected = selected == theme.id,
-                        onClick = { onSelect(theme.id) },
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close_dialog)) }
-        },
-    )
-}
-
-@Composable
-private fun ThemeRow(name: String, isSelected: Boolean, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
-    ) {
-        Box(modifier = Modifier.size(24.dp)) {
-            if (isSelected) Icon(XIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        }
-        Text(text = name, modifier = Modifier.padding(start = 12.dp))
     }
 }
 

@@ -3,6 +3,7 @@ package com.invictus.xcode.core.editor
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -24,6 +25,9 @@ class EditorSettingsStore(private val context: Context) {
         // in this codebase (TabBuffer, CodeEditorView) -- no density conversion needed.
         val FONT_SIZE_PX = floatPreferencesKey("editor_font_size_px")
         val SYMBOL_BAR = stringPreferencesKey("editor_symbol_bar")
+        val AUTOCOMPLETE_ENABLED = booleanPreferencesKey("editor_autocomplete_enabled")
+        val PAIR_CURSOR_ENABLED = booleanPreferencesKey("editor_pair_cursor_enabled")
+        val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -37,6 +41,18 @@ class EditorSettingsStore(private val context: Context) {
     val symbolBar: Flow<List<String>> = context.editorSettingsDataStore.data
         .map { prefs -> prefs[Keys.SYMBOL_BAR]?.let(::decodeSymbols) ?: DEFAULT_SYMBOLS }
 
+    /** Settings screen "Autocomplete" toggle -- word/keyword suggestions while typing. */
+    val autocompleteEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.AUTOCOMPLETE_ENABLED] ?: true }
+
+    /** Settings screen "Pair cursor" toggle -- symbol bar openers also insert the closing half. */
+    val pairCursorEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.PAIR_CURSOR_ENABLED] ?: true }
+
+    /** false (default) = ask via the external-change banner; true = reload from disk silently, even over unsaved edits. */
+    val autoReloadExternalChanges: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.AUTO_RELOAD_EXTERNAL] ?: false }
+
     suspend fun setThemeId(id: String) {
         context.editorSettingsDataStore.edit { it[Keys.THEME_ID] = id }
     }
@@ -47,6 +63,18 @@ class EditorSettingsStore(private val context: Context) {
 
     suspend fun setSymbolBar(symbols: List<String>) {
         context.editorSettingsDataStore.edit { it[Keys.SYMBOL_BAR] = encodeSymbols(symbols) }
+    }
+
+    suspend fun setAutocompleteEnabled(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.AUTOCOMPLETE_ENABLED] = enabled }
+    }
+
+    suspend fun setPairCursorEnabled(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.PAIR_CURSOR_ENABLED] = enabled }
+    }
+
+    suspend fun setAutoReloadExternalChanges(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.AUTO_RELOAD_EXTERNAL] = enabled }
     }
 
     companion object {

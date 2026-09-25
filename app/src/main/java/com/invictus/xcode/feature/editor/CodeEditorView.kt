@@ -12,6 +12,7 @@ import com.invictus.xcode.core.editor.TextMateSupport
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.ScrollEvent
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
 
@@ -31,7 +32,8 @@ fun interface OnEditorScroll {
     fun onScroll(deltaY: Int)
 }
 
-private const val DEFAULT_TEXT_SIZE_SP = 14f
+/** Also read by the settings screen to show where the font-size slider starts. */
+internal const val DEFAULT_TEXT_SIZE_SP = 14f
 
 /**
  * Sora's [CodeEditor] inside Compose. One view per tab: callers wrap this in `key(path)` so a
@@ -45,6 +47,7 @@ fun CodeEditorView(
     textMate: TextMateSupport,
     highlightReady: Boolean,
     themeId: String = EditorThemes.SYSTEM_DEFAULT,
+    autocompleteEnabled: Boolean = true,
     handle: EditorHandle,
     onEdited: () -> Unit,
     onViewState: (line: Int, column: Int, textSizePx: Float, scrollX: Int, scrollY: Int) -> Unit,
@@ -63,6 +66,7 @@ fun CodeEditorView(
                 setTextSize(DEFAULT_TEXT_SIZE_SP)
                 if (buffer.textSizePx > 0f) textSizePx = buffer.textSizePx
                 applyLook(this, buffer, textMate, darkTheme, highlightReady, themeId)
+                getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
 
                 // Same Content object as last time, so undo/redo history comes along.
                 setText(buffer.content)
@@ -95,6 +99,7 @@ fun CodeEditorView(
             if (editor.tag != Look(darkTheme, highlightReady, themeId)) {
                 applyLook(editor, buffer, textMate, darkTheme, highlightReady, themeId)
             }
+            editor.getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
         },
         onRelease = { editor ->
             val cursor = editor.cursor

@@ -50,13 +50,13 @@ private val PAIR_CLOSERS = mapOf(
  * For a paired opener (see [PAIR_CLOSERS]) both halves are inserted as one edit -- one undo
  * step, not two -- and the caret is then pulled back to sit between them.
  */
-private fun insertSymbol(handle: EditorHandle, symbol: String) {
+private fun insertSymbol(handle: EditorHandle, symbol: String, pairCursorEnabled: Boolean) {
     val editor = handle.editor ?: return
     try {
         val cursor = editor.cursor
         val line = cursor.leftLine
         val column = cursor.leftColumn
-        val closer = PAIR_CLOSERS[symbol]
+        val closer = if (pairCursorEnabled) PAIR_CLOSERS[symbol] else null
         if (closer == null) {
             editor.text.insert(line, column, symbol)
         } else {
@@ -79,6 +79,7 @@ private fun insertSymbol(handle: EditorHandle, symbol: String) {
 fun SymbolBar(
     handle: EditorHandle,
     symbols: List<String>,
+    pairCursorEnabled: Boolean,
     onCustomize: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -94,7 +95,7 @@ fun SymbolBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             symbols.forEach { symbol ->
-                SymbolKey(symbol = symbol, onClick = { insertSymbol(handle, symbol) })
+                SymbolKey(symbol = symbol, onClick = { insertSymbol(handle, symbol, pairCursorEnabled) })
             }
             IconButton(onClick = onCustomize, modifier = Modifier.size(40.dp)) {
                 Icon(

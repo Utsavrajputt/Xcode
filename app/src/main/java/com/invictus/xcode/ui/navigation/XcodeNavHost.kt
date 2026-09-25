@@ -12,6 +12,7 @@ import com.invictus.xcode.feature.editor.EditorEvent
 import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.permission.PermissionScreen
+import com.invictus.xcode.feature.settings.SettingsScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
 
 /**
@@ -50,6 +51,13 @@ fun XcodeNavHost(
                         navController.popBackStack()
                     }
                 },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+            )
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(
+                viewModel = editorViewModel,
+                onBack = { navController.popBackStack() },
             )
         }
     }
