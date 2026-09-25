@@ -45,6 +45,8 @@ import com.invictus.xcode.feature.editor.DEFAULT_TEXT_SIZE_SP
 import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.editor.SymbolBarCustomizeDialog
 import com.invictus.xcode.ui.icons.XIcons
+import com.invictus.xcode.ui.theme.ThemePickerState
+import com.invictus.xcode.ui.theme.ThemeSettings
 
 /**
  * Plan 3.2 "settings screen with search". Reuses the same [EditorViewModel] the editor screen
@@ -85,6 +87,7 @@ fun SettingsScreen(
     }
     val symbolBarPreview = symbolBar.joinToString(" ")
 
+    val appThemeLabel = stringResource(R.string.settings_app_theme)
     val themeLabel = stringResource(R.string.settings_editor_theme)
     val fontSizeLabel = stringResource(R.string.settings_font_size)
     val symbolBarLabel = stringResource(R.string.settings_symbol_bar)
@@ -95,6 +98,13 @@ fun SettingsScreen(
 
     val sections = listOf(
         stringResource(R.string.settings_section_appearance) to listOf(
+            SettingRow(appThemeLabel) {
+                SettingsClickRow(
+                    title = appThemeLabel,
+                    subtitle = ThemeSettings.theme.title,
+                    onClick = { ThemePickerState.visible = true },
+                )
+            },
             SettingRow(themeLabel) {
                 SettingsClickRow(
                     title = themeLabel,

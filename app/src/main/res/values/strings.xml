@@ -158,6 +158,7 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_editing">Editing</string>
     <string name="settings_section_behavior">Behavior</string>
+    <string name="settings_app_theme">App theme</string>
     <string name="settings_editor_theme">Editor theme</string>
     <string name="settings_font_size">Font size</string>
     <string name="settings_font_size_preview">The quick fox { fn(x) }</string>
