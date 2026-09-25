@@ -32,15 +32,39 @@ import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.ui.icons.XIcons
 
 /**
+ * Plan 3.2 "extra keys pair cursor placement": these openers insert their closing half too,
+ * with the caret left in between -- one tap for `()` instead of two.
+ */
+private val PAIR_CLOSERS = mapOf(
+    "(" to ")",
+    "{" to "}",
+    "[" to "]",
+    "\"" to "\"",
+)
+
+/**
  * Inserts [symbol] at the caret. Content.insert() is a raw text edit; Sora's own Cursor is
  * listening to the same Content object (see [CodeEditorView]) so it advances on its own --
  * same idiom the rest of this screen uses for undo/redo via the shared [EditorHandle].
+ *
+ * For a paired opener (see [PAIR_CLOSERS]) both halves are inserted as one edit -- one undo
+ * step, not two -- and the caret is then pulled back to sit between them.
  */
 private fun insertSymbol(handle: EditorHandle, symbol: String) {
     val editor = handle.editor ?: return
     try {
         val cursor = editor.cursor
-        editor.text.insert(cursor.leftLine, cursor.leftColumn, symbol)
+        val line = cursor.leftLine
+        val column = cursor.leftColumn
+        val closer = PAIR_CLOSERS[symbol]
+        if (closer == null) {
+            editor.text.insert(line, column, symbol)
+        } else {
+            editor.text.insert(line, column, symbol + closer)
+            // Content.insert() already moved the cursor past both halves; pull it back to
+            // sit right after the opener, i.e. between the pair.
+            editor.setSelection(line, column + symbol.length)
+        }
     } catch (_: Exception) {
         // Best effort -- e.g. editor mid-teardown on a fast tab switch.
     }
