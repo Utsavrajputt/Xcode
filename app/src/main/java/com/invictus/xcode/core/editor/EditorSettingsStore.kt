@@ -25,6 +25,7 @@ class EditorSettingsStore(private val context: Context) {
         // in this codebase (TabBuffer, CodeEditorView) -- no density conversion needed.
         val FONT_SIZE_PX = floatPreferencesKey("editor_font_size_px")
         val SYMBOL_BAR = stringPreferencesKey("editor_symbol_bar")
+        val SYMBOL_BAR_VISIBLE = booleanPreferencesKey("editor_symbol_bar_visible")
         val AUTOCOMPLETE_ENABLED = booleanPreferencesKey("editor_autocomplete_enabled")
         val PAIR_CURSOR_ENABLED = booleanPreferencesKey("editor_pair_cursor_enabled")
         val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
@@ -53,6 +54,10 @@ class EditorSettingsStore(private val context: Context) {
     val autoReloadExternalChanges: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.AUTO_RELOAD_EXTERNAL] ?: false }
 
+    /** Settings screen "Show symbol bar" toggle -- quick-insert strip above the keyboard; hidden by default. */
+    val symbolBarVisible: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.SYMBOL_BAR_VISIBLE] ?: false }
+
     suspend fun setThemeId(id: String) {
         context.editorSettingsDataStore.edit { it[Keys.THEME_ID] = id }
     }
@@ -75,6 +80,10 @@ class EditorSettingsStore(private val context: Context) {
 
     suspend fun setAutoReloadExternalChanges(enabled: Boolean) {
         context.editorSettingsDataStore.edit { it[Keys.AUTO_RELOAD_EXTERNAL] = enabled }
+    }
+
+    suspend fun setSymbolBarVisible(visible: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.SYMBOL_BAR_VISIBLE] = visible }
     }
 
     companion object {

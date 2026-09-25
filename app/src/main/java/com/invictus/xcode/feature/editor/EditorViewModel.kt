@@ -65,6 +65,14 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setSymbolBar(symbols) }
     }
 
+    /** Settings screen "Show symbol bar" toggle -- strip above the keyboard; hidden by default. */
+    val symbolBarVisible: StateFlow<Boolean> = settingsStore.symbolBarVisible
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setSymbolBarVisible(visible: Boolean) {
+        viewModelScope.launch { settingsStore.setSymbolBarVisible(visible) }
+    }
+
     /** Settings screen "Font size" slider; also the last size the user zoomed to anywhere. */
     val fontSizePx: StateFlow<Float> = settingsStore.fontSizePx
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0f)

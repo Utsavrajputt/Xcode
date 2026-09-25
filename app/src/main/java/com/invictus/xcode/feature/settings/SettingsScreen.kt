@@ -61,6 +61,7 @@ fun SettingsScreen(
     val themeId by viewModel.themeId.collectAsStateWithLifecycle()
     val fontSizePx by viewModel.fontSizePx.collectAsStateWithLifecycle()
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
+    val symbolBarVisible by viewModel.symbolBarVisible.collectAsStateWithLifecycle()
     val autocompleteEnabled by viewModel.autocompleteEnabled.collectAsStateWithLifecycle()
     val pairCursorEnabled by viewModel.pairCursorEnabled.collectAsStateWithLifecycle()
     val autoReloadExternal by viewModel.autoReloadExternalChanges.collectAsStateWithLifecycle()
@@ -87,6 +88,7 @@ fun SettingsScreen(
     val themeLabel = stringResource(R.string.settings_editor_theme)
     val fontSizeLabel = stringResource(R.string.settings_font_size)
     val symbolBarLabel = stringResource(R.string.settings_symbol_bar)
+    val symbolBarVisibleLabel = stringResource(R.string.settings_symbol_bar_visible)
     val autocompleteLabel = stringResource(R.string.settings_autocomplete)
     val pairCursorLabel = stringResource(R.string.settings_pair_cursor)
     val externalChangesLabel = stringResource(R.string.settings_external_changes)
@@ -105,6 +107,14 @@ fun SettingsScreen(
                     label = fontSizeLabel,
                     valuePx = effectiveFontSizePx,
                     onValueChange = { viewModel.setFontSizePx(it) },
+                )
+            },
+            SettingRow(symbolBarVisibleLabel) {
+                SettingsSwitchRow(
+                    title = symbolBarVisibleLabel,
+                    subtitle = stringResource(R.string.settings_symbol_bar_visible_desc),
+                    checked = symbolBarVisible,
+                    onCheckedChange = { viewModel.setSymbolBarVisible(it) },
                 )
             },
             SettingRow(symbolBarLabel) {

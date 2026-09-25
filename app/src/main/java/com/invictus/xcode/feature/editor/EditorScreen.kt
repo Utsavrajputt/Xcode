@@ -92,6 +92,7 @@ fun EditorScreen(
     var showQuickActions by remember { mutableStateOf(false) }
     val findState = remember { FindReplaceState() }
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
+    val symbolBarVisible by viewModel.symbolBarVisible.collectAsStateWithLifecycle()
 
     // Collapsible app bar: scrolling the editor content hides the title/nav/action row (not the
     // tab bar below it) to give the small-screen keyboard more room, VS Code-mobile style.
@@ -296,7 +297,7 @@ fun EditorScreen(
                     }
                 }
             }
-            if (activePath != null) {
+            if (activePath != null && symbolBarVisible) {
                 SymbolBar(
                     handle = handle,
                     symbols = symbolBar,
