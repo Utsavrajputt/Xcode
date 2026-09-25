@@ -55,6 +55,14 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setThemeId(id) }
     }
 
+    /** Plan 3.2 "customizable symbol bar" -- ordered quick-insert symbols shown above the keyboard. */
+    val symbolBar: StateFlow<List<String>> = settingsStore.symbolBar
+        .stateIn(viewModelScope, SharingStarted.Eagerly, EditorSettingsStore.DEFAULT_SYMBOLS)
+
+    fun setSymbolBar(symbols: List<String>) {
+        viewModelScope.launch { settingsStore.setSymbolBar(symbols) }
+    }
+
     /** Last font size the user zoomed to anywhere, in px; 0f = editor's own built-in default. */
     private var defaultFontSizePx: Float = 0f
 

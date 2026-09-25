@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
@@ -78,8 +79,10 @@ fun EditorScreen(
     val highlightReady by viewModel.textMate.ready.collectAsStateWithLifecycle()
     val themeId by viewModel.themeId.collectAsStateWithLifecycle()
     var showThemePicker by remember { mutableStateOf(false) }
+    var showSymbolCustomize by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
     val findState = remember { FindReplaceState() }
+    val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
@@ -168,6 +171,7 @@ fun EditorScreen(
                         anyDirty = state.tabs.any { it.dirty },
                         onEvent = viewModel::onEvent,
                         onOpenThemePicker = { showThemePicker = true },
+                        onOpenSymbolCustomize = { showSymbolCustomize = true },
                     )
                 },
             )
@@ -232,6 +236,13 @@ fun EditorScreen(
                     }
                 }
             }
+            if (activePath != null) {
+                SymbolBar(
+                    handle = handle,
+                    symbols = symbolBar,
+                    onCustomize = { showSymbolCustomize = true },
+                )
+            }
         }
     }
 
@@ -245,6 +256,14 @@ fun EditorScreen(
             onDismiss = { showThemePicker = false },
         )
     }
+    if (showSymbolCustomize) {
+        SymbolBarCustomizeDialog(
+            current = symbolBar,
+            onSave = { viewModel.setSymbolBar(it); showSymbolCustomize = false },
+            onResetDefault = { viewModel.setSymbolBar(EditorSettingsStore.DEFAULT_SYMBOLS); showSymbolCustomize = false },
+            onDismiss = { showSymbolCustomize = false },
+        )
+    }
 }
 
 @Composable
@@ -253,6 +272,7 @@ private fun EditorOverflowMenu(
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
     onOpenThemePicker: () -> Unit,
+    onOpenSymbolCustomize: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -297,6 +317,14 @@ private fun EditorOverflowMenu(
                 onClick = {
                     open = false
                     onOpenThemePicker()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.symbol_bar_customize)) },
+                leadingIcon = { Icon(XIcons.Edit, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onOpenSymbolCustomize()
                 },
             )
         }
