@@ -120,6 +120,14 @@ object XIcons {
         icon("Check", "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z")
     }
 
+    val KeyboardArrowUp: ImageVector by lazy {
+        icon("KeyboardArrowUp", "M7.41,15.41L12,10.83l4.59,4.58L18,14l-6,-6 -6,6z")
+    }
+
+    val KeyboardArrowDown: ImageVector by lazy {
+        icon("KeyboardArrowDown", "M7.41,8.59L12,13.17l4.59,-4.58L18,10l-6,6 -6,-6z")
+    }
+
     private fun icon(name: String, pathData: String): ImageVector =
         ImageVector.Builder(
             name = name,

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="find_action">Find</string>
+    <string name="find_hint">Find</string>
+    <string name="find_replace_hint">Replace</string>
+    <string name="find_case_sensitive">Aa</string>
+    <string name="find_use_regex">.*</string>
+    <string name="find_replace">Replace</string>
+    <string name="find_replace_one">Replace</string>
+    <string name="find_replace_all">Replace all</string>
+    <string name="find_previous">Previous match</string>
+    <string name="find_next">Next match</string>
+    <string name="find_close">Close find</string>
+    <string name="find_invalid_regex">Invalid</string>
+</resources>

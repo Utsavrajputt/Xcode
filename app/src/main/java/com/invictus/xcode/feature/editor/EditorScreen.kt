@@ -60,6 +60,7 @@ import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
+import io.github.rosemoe.sora.widget.EditorSearcher
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,6 +78,8 @@ fun EditorScreen(
     val highlightReady by viewModel.textMate.ready.collectAsStateWithLifecycle()
     val themeId by viewModel.themeId.collectAsStateWithLifecycle()
     var showThemePicker by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
+    val findState = remember { FindReplaceState() }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
@@ -85,8 +88,40 @@ fun EditorScreen(
     LaunchedEffect(state.tabs.isEmpty()) {
         if (state.tabs.isEmpty()) onBack()
     }
+    // Switching tabs closes the finder rather than trying to carry it to a different buffer.
+    LaunchedEffect(state.activePath) {
+        showFind = false
+        findState.reset()
+    }
 
     val active = state.tabs.firstOrNull { it.path == state.activePath }
+    val activePath = state.activePath
+    val activeBuffer = activePath?.let { viewModel.buffer(it) }
+
+    // Keeps Sora's live search and the panel's independent match count both in sync with the
+    // query/options/edits, without polling on every recomposition.
+    LaunchedEffect(activePath, showFind, findState.query, findState.caseSensitive, findState.useRegex, findState.editEpoch) {
+        if (!showFind || activePath == null) return@LaunchedEffect
+        val count = activeBuffer?.let {
+            countMatches(it.content, findState.query, findState.caseSensitive, findState.useRegex)
+        } ?: 0
+        findState.matchCount = count
+        val editor = handle.editor ?: return@LaunchedEffect
+        if (findState.query.isEmpty() || count == null) {
+            editor.searcher.stopSearch()
+        } else {
+            try {
+                val type = if (findState.useRegex) {
+                    EditorSearcher.SearchOptions.TYPE_REGULAR_EXPRESSION
+                } else {
+                    EditorSearcher.SearchOptions.TYPE_NORMAL
+                }
+                editor.searcher.search(findState.query, EditorSearcher.SearchOptions(!findState.caseSensitive, type))
+            } catch (_: Exception) {
+                // Independent countMatches() above already flags a bad pattern to the user.
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier,
@@ -105,6 +140,17 @@ fun EditorScreen(
                     )
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            showFind = !showFind
+                            if (!showFind) {
+                                handle.editor?.searcher?.stopSearch()
+                                findState.reset()
+                            }
+                        },
+                    ) {
+                        Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
+                    }
                     IconButton(onClick = { handle.editor?.undo() }) {
                         Icon(XIcons.Undo, contentDescription = stringResource(R.string.action_undo))
                     }
@@ -137,9 +183,34 @@ fun EditorScreen(
         ) {
             if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             TabBar(state = state, onEvent = viewModel::onEvent)
+            if (showFind) {
+                FindReplacePanel(
+                    state = findState,
+                    onQueryChange = { findState.query = it },
+                    onFindNext = { try { handle.editor?.searcher?.gotoNext() } catch (_: Exception) {} },
+                    onFindPrevious = { try { handle.editor?.searcher?.gotoPrevious() } catch (_: Exception) {} },
+                    onReplace = {
+                        try {
+                            handle.editor?.searcher?.replaceCurrentMatch(findState.replacement)
+                        } catch (_: Exception) {
+                        }
+                    },
+                    onReplaceAll = {
+                        try {
+                            handle.editor?.searcher?.replaceAll(findState.replacement)
+                        } catch (_: Exception) {
+                        }
+                    },
+                    onClose = {
+                        showFind = false
+                        handle.editor?.searcher?.stopSearch()
+                        findState.reset()
+                    },
+                )
+            }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                val path = state.activePath
-                val buffer = path?.let { viewModel.buffer(it) }
+                val path = activePath
+                val buffer = activeBuffer
                 if (path != null && buffer != null) {
                     key(path) {
                         CodeEditorView(
@@ -149,7 +220,10 @@ fun EditorScreen(
                             highlightReady = highlightReady,
                             themeId = themeId,
                             handle = handle,
-                            onEdited = { viewModel.onEdited(path) },
+                            onEdited = {
+                                viewModel.onEdited(path)
+                                if (showFind) findState.editEpoch++
+                            },
                             onViewState = { line, column, size, scrollX, scrollY ->
                                 viewModel.onViewState(path, line, column, size, scrollX, scrollY)
                             },
