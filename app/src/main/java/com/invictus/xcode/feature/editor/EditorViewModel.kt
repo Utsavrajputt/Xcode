@@ -10,12 +10,14 @@ import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.editor.EditorSessionStore
 import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.editor.EditorThemes
+import com.invictus.xcode.core.editor.ExternalChange
 import com.invictus.xcode.core.editor.FileTooLargeException
 import com.invictus.xcode.core.editor.SessionState
 import com.invictus.xcode.core.editor.SessionTab
 import com.invictus.xcode.core.editor.TabBuffer
 import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.editor.TextFileIo
+import com.invictus.xcode.core.fs.ExternalChangeWatcher
 import com.invictus.xcode.feature.workspace.UiText
 import io.github.rosemoe.sora.text.Content
 import kotlinx.coroutines.CoroutineDispatcher
@@ -74,6 +76,10 @@ class EditorViewModel(
 
     private val buffers = LinkedHashMap<String, TabBuffer>()
     private val loading = HashSet<String>()
+
+    /** Debounced per-path: bursts of MODIFY/CLOSE_WRITE from one save collapse to one check. */
+    private val externalChangeJobs = HashMap<String, Job>()
+    private val watcher = ExternalChangeWatcher { changedPath -> onDiskEvent(changedPath) }
 
     private val _uiState = MutableStateFlow(EditorUiState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
@@ -136,6 +142,26 @@ class EditorViewModel(
                 closeNow(pending.paths)
             }
             EditorEvent.DismissPendingClose -> _uiState.update { it.copy(pendingClose = null) }
+            is EditorEvent.ReloadFromDisk -> reloadFromDisk(event.path)
+            is EditorEvent.KeepMyEdits -> clearExternalChangeUi(event.path)
+            is EditorEvent.CloseDeletedTab -> closeNow(listOf(event.path))
+            is EditorEvent.KeepAsNewFile -> {
+                clearExternalChangeUi(event.path)
+                setDirty(event.path, true) // Nothing on disk to match anymore -- next save recreates it.
+            }
+        }
+    }
+
+    override fun onCleared() {
+        watcher.stop()
+    }
+
+    /** Called from the editor screen's ON_RESUME: catches changes FileObserver may have missed. */
+    fun onResumeCheck() {
+        viewModelScope.launch {
+            for (path in buffers.keys.toList()) {
+                checkForExternalChange(path)
+            }
         }
     }
 
@@ -186,6 +212,7 @@ class EditorViewModel(
                             lineEnding = loaded.lineEnding,
                         ).apply {
                             diskContentHash = EditorSessionStore.hashOf(loaded.text)
+                            lastKnownDiskModified = file.lastModified()
                             if (defaultFontSizePx > 0f) textSizePx = defaultFontSizePx
                         },
                     )
@@ -208,6 +235,7 @@ class EditorViewModel(
                     }
                     _showEditor.tryEmit(Unit)
                     schedulePersist()
+                    rewatch()
                 },
                 onFailure = { error ->
                     val text = if (error is FileTooLargeException) {
@@ -283,6 +311,117 @@ class EditorViewModel(
         closing.forEach { buffers.remove(it) }
         _uiState.update { it.copy(tabs = it.tabs.filter { tab -> tab.path !in closing }, activePath = active) }
         schedulePersist()
+        rewatch()
+    }
+
+    private fun rewatch() {
+        watcher.setWatchedFiles(buffers.keys)
+    }
+
+    /** FileObserver fired for some path in a watched dir; may not even be one of our tabs. */
+    private fun onDiskEvent(changedPath: String) {
+        if (changedPath !in buffers) return
+        // Coalesce a burst (e.g. editors that write-then-touch) into a single check.
+        externalChangeJobs[changedPath]?.cancel()
+        externalChangeJobs[changedPath] = viewModelScope.launch {
+            delay(EXTERNAL_EVENT_DEBOUNCE_MS)
+            checkForExternalChange(changedPath)
+        }
+    }
+
+    /**
+     * The one place that decides whether a tab's file actually changed underneath it. Used by
+     * both the live watcher and [onResumeCheck]'s fallback sweep, so a missed inotify event and
+     * a live one are handled identically. Disk I/O runs on [io]; every [TabBuffer] field this
+     * reads or writes happens back on the main thread, per [TabBuffer]'s own threading contract.
+     */
+    private suspend fun checkForExternalChange(path: String) {
+        val file = buffers[path]?.file ?: return
+        val snapshot = withContext(io) {
+            if (!file.exists()) {
+                null
+            } else {
+                val mtime = file.lastModified()
+                val text = try {
+                    TextFileIo.read(file).text
+                } catch (_: IOException) {
+                    return@withContext DiskSnapshot(mtime, null) // Unreadable mid-write; retry later.
+                }
+                DiskSnapshot(mtime, text)
+            }
+        }
+        val buffer = buffers[path] ?: return // Tab closed while I/O was in flight.
+        if (buffer.externalChange != ExternalChange.None) return // Already flagged, awaiting user.
+        if (snapshot == null) {
+            markDeleted(path)
+            return
+        }
+        if (snapshot.text == null) return // Read failed; a later CLOSE_WRITE event retries.
+        if (snapshot.mtime == buffer.lastKnownDiskModified) return // Cheap pre-filter: nothing moved.
+        val diskHash = EditorSessionStore.hashOf(snapshot.text)
+        if (diskHash == buffer.diskContentHash) {
+            // Only mtime moved (e.g. touch, or a re-save of identical content) -- not a real change.
+            buffer.lastKnownDiskModified = snapshot.mtime
+            return
+        }
+        if (buffer.isDirty) {
+            buffer.externalChange = ExternalChange.Modified
+            setExternalChangeUi(path, ExternalChange.Modified)
+        } else {
+            // No unsaved edits to lose: just pull in what changed, silently.
+            applyReloadedContent(path, snapshot.text, snapshot.mtime, diskHash)
+        }
+    }
+
+    private class DiskSnapshot(val mtime: Long, val text: String?)
+
+    private fun markDeleted(path: String) {
+        val buffer = buffers[path] ?: return
+        if (buffer.externalChange == ExternalChange.Deleted) return
+        buffer.externalChange = ExternalChange.Deleted
+        setExternalChangeUi(path, ExternalChange.Deleted)
+    }
+
+    private fun setExternalChangeUi(path: String, change: ExternalChange) {
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.path == path) it.copy(externalChange = change) else it })
+        }
+    }
+
+    private fun clearExternalChangeUi(path: String) {
+        buffers[path]?.externalChange = ExternalChange.None
+        setExternalChangeUi(path, ExternalChange.None)
+    }
+
+    private fun reloadFromDisk(path: String) {
+        val buffer = buffers[path] ?: return
+        viewModelScope.launch {
+            val loaded = withContext(io) {
+                try {
+                    TextFileIo.read(buffer.file)
+                } catch (_: IOException) {
+                    null
+                }
+            }
+            if (loaded == null) {
+                _messages.tryEmit(UiText(R.string.editor_err_read, listOf(buffer.file.name)))
+                return@launch
+            }
+            applyReloadedContent(path, loaded.text, buffer.file.lastModified(), EditorSessionStore.hashOf(loaded.text))
+        }
+    }
+
+    /** Replaces a buffer's content with what's now on disk and clears the dirty/external state. */
+    private fun applyReloadedContent(path: String, text: String, mtime: Long, hash: String) {
+        val buffer = buffers[path] ?: return
+        buffer.content.replace(0, buffer.content.length, text)
+        buffer.revision++
+        buffer.savedRevision = buffer.revision
+        buffer.diskContentHash = hash
+        buffer.lastKnownDiskModified = mtime
+        buffer.externalChange = ExternalChange.None
+        setDirty(path, false)
+        setExternalChangeUi(path, ExternalChange.None)
     }
 
     private fun save(paths: List<String>) {
@@ -309,6 +448,9 @@ class EditorViewModel(
             if (ok) {
                 buffer.savedRevision = revision
                 buffer.diskContentHash = EditorSessionStore.hashOf(text)
+                buffer.lastKnownDiskModified = buffer.file.lastModified()
+                buffer.externalChange = ExternalChange.None
+                clearExternalChangeUi(path)
                 // Typed more while the write was running? Stay dirty.
                 setDirty(path, buffer.isDirty)
             } else {
@@ -383,6 +525,7 @@ class EditorViewModel(
                 scrollX = saved.scrollX
                 scrollY = saved.scrollY
                 diskContentHash = if (trustSnapshot) saved.contentHash else currentHash
+                lastKnownDiskModified = file.lastModified()
                 if (trustSnapshot) revision = 1 // savedRevision stays 0 -> dirty
             }
             buffers[saved.path] = buffer
@@ -395,11 +538,13 @@ class EditorViewModel(
             _messages.tryEmit(UiText(R.string.editor_session_edits_stale, listOf(droppedUnsavedEdits)))
         }
         _showEditor.tryEmit(Unit)
+        rewatch()
     }
 
     companion object {
         private const val SESSION_LOAD_KEY = "__session__"
         private const val PERSIST_DEBOUNCE_MS = 600L
+        private const val EXTERNAL_EVENT_DEBOUNCE_MS = 400L
 
         val Factory = viewModelFactory {
             initializer {

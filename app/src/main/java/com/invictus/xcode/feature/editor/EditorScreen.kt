@@ -59,6 +59,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorSettingsStore
@@ -118,6 +120,10 @@ fun EditorScreen(
         findState.reset()
         appBarOffset.snapTo(0f)
     }
+
+    // A save from Termux/git or another app while Xcode was backgrounded may not have raised a
+    // FileObserver event (Android 11+ FUSE/SAF can miss inotify) -- resume always double-checks.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onResumeCheck() }
 
     val active = state.tabs.firstOrNull { it.path == state.activePath }
     val activePath = state.activePath
@@ -234,6 +240,9 @@ fun EditorScreen(
         ) {
             if (state.loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             TabBar(state = state, onEvent = viewModel::onEvent)
+            active?.let { tab ->
+                ExternalChangeBanner(tab = tab, onEvent = viewModel::onEvent)
+            }
             if (showFind) {
                 FindReplacePanel(
                     state = findState,

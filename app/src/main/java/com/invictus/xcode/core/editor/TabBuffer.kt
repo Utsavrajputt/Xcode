@@ -4,6 +4,13 @@ import io.github.rosemoe.sora.text.Content
 import java.io.File
 import java.nio.charset.Charset
 
+/** What, if anything, a tab's on-disk file did behind the app's back. */
+enum class ExternalChange {
+    None,
+    Modified,
+    Deleted,
+}
+
 /**
  * Everything the editor needs to bring one tab back exactly as the user left it.
  *
@@ -40,4 +47,10 @@ class TabBuffer(
 
     /** Hash of the file's content as far as this app instance knows it (set on open + save). */
     var diskContentHash: String = ""
+
+    /** mtime as far as this app instance knows it (set on open + save); resume fallback check. */
+    var lastKnownDiskModified: Long = 0L
+
+    /** Set once a background watcher or resume check has seen the file differ; drives the banner. */
+    var externalChange: ExternalChange = ExternalChange.None
 }
