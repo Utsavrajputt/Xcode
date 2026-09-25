@@ -79,7 +79,12 @@ class TextMateSupport(private val context: Context) {
             editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
             val scope = LanguageRegistry.scopeFor(file)
             if (scope != null) {
-                editor.setEditorLanguage(TextMateLanguage.create(scope, true))
+                val language = TextMateLanguage.create(scope, true)
+                language.setCompleterKeywords(LanguageKeywords.forScope(scope).toTypedArray())
+                editor.setEditorLanguage(language)
+            } else {
+                // No grammar for this file: still get word-based completion instead of none.
+                editor.setEditorLanguage(PlainTextLanguage())
             }
             true
         } catch (_: Exception) {

@@ -10,6 +10,7 @@ import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.core.editor.TabBuffer
 import com.invictus.xcode.core.editor.TextMateSupport
 import io.github.rosemoe.sora.event.ContentChangeEvent
+import io.github.rosemoe.sora.event.ScrollEvent
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
@@ -17,6 +18,17 @@ import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
 /** Lets the top bar reach the live editor for undo/redo without owning the view. */
 class EditorHandle {
     var editor: CodeEditor? = null
+}
+
+/**
+ * Reports user-driven vertical scroll deltas from the embedded [CodeEditor] so the app bar can
+ * collapse on scroll-down and reappear on scroll-up, the same feel as a Compose
+ * `TopAppBarScrollBehavior` -- but CodeEditor is a plain View with no nested-scroll connection,
+ * so [EditorScreen] listens to this instead of attaching one.
+ */
+fun interface OnEditorScroll {
+    /** Positive when the user scrolled down (content moved up), negative when scrolling up. */
+    fun onScroll(deltaY: Int)
 }
 
 private const val DEFAULT_TEXT_SIZE_SP = 14f
@@ -36,10 +48,12 @@ fun CodeEditorView(
     handle: EditorHandle,
     onEdited: () -> Unit,
     onViewState: (line: Int, column: Int, textSizePx: Float, scrollX: Int, scrollY: Int) -> Unit,
+    onScroll: OnEditorScroll = OnEditorScroll {},
     modifier: Modifier = Modifier,
 ) {
     val currentOnEdited by rememberUpdatedState(onEdited)
     val currentOnViewState by rememberUpdatedState(onViewState)
+    val currentOnScroll by rememberUpdatedState(onScroll)
 
     AndroidView(
         modifier = modifier,
@@ -56,6 +70,14 @@ fun CodeEditorView(
                 subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
                     // Loading text into the view is not an edit.
                     if (event.action != ContentChangeEvent.ACTION_SET_NEW_TEXT) currentOnEdited()
+                }
+
+                subscribeEvent(ScrollEvent::class.java) { event, _ ->
+                    // Only user drags/flings drive the app bar -- programmatic scrolls (tab
+                    // open, cursor-follow, find-navigation, pinch-zoom) must not move it.
+                    if (event.cause == ScrollEvent.CAUSE_USER_DRAG || event.cause == ScrollEvent.CAUSE_USER_FLING) {
+                        currentOnScroll.onScroll(event.endY - event.startY)
+                    }
                 }
 
                 val content = buffer.content

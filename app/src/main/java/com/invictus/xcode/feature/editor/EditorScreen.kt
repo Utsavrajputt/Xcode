@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.editor
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -42,14 +44,16 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -62,6 +66,7 @@ import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import io.github.rosemoe.sora.widget.EditorSearcher
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,6 +90,20 @@ fun EditorScreen(
     val findState = remember { FindReplaceState() }
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
 
+    // Collapsible app bar: scrolling the editor content hides the title/nav/action row (not the
+    // tab bar below it) to give the small-screen keyboard more room, VS Code-mobile style.
+    val density = LocalDensity.current
+    var appBarHeightPx by remember { mutableFloatStateOf(0f) }
+    val appBarOffset = remember { Animatable(0f) }
+    val scrollScope = rememberCoroutineScope()
+    val onEditorScroll = remember {
+        OnEditorScroll { deltaY ->
+            if (appBarHeightPx <= 0f) return@OnEditorScroll
+            val target = (appBarOffset.value - deltaY).coerceIn(-appBarHeightPx, 0f)
+            scrollScope.launch { appBarOffset.snapTo(target) }
+        }
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
     }
@@ -92,10 +111,12 @@ fun EditorScreen(
     LaunchedEffect(state.tabs.isEmpty()) {
         if (state.tabs.isEmpty()) onBack()
     }
-    // Switching tabs closes the finder rather than trying to carry it to a different buffer.
+    // Switching tabs closes the finder rather than trying to carry it to a different buffer,
+    // and un-collapses the bar so a new file always opens with title/actions visible.
     LaunchedEffect(state.activePath) {
         showFind = false
         findState.reset()
+        appBarOffset.snapTo(0f)
     }
 
     val active = state.tabs.firstOrNull { it.path == state.activePath }
@@ -128,63 +149,79 @@ fun EditorScreen(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-                title = {
-                    Text(
-                        text = active?.name.orEmpty(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            showFind = !showFind
-                            if (!showFind) {
-                                handle.editor?.searcher?.stopSearch()
-                                findState.reset()
-                            }
-                        },
-                    ) {
-                        Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
-                    }
-                    IconButton(onClick = { handle.editor?.undo() }) {
-                        Icon(XIcons.Undo, contentDescription = stringResource(R.string.action_undo))
-                    }
-                    IconButton(onClick = { handle.editor?.redo() }) {
-                        Icon(XIcons.Redo, contentDescription = stringResource(R.string.action_redo))
-                    }
-                    IconButton(
-                        onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
-                        enabled = active?.dirty == true,
-                    ) {
-                        Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
-                    }
-                    Box {
-                        IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
-                            Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
+            // Bar's own measured height clipped down by how far it has scrolled off --
+            // Scaffold reserves exactly this much space, so the tab bar below rides up flush,
+            // no blank gap. onGloballyPositioned captures the natural (uncollapsed) height once.
+            val barHeightDp = with(density) {
+                (appBarHeightPx + appBarOffset.value).coerceAtLeast(0f).toDp()
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .let { if (appBarHeightPx > 0f) it.height(barHeightDp) else it }
+                    .clipToBounds(),
+            ) {
+                TopAppBar(
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        if (appBarHeightPx <= 0f) appBarHeightPx = coords.size.height.toFloat()
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
                         }
-                        QuickActionsMenu(
-                            expanded = showQuickActions,
-                            handle = handle,
-                            activePath = activePath,
-                            onDismiss = { showQuickActions = false },
+                    },
+                    title = {
+                        Text(
+                            text = active?.name.orEmpty(),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    }
-                    EditorOverflowMenu(
-                        activePath = state.activePath,
-                        anyDirty = state.tabs.any { it.dirty },
-                        onEvent = viewModel::onEvent,
-                        onOpenThemePicker = { showThemePicker = true },
-                        onOpenSymbolCustomize = { showSymbolCustomize = true },
-                    )
-                },
-            )
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                showFind = !showFind
+                                if (!showFind) {
+                                    handle.editor?.searcher?.stopSearch()
+                                    findState.reset()
+                                }
+                            },
+                        ) {
+                            Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
+                        }
+                        IconButton(onClick = { handle.editor?.undo() }) {
+                            Icon(XIcons.Undo, contentDescription = stringResource(R.string.action_undo))
+                        }
+                        IconButton(onClick = { handle.editor?.redo() }) {
+                            Icon(XIcons.Redo, contentDescription = stringResource(R.string.action_redo))
+                        }
+                        IconButton(
+                            onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
+                            enabled = active?.dirty == true,
+                        ) {
+                            Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
+                        }
+                        Box {
+                            IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
+                                Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
+                            }
+                            QuickActionsMenu(
+                                expanded = showQuickActions,
+                                handle = handle,
+                                activePath = activePath,
+                                onDismiss = { showQuickActions = false },
+                            )
+                        }
+                        EditorOverflowMenu(
+                            activePath = state.activePath,
+                            anyDirty = state.tabs.any { it.dirty },
+                            onEvent = viewModel::onEvent,
+                            onOpenThemePicker = { showThemePicker = true },
+                            onOpenSymbolCustomize = { showSymbolCustomize = true },
+                        )
+                    },
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -241,6 +278,7 @@ fun EditorScreen(
                             onViewState = { line, column, size, scrollX, scrollY ->
                                 viewModel.onViewState(path, line, column, size, scrollX, scrollY)
                             },
+                            onScroll = onEditorScroll,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
