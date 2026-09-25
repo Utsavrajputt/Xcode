@@ -46,6 +46,7 @@ fun ThemePickerSheet(
     transitionController: ThemeTransitionController,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val view = LocalView.current
     val systemDark = isSystemInDarkTheme()
     val dark = when (ThemeSettings.mode) {
         ThemeMode.SYSTEM -> systemDark
@@ -114,7 +115,6 @@ fun ThemePickerSheet(
                         dark = dark,
                         selected = ThemeSettings.theme == theme,
                         onSelect = { tapPosition ->
-                            val view = LocalView.current
                             transitionController.begin(view, tapPosition) {
                                 ThemeSettings.setTheme(theme)
                             }

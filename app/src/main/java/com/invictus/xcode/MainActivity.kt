@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize()) {
                     XcodeNavHost(
                         storageGranted = uiState.storageGranted,
-                        onGrantClick = { storagePermission.openSettings(this) },
+                        onGrantClick = { storagePermission.openSettings(this@MainActivity) },
                     )
                     ThemeTransitionOverlay(transitionController)
                     if (ThemePickerState.visible) {

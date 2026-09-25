@@ -29,13 +29,13 @@ import kotlin.math.hypot
 
 /** Drives the circular-reveal animation when the app theme changes. */
 class ThemeTransitionController {
-    var isAnimating by mutableStateOf(false); private set
-    var progress by mutableStateOf(0f); private set
-    var origin by mutableStateOf(Offset.Zero); private set
-    var bitmap by mutableStateOf<Bitmap?>(null); private set
-    var maxRadius by mutableStateOf(1f); private set
+    var isAnimating by mutableStateOf(false); internal set
+    var progress by mutableStateOf(0f); internal set
+    var origin by mutableStateOf(Offset.Zero); internal set
+    var bitmap by mutableStateOf<Bitmap?>(null); internal set
+    var maxRadius by mutableStateOf(1f); internal set
 
-    private var pendingReveal: (() -> Unit)? = null
+    internal var pendingReveal: (() -> Unit)? = null
 
     /** Freezes the current screen, then reveals [onReveal] from [position] outward. */
     fun begin(view: View, position: Offset, onReveal: () -> Unit) {
