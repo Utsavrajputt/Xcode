@@ -31,17 +31,38 @@ class FileTooLargeException(val sizeBytes: Long) : IOException("File too large: 
  */
 object TextFileIo {
 
-    /** Anything bigger waits for paged loading (M4). */
+    /** Anything bigger opens through [readForPaging] instead (M4 "paged large file"). */
     const val MAX_BYTES: Long = 32L * 1024 * 1024
+
+    /**
+     * Absolute ceiling for [readForPaging]. Paging still decodes the whole file into one
+     * `String` up front (the plan's `originalPages` split works on the full text), so this
+     * exists only as a last-resort guard against a phone-killing read -- past this, opening
+     * fails the same way it always did instead of risking an OOM.
+     */
+    const val HARD_MAX_BYTES: Long = 256L * 1024 * 1024
 
     private val BOM_UTF8 = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte())
     private val BOM_UTF16_LE = byteArrayOf(0xFF.toByte(), 0xFE.toByte())
     private val BOM_UTF16_BE = byteArrayOf(0xFE.toByte(), 0xFF.toByte())
 
+    /** Files up to [MAX_BYTES]: the normal, whole-file-in-one-Content path (M1-M3). */
     @Throws(IOException::class)
-    fun read(file: File): LoadedText {
+    fun read(file: File): LoadedText = readInternal(file, MAX_BYTES)
+
+    /**
+     * Files above [MAX_BYTES] and up to [HARD_MAX_BYTES]: same decode, just past the normal
+     * cap. The caller (`EditorViewModel.loadBuffer`) is expected to have already caught a
+     * [FileTooLargeException] from [read] before calling this -- it exists so that failure
+     * path can hand the same file to [PagedEditSession] instead of giving up.
+     */
+    @Throws(IOException::class)
+    fun readForPaging(file: File): LoadedText = readInternal(file, HARD_MAX_BYTES)
+
+    @Throws(IOException::class)
+    private fun readInternal(file: File, cap: Long): LoadedText {
         val size = file.length()
-        if (size > MAX_BYTES) throw FileTooLargeException(size)
+        if (size > cap) throw FileTooLargeException(size)
         val bytes = file.readBytes()
 
         var charset: Charset = Charsets.UTF_8

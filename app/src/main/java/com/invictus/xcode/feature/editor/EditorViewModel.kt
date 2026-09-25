@@ -12,6 +12,8 @@ import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.core.editor.ExternalChange
 import com.invictus.xcode.core.editor.FileTooLargeException
+import com.invictus.xcode.core.editor.LoadedText
+import com.invictus.xcode.core.editor.PagedEditSession
 import com.invictus.xcode.core.editor.SessionState
 import com.invictus.xcode.core.editor.SessionTab
 import com.invictus.xcode.core.editor.TabBuffer
@@ -185,6 +187,16 @@ class EditorViewModel(
                 clearExternalChangeUi(event.path)
                 setDirty(event.path, true) // Nothing on disk to match anymore -- next save recreates it.
             }
+            is EditorEvent.ChangePage -> changePage(
+                event.path,
+                event.toIndex,
+                PagedEditSession.PageViewState(
+                    event.fromCursorLine,
+                    event.fromCursorColumn,
+                    event.fromScrollX,
+                    event.fromScrollY,
+                ),
+            )
         }
     }
 
@@ -213,6 +225,18 @@ class EditorViewModel(
     /** The editor view hands back cursor, zoom and scroll when a tab's view is torn down. */
     fun onViewState(path: String, line: Int, column: Int, textSizePx: Float, scrollX: Int, scrollY: Int) {
         val buffer = buffers[path] ?: return
+        if (buffer.suppressNextViewStateCapture) {
+            // This teardown is goToPage()'s own view swap: cursorLine/scrollX etc already hold
+            // the *incoming* page's restored position, so a report of the *outgoing* page's
+            // cursor here must not overwrite them. Still worth learning the zoom level from it.
+            buffer.suppressNextViewStateCapture = false
+            if (textSizePx > 0f && textSizePx != buffer.textSizePx) {
+                buffer.textSizePx = textSizePx
+                defaultFontSizePx = textSizePx
+                viewModelScope.launch { settingsStore.setFontSizePx(textSizePx) }
+            }
+            return
+        }
         buffer.cursorLine = line
         buffer.cursorColumn = column
         buffer.scrollX = scrollX
@@ -238,20 +262,7 @@ class EditorViewModel(
         viewModelScope.launch {
             val result: Result<TabBuffer> = withContext(io) {
                 try {
-                    val loaded = TextFileIo.read(file)
-                    Result.success(
-                        TabBuffer(
-                            file = file,
-                            content = Content(loaded.text),
-                            charset = loaded.charset,
-                            hasBom = loaded.hasBom,
-                            lineEnding = loaded.lineEnding,
-                        ).apply {
-                            diskContentHash = EditorSessionStore.hashOf(loaded.text)
-                            lastKnownDiskModified = file.lastModified()
-                            if (defaultFontSizePx > 0f) textSizePx = defaultFontSizePx
-                        },
-                    )
+                    Result.success(loadBuffer(file))
                 } catch (e: IOException) {
                     Result.failure(e)
                 } catch (e: OutOfMemoryError) {
@@ -263,15 +274,25 @@ class EditorViewModel(
             result.fold(
                 onSuccess = { buffer ->
                     buffers[path] = buffer
+                    val session = buffer.pagedSession
                     _uiState.update {
                         it.copy(
-                            tabs = it.tabs + EditorTabUi(path, file.name, dirty = false),
+                            tabs = it.tabs + EditorTabUi(
+                                path,
+                                file.name,
+                                dirty = false,
+                                pageIndex = session?.let { 0 },
+                                pageCount = session?.pageCount,
+                            ),
                             activePath = path,
                         )
                     }
                     _showEditor.tryEmit(Unit)
                     schedulePersist()
                     rewatch()
+                    if (session != null) {
+                        _messages.tryEmit(UiText(R.string.editor_paged_opened, listOf(session.pageCount)))
+                    }
                 },
                 onFailure = { error ->
                     val text = if (error is FileTooLargeException) {
@@ -283,6 +304,55 @@ class EditorViewModel(
                 },
             )
         }
+    }
+
+    /**
+     * Reads [file] off the calling (IO) thread and builds its [TabBuffer]. A file at or under
+     * [TextFileIo.MAX_BYTES] gets the normal whole-file path; above it, this falls back to
+     * [TextFileIo.readForPaging] and a [PagedEditSession] (M4 "paged large file") instead of
+     * giving up. Throws [IOException] (a [FileTooLargeException] past the paging hard cap, or
+     * any other read failure) or [OutOfMemoryError] -- callers already handle both.
+     */
+    @Throws(IOException::class)
+    private fun loadBuffer(file: File): TabBuffer {
+        val buffer = try {
+            val loaded = TextFileIo.read(file)
+            TabBuffer(
+                file = file,
+                content = Content(loaded.text),
+                charset = loaded.charset,
+                hasBom = loaded.hasBom,
+                lineEnding = loaded.lineEnding,
+            ).apply { diskContentHash = EditorSessionStore.hashOf(loaded.text) }
+        } catch (_: FileTooLargeException) {
+            val loaded = TextFileIo.readForPaging(file)
+            val session = PagedEditSession(loaded.text)
+            TabBuffer(
+                file = file,
+                content = Content(session.textForPage(0)),
+                charset = loaded.charset,
+                hasBom = loaded.hasBom,
+                lineEnding = loaded.lineEnding,
+                pagedSession = session,
+            ).apply { diskContentHash = EditorSessionStore.hashOf(loaded.text) }
+        }
+        buffer.lastKnownDiskModified = file.lastModified()
+        if (defaultFontSizePx > 0f) buffer.textSizePx = defaultFontSizePx
+        return buffer
+    }
+
+    /** Paged large file (M4): move [path] to page [toIndex], see [TabBuffer.goToPage]. */
+    private fun changePage(path: String, toIndex: Int, outgoing: PagedEditSession.PageViewState) {
+        val buffer = buffers[path] ?: return
+        val session = buffer.pagedSession ?: return
+        if (toIndex == session.currentPageIndex) return
+        buffer.goToPage(toIndex, outgoing)
+        // The screen keys its CodeEditorView on the tab's pageIndex, so this has to be real UI
+        // state (not just live on the TabBuffer) for the swapped-in content to ever be shown.
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.path == path) it.copy(pageIndex = session.currentPageIndex) else it })
+        }
+        schedulePersist()
     }
 
     private fun isDirty(path: String): Boolean = buffers[path]?.isDirty == true
@@ -471,20 +541,26 @@ class EditorViewModel(
         var allOk = true
         for (path in paths) {
             val buffer = buffers[path] ?: continue
-            // Snapshot on the main thread (the editor mutates Content there), write on IO.
-            val text = buffer.content.toString()
+            // Snapshot on the main thread (the editor mutates Content there), write on IO. For a
+            // paged buffer this is every page merged, not just the one currently on screen.
+            val text = buffer.snapshotForSave()
             val revision = buffer.revision
-            val ok = withContext(io) {
+            // Hashing happens alongside the write, not after: cheap at the old 32MB cap, but a
+            // paged file can be up to TextFileIo.HARD_MAX_BYTES and shouldn't hash on the main
+            // thread.
+            val hash = withContext(io) {
                 try {
                     TextFileIo.write(buffer.file, text, buffer.charset, buffer.hasBom, buffer.lineEnding)
-                    true
+                    EditorSessionStore.hashOf(text)
                 } catch (_: IOException) {
-                    false
+                    null
                 }
             }
+            val ok = hash != null
             if (ok) {
+                buffer.pagedSession?.markSaved()
                 buffer.savedRevision = revision
-                buffer.diskContentHash = EditorSessionStore.hashOf(text)
+                buffer.diskContentHash = hash
                 buffer.lastKnownDiskModified = buffer.file.lastModified()
                 buffer.externalChange = ExternalChange.None
                 clearExternalChangeUi(path)
@@ -523,7 +599,10 @@ class EditorViewModel(
                 scrollX = buffer.scrollX,
                 scrollY = buffer.scrollY,
                 contentHash = buffer.diskContentHash,
-                pendingEditSnapshot = if (buffer.isDirty) buffer.content.toString() else null,
+                // A paged file's edits never ride along in the session snapshot -- unlike a
+                // normal tab's content this could be hundreds of MB, so an unsaved edit to a
+                // paged file doesn't survive the app being killed; only an actual save does.
+                pendingEditSnapshot = if (buffer.isDirty && !buffer.isPaged) buffer.content.toString() else null,
             )
         }
         return SessionState(projectPath = projectPath, activePath = ui.activePath, tabs = tabs)
@@ -535,38 +614,73 @@ class EditorViewModel(
         var droppedUnsavedEdits = 0
         for (saved in session.tabs) {
             val file = File(saved.path)
-            val loaded = withContext(io) {
-                if (!file.exists() || !file.isFile) null else try {
-                    TextFileIo.read(file)
+            if (!file.exists() || !file.isFile) continue // Gone since last session: drop the tab.
+
+            var normalLoaded: LoadedText? = null
+            var pagedBuffer: TabBuffer? = null
+            withContext(io) {
+                try {
+                    normalLoaded = TextFileIo.read(file)
+                } catch (_: FileTooLargeException) {
+                    // Grew past MAX_BYTES since, or was already a paged tab: same fallback as
+                    // open(), just without loadBuffer()'s own try/read (already know it's this).
+                    pagedBuffer = try {
+                        loadBuffer(file)
+                    } catch (_: IOException) {
+                        null
+                    } catch (_: OutOfMemoryError) {
+                        null
+                    }
                 } catch (_: IOException) {
-                    null
+                    // Left both null -- unreadable, dropped below like a gone file.
                 }
-            } ?: continue // File gone or unreadable: just drop this tab, same as a closed one.
-
-            val currentHash = EditorSessionStore.hashOf(loaded.text)
-            val trustSnapshot = saved.pendingEditSnapshot != null && currentHash == saved.contentHash
-            if (saved.pendingEditSnapshot != null && !trustSnapshot) droppedUnsavedEdits++
-
-            val text = if (trustSnapshot) saved.pendingEditSnapshot!! else loaded.text
-            val buffer = TabBuffer(
-                file = file,
-                content = Content(text),
-                charset = loaded.charset,
-                hasBom = loaded.hasBom,
-                lineEnding = loaded.lineEnding,
-            ).apply {
-                isPinned = saved.isPinned
-                if (defaultFontSizePx > 0f) textSizePx = defaultFontSizePx
-                cursorLine = saved.cursorLine
-                cursorColumn = saved.cursorColumn
-                scrollX = saved.scrollX
-                scrollY = saved.scrollY
-                diskContentHash = if (trustSnapshot) saved.contentHash else currentHash
-                lastKnownDiskModified = file.lastModified()
-                if (trustSnapshot) revision = 1 // savedRevision stays 0 -> dirty
             }
+
+            val buffer: TabBuffer
+            val dirty: Boolean
+            val loaded = normalLoaded
+            when {
+                pagedBuffer != null -> {
+                    buffer = pagedBuffer!!
+                    // Which page was open, and any unsaved edit to it, weren't persisted (see
+                    // buildSessionState) -- reopens fresh at page 1 rather than guess.
+                    dirty = false
+                }
+                loaded != null -> {
+                    val currentHash = EditorSessionStore.hashOf(loaded.text)
+                    val trustSnapshot = saved.pendingEditSnapshot != null && currentHash == saved.contentHash
+                    if (saved.pendingEditSnapshot != null && !trustSnapshot) droppedUnsavedEdits++
+                    val text = if (trustSnapshot) saved.pendingEditSnapshot!! else loaded.text
+                    buffer = TabBuffer(
+                        file = file,
+                        content = Content(text),
+                        charset = loaded.charset,
+                        hasBom = loaded.hasBom,
+                        lineEnding = loaded.lineEnding,
+                    ).apply {
+                        diskContentHash = if (trustSnapshot) saved.contentHash else currentHash
+                        if (trustSnapshot) revision = 1 // savedRevision stays 0 -> dirty
+                        cursorLine = saved.cursorLine
+                        cursorColumn = saved.cursorColumn
+                        scrollX = saved.scrollX
+                        scrollY = saved.scrollY
+                    }
+                    dirty = trustSnapshot
+                }
+                else -> continue // Unreadable, or past even the paging hard cap: drop this tab.
+            }
+            buffer.isPinned = saved.isPinned
+            if (defaultFontSizePx > 0f) buffer.textSizePx = defaultFontSizePx
+            buffer.lastKnownDiskModified = file.lastModified()
             buffers[saved.path] = buffer
-            restoredTabs += EditorTabUi(saved.path, saved.name, dirty = trustSnapshot, isPinned = saved.isPinned)
+            restoredTabs += EditorTabUi(
+                saved.path,
+                saved.name,
+                dirty = dirty,
+                isPinned = saved.isPinned,
+                pageIndex = buffer.pagedSession?.let { 0 },
+                pageCount = buffer.pagedSession?.pageCount,
+            )
         }
         if (restoredTabs.isEmpty()) return
         val active = session.activePath?.takeIf { p -> restoredTabs.any { it.path == p } } ?: restoredTabs.first().path

@@ -21,11 +21,19 @@ enum class ExternalChange {
  */
 class TabBuffer(
     val file: File,
-    val content: Content,
+    content: Content,
     val charset: Charset,
     val hasBom: Boolean,
     val lineEnding: LineEnding,
+    /** Non-null only for a file opened above [TextFileIo.MAX_BYTES] (M4 "paged large file"). */
+    val pagedSession: PagedEditSession? = null,
 ) {
+    /** The page currently loaded, when [pagedSession] is set -- see [goToPage]. */
+    var content: Content = content
+        private set
+
+    val isPaged: Boolean get() = pagedSession != null
+
     /** Bumped on every edit; a tab is dirty while it differs from [savedRevision]. */
     var revision: Long = 0
     var savedRevision: Long = 0
@@ -53,4 +61,42 @@ class TabBuffer(
 
     /** Set once a background watcher or resume check has seen the file differ; drives the banner. */
     var externalChange: ExternalChange = ExternalChange.None
+
+    /**
+     * Set right before the outgoing page's Compose view tears down (see `key(path, pageIndex)`
+     * in EditorScreen), so the routine teardown -> `onViewState` capture -- which would report
+     * the *outgoing* page's cursor -- doesn't clobber the *incoming* page's cursor [goToPage]
+     * just restored into [cursorLine] etc. Consumed once by `EditorViewModel.onViewState`.
+     */
+    var suppressNextViewStateCapture: Boolean = false
+
+    /**
+     * Commits the current page's live text + cursor into [pagedSession], then swaps [content]
+     * for a fresh `Content` holding [index]'s text (own undo stack) and restores that page's
+     * last-seen cursor/scroll into [cursorLine]/[cursorColumn]/[scrollX]/[scrollY], the same
+     * fields a normal tab switch already reads to place the cursor. No-op when not paged.
+     */
+    fun goToPage(index: Int, outgoingViewState: PagedEditSession.PageViewState) {
+        val session = pagedSession ?: return
+        session.commitPage(session.currentPageIndex, content.toString(), outgoingViewState)
+        session.selectPage(index)
+        content = Content(session.textForPage(session.currentPageIndex))
+        val incoming = session.viewStateForPage(session.currentPageIndex)
+        cursorLine = incoming.cursorLine
+        cursorColumn = incoming.cursorColumn
+        scrollX = incoming.scrollX
+        scrollY = incoming.scrollY
+        suppressNextViewStateCapture = true
+    }
+
+    /**
+     * The text to write on save: the whole buffer for a normal file, or the paged file's
+     * [PagedEditSession.mergedText] (current page committed first) so a save never touches
+     * only the page the user happens to be looking at.
+     */
+    fun snapshotForSave(): String {
+        val session = pagedSession ?: return content.toString()
+        session.commitCurrentPageText(content.toString())
+        return session.mergedText()
+    }
 }

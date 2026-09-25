@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="editor_paged_opened">Large file opened in %1$d pages</string>
+    <string name="editor_page_indicator">Page %1$d / %2$d</string>
+    <string name="editor_page_previous">Previous page</string>
+    <string name="editor_page_next">Next page</string>
+    <string name="editor_page_jump">Jump to page</string>
+    <string name="editor_page_jump_hint">Page (1\u2013%1$d)</string>
+</resources>
