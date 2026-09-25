@@ -5,11 +5,10 @@
     <string name="home_open_project">Open Project</string>
     <string name="home_recent">Recent Projects</string>
     <string name="home_no_recents">No projects yet — open one to get started.</string>
-    <string name="action_settings">Settings</string>
 
     <!-- strings_m1.xml -->
     <string name="permission_title">All files access needed</string>
-    <string name="permission_body">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git operations you start.</string>
+    <string name="permission_body">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git[...]</string>
     <string name="permission_button">Grant access</string>
     <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
     <string name="workspace_title">Workspace</string>
@@ -43,18 +42,18 @@
     <string name="dialog_new_folder_title">New folder</string>
     <string name="dialog_name_label_file">File name (e.g. main.kt)</string>
     <string name="dialog_name_label_folder">Folder name</string>
-    <string name="dialog_delete_title">Delete “%1$s”?</string>
+    <string name="dialog_delete_title">Delete "%1$s"?</string>
     <string name="dialog_delete_file_body">This can\'t be undone.</string>
     <string name="dialog_delete_folder_body">The folder and everything inside it will be deleted permanently. This can\'t be undone.</string>
     <string name="dialog_open_binary_title">Binary file</string>
-    <string name="dialog_open_binary_body">“%1$s” looks like a binary file. Opening it as text can show garbage or be slow.</string>
+    <string name="dialog_open_binary_body">"%1$s" looks like a binary file. Opening it as text can show garbage or be slow.</string>
     <string name="dialog_open_large_title">Large file</string>
-    <string name="dialog_open_large_body">“%1$s” is %2$s. Large files can be slow to edit.</string>
+    <string name="dialog_open_large_body">"%1$s" is %2$s. Large files can be slow to edit.</string>
     <string name="clipboard_bar_copied">Copied: %1$s</string>
     <string name="clipboard_bar_cut">Cut: %1$s</string>
     <string name="msg_path_copied">Path copied</string>
-    <string name="msg_pasted">Pasted “%1$s”</string>
-    <string name="msg_moved">Moved “%1$s”</string>
+    <string name="msg_pasted">Pasted "%1$s"</string>
+    <string name="msg_moved">Moved "%1$s"</string>
     <string name="fs_err_invalid_name">That name isn\'t valid.</string>
     <string name="fs_err_exists">Something with that name already exists.</string>
     <string name="fs_err_not_found">That item no longer exists.</string>
@@ -83,9 +82,9 @@
     <string name="tree_menu_reveal">Show in tree</string>
     <string name="tree_pinned_header">Pinned</string>
     <string name="msg_folder_unavailable">That folder is missing or can\'t be read.</string>
-    <string name="msg_project_renamed">Renamed to “%1$s”</string>
+    <string name="msg_project_renamed">Renamed to "%1$s"</string>
     <string name="msg_backup_done">Backup saved to %1$s</string>
-    <string name="msg_backup_failed">Couldn\'t back up “%1$s”. Nothing was changed.</string>
+    <string name="msg_backup_failed">Couldn\'t back up "%1$s". Nothing was changed.</string>
 
     <!-- strings_m3.xml -->
     <string name="action_save">Save</string>
