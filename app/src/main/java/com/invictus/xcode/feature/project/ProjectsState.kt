@@ -25,6 +25,8 @@ data class ProjectsUiState(
     val renaming: RenameProject? = null,
     /** Project paths with a backup running right now. */
     val backingUp: Set<String> = emptySet(),
+    /** Whether the folder browser also lists dot-prefixed (hidden) folders. */
+    val showHidden: Boolean = false,
 )
 
 sealed interface ProjectsEvent {
@@ -37,6 +39,7 @@ sealed interface ProjectsEvent {
     data class ConfirmRename(val newName: String) : ProjectsEvent
     data object DismissRename : ProjectsEvent
     data class Backup(val file: File) : ProjectsEvent
+    data object ToggleShowHidden : ProjectsEvent
 }
 
 sealed interface ProjectsEffect {

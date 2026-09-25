@@ -71,6 +71,7 @@ class ProjectsViewModel(
             is ProjectsEvent.ConfirmRename -> confirmRename(event.newName)
             ProjectsEvent.DismissRename -> _uiState.update { it.copy(renaming = null) }
             is ProjectsEvent.Backup -> runBackup(event.file)
+            ProjectsEvent.ToggleShowHidden -> toggleShowHidden()
         }
     }
 
@@ -118,7 +119,9 @@ class ProjectsViewModel(
                     it.copy(
                         browseDir = dir,
                         browseEntries = result.value
-                            .filter { entry -> entry.isDirectory && !entry.name.startsWith(".") }
+                            .filter { entry ->
+                                entry.isDirectory && (_uiState.value.showHidden || !entry.name.startsWith("."))
+                            }
                             .map { entry -> entry.file },
                         browseError = null,
                     )
@@ -128,6 +131,12 @@ class ProjectsViewModel(
                 }
             }
         }
+    }
+
+    private fun toggleShowHidden() {
+        val next = !_uiState.value.showHidden
+        _uiState.update { it.copy(showHidden = next) }
+        _uiState.value.browseDir?.let { browse(it) }
     }
 
     private fun browseUp() {

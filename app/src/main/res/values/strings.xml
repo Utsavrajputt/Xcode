@@ -2,6 +2,10 @@
 <resources>
     <!-- strings.xml -->
     <string name="app_name">Xcode</string>
+    <string name="home_open_project">Open Project</string>
+    <string name="home_recent">Recent Projects</string>
+    <string name="home_no_recents">No projects yet — open one to get started.</string>
+    <string name="action_settings">Settings</string>
 
     <!-- strings_m1.xml -->
     <string name="permission_title">All files access needed</string>

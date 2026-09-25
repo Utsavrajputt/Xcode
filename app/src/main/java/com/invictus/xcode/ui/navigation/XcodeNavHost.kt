@@ -11,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.invictus.xcode.feature.editor.EditorEvent
 import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
+import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.settings.SettingsScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
@@ -28,7 +29,7 @@ fun XcodeNavHost(
     val navController = rememberNavController()
     // Activity-scoped on purpose: open tabs outlive the trip back to the file tree.
     val editorViewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory)
-    val startDestination = remember { if (storageGranted) Routes.WORKSPACE else Routes.PERMISSION }
+    val startDestination = remember { if (storageGranted) Routes.HOME else Routes.PERMISSION }
 
     NavHost(
         navController = navController,
@@ -36,6 +37,12 @@ fun XcodeNavHost(
         modifier = modifier,
     ) {
         composable(Routes.PERMISSION) { PermissionScreen(onGrantClick = onGrantClick) }
+        composable(Routes.HOME) {
+            HomeScreen(
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                onProjectOpened = { navController.navigate(Routes.WORKSPACE) },
+            )
+        }
         composable(Routes.WORKSPACE) {
             WorkspaceScreen(
                 onOpenFile = { editorViewModel.onEvent(EditorEvent.Open(it)) },
@@ -74,12 +81,12 @@ fun XcodeNavHost(
         val route = navController.currentBackStackEntry?.destination?.route
         when {
             storageGranted && route == Routes.PERMISSION ->
-                navController.navigate(Routes.WORKSPACE) {
+                navController.navigate(Routes.HOME) {
                     popUpTo(Routes.PERMISSION) { inclusive = true }
                 }
-            !storageGranted && (route == Routes.WORKSPACE || route == Routes.EDITOR) ->
+            !storageGranted && (route == Routes.HOME || route == Routes.WORKSPACE || route == Routes.EDITOR) ->
                 navController.navigate(Routes.PERMISSION) {
-                    popUpTo(Routes.WORKSPACE) { inclusive = true }
+                    popUpTo(Routes.HOME) { inclusive = true }
                 }
         }
     }

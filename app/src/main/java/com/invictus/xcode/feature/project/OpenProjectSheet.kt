@@ -30,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -109,6 +110,23 @@ fun OpenProjectSheet(
                 onQueryChange = { query = it },
                 onGo = { if (typedPath != null && pathIsFolder == true) onOpen(File(typedPath)) },
             )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onEvent(ProjectsEvent.ToggleShowHidden) }
+                    .padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.menu_show_hidden),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Switch(
+                    checked = state.showHidden,
+                    onCheckedChange = { onEvent(ProjectsEvent.ToggleShowHidden) },
+                )
+            }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 if (typedPath != null) {
                     item(key = "typed") {
