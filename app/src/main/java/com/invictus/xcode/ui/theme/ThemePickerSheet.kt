@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateTo
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -136,11 +139,28 @@ private fun ThemeCard(
     val scheme = remember(theme, dark) {
         if (dark) theme.getDarkColorScheme() else theme.getLightColorScheme()
     }
+    // Expressive press-to-scale bounce.
+    val scale = remember { Animatable(1f) }
 
     Box(
-        modifier = Modifier.pointerInput(theme) {
-            detectTapGestures { offset -> onSelect(offset) }
-        },
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
+            .pointerInput(theme) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        try {
+                            scale.animateTo(0.94f, animationSpec = ExpressiveMotion.FastEffectsTween)
+                            onSelect(offset)
+                            tryAwaitRelease()
+                        } finally {
+                            scale.animateTo(1f, animationSpec = ExpressiveMotion.DefaultEffectsSpring)
+                        }
+                    },
+                )
+            },
     ) {
         Surface(
             shape = MaterialTheme.shapes.large,

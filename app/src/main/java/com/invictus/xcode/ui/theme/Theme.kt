@@ -1,13 +1,19 @@
 package com.invictus.xcode.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 /**
- * App theme wrapper — now fully Material 3 Expressive with multi-theme support
- * (Aurora default; resolver + settings ported from xmd).
+ * App theme wrapper — fully Material 3 Expressive with multi-theme support.
+ * Also tints status/nav bars with the active scheme so system chrome
+ * matches the selected theme (Aurora included).
  */
 @Composable
 fun XcodeTheme(
@@ -21,7 +27,21 @@ fun XcodeTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val colorScheme = resolveXcodeColorScheme(LocalContext.current, appTheme, darkTheme, isAmoled)
+    val context = LocalContext.current
+    val colorScheme = resolveXcodeColorScheme(context, appTheme, darkTheme, isAmoled)
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.surface.toArgb()
+            window.navigationBarColor = colorScheme.surfaceContainer.toArgb()
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
+    }
 
     MaterialTheme(
         colorScheme = colorScheme,

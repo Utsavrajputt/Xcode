@@ -5,5 +5,9 @@
          Material Components concept and this app has neither dependency,
          so light/dark here is done the plain Android way: this file (light
          parent) plus a values-night/ override (dark parent), same style name. -->
-    <style name="Theme.Xcode" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Xcode" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background_light</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

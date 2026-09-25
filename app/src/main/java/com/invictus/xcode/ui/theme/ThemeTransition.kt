@@ -1,10 +1,9 @@
 package com.invictus.xcode.ui.theme
 
 import android.graphics.Bitmap
+import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,6 +39,7 @@ class ThemeTransitionController {
     /** Freezes the current screen, then reveals [onReveal] from [position] outward. */
     fun begin(view: View, position: Offset, onReveal: () -> Unit) {
         if (isAnimating) return
+        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
         origin = position
         bitmap = try { view.drawToBitmap() } catch (_: Exception) { null }
         pendingReveal = onReveal
@@ -73,7 +73,7 @@ fun ThemeTransitionOverlay(controller: ThemeTransitionController) {
         var revealed = false
         Animatable(0f).animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+            animationSpec = ExpressiveMotion.ExpressiveEffectsSpring,
         ) {
             controller.progress = value
             if (!revealed && value > 0.3f) {

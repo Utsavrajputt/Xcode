@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#1E1E2E</color>
+    <!-- Matches the Aurora app theme backgrounds so the pre-Compose window
+         doesn't flash a mismatched white/black. -->
+    <color name="window_background_light">#FFF2FAFA</color>
+    <color name="window_background_dark">#FF0C1B1C</color>
 </resources>
