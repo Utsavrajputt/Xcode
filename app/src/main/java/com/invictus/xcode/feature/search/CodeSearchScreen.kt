@@ -1,26 +1,33 @@
 package com.invictus.xcode.feature.search
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -200,7 +208,14 @@ class CodeSearchViewModel(
 
         @Composable
         fun get(projectPath: String, owner: androidx.lifecycle.ViewModelStoreOwner): CodeSearchViewModel {
-            val extras = MutableCreationExtras().apply { set(RootKey, File(projectPath)) }
+            // FileSearchViewModel jaisa hi bug: owner ke default extras (jisme APPLICATION_KEY
+            // hota hai) copy kiye bina empty MutableCreationExtras banane se factory() me
+            // `this[APPLICATION_KEY] as XcodeApp` null milta hai aur crash hota hai.
+            val defaultExtras = (owner as? androidx.lifecycle.HasDefaultViewModelProviderFactory)
+                ?.defaultViewModelCreationExtras
+            val extras = MutableCreationExtras(defaultExtras ?: CreationExtras.Empty).apply {
+                set(RootKey, File(projectPath))
+            }
             return androidx.lifecycle.viewmodel.compose.viewModel(
                 owner,
                 key = "code_search_$projectPath",
@@ -236,27 +251,64 @@ fun CodeSearchScreen(
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            TextField(
-                value = state.query,
-                onValueChange = viewModel::onQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text(stringResource(R.string.search_code_hint)) },
-                singleLine = true,
-            )
+            // M3 Expressive: pill-shaped, tonal, floating search field (FileSearchOverlay jaisa).
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(56.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                tonalElevation = 2.dp,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        XIcons.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 12.dp),
+                    )
+                    TextField(
+                        value = state.query,
+                        onValueChange = viewModel::onQueryChange,
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text(stringResource(R.string.search_code_hint)) },
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            disabledIndicatorColor = Color.Transparent,
+                        ),
+                    )
+                    if (state.query.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.onQueryChange("") }) {
+                            Icon(
+                                XIcons.Close,
+                                contentDescription = stringResource(R.string.action_delete),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
 
             // Options row
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 FilterChip(
                     selected = state.regex,
                     onClick = { viewModel.setRegex(!state.regex) },
                     label = { Text(stringResource(R.string.search_regex)) },
-                    modifier = Modifier.padding(end = 8.dp),
                 )
                 FilterChip(
                     selected = state.caseSensitive,
                     onClick = { viewModel.setCase(!state.caseSensitive) },
                     label = { Text(stringResource(R.string.search_case_sensitive)) },
-                    modifier = Modifier.padding(end = 8.dp),
                 )
                 FilterChip(
                     selected = state.wholeWord,
@@ -264,13 +316,17 @@ fun CodeSearchScreen(
                     label = { Text(stringResource(R.string.search_whole_word)) },
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 OutlinedTextField(
                     value = state.includeGlob,
                     onValueChange = viewModel::setInclude,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
+                    modifier = Modifier.weight(1f),
                     label = { Text(stringResource(R.string.search_include_glob)) },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                 )
                 OutlinedTextField(
                     value = state.excludeGlob,
@@ -278,6 +334,7 @@ fun CodeSearchScreen(
                     modifier = Modifier.weight(1f),
                     label = { Text(stringResource(R.string.search_exclude_glob)) },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
                 )
             }
 
@@ -299,77 +356,97 @@ fun CodeSearchScreen(
                 )
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 if (state.query.isBlank()) {
                     item(key = "history_header") {
                         Text(
                             text = stringResource(R.string.search_history),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         )
                     }
                     items(state.history, key = { it.id }) { entry ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { viewModel.runFromHistory(entry) }
-                                .padding(horizontal = 16.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Icon(XIcons.Search, contentDescription = null)
-                            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                                Text(entry.query, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (entry.optionsJson != "{}") {
-                                    Text(
-                                        text = entry.optionsJson,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { viewModel.runFromHistory(entry) }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(XIcons.Search, contentDescription = null)
+                                Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                                    Text(entry.query, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if (entry.optionsJson != "{}") {
+                                        Text(
+                                            text = entry.optionsJson,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
                                 }
-                            }
-                            IconButton(onClick = { viewModel.removeHistory(entry.query) }) {
-                                Icon(XIcons.Close, contentDescription = stringResource(R.string.action_delete))
+                                IconButton(onClick = { viewModel.removeHistory(entry.query) }) {
+                                    Icon(XIcons.Close, contentDescription = stringResource(R.string.action_delete))
+                                }
                             }
                         }
                     }
                 } else {
                     state.results.forEach { fileResult ->
-                        item(key = "hdr:${fileResult.file.path}") {
-                            FileResultHeader(
-                                fileResult = fileResult,
-                                onLocateInTree = { onLocateInTree(fileResult.file) },
-                            )
-                        }
-                        items(fileResult.matches, key = { "${fileResult.file.path}:${it.line}" }) { m ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        // Query clear NAHI hoti: dusra result bina dobara
-                                        // type kiye chuna ja sakta hai.
-                                        viewModel.recordHistory()
-                                        onOpenMatch(fileResult.file, m.line)
-                                    }
-                                    .padding(start = 32.dp, end = 16.dp, top = 2.dp, bottom = 2.dp),
+                        item(key = "group:${fileResult.file.path}") {
+                            // Har file ka group ek rounded tonal card me — divider ki zaroorat
+                            // nahi, card khud visual separation de deta hai.
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth(),
                             ) {
-                                Text(
-                                    text = "${m.line}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(end = 8.dp),
-                                )
-                                Text(
-                                    text = highlightedSnippet(m),
-                                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
+                                Column {
+                                    FileResultHeader(
+                                        fileResult = fileResult,
+                                        onLocateInTree = { onLocateInTree(fileResult.file) },
+                                    )
+                                    fileResult.matches.forEach { m ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    // Query clear NAHI hoti: dusra result bina dobara
+                                                    // type kiye chuna ja sakta hai.
+                                                    viewModel.recordHistory()
+                                                    onOpenMatch(fileResult.file, m.line)
+                                                }
+                                                .padding(start = 32.dp, end = 16.dp, top = 3.dp, bottom = 3.dp),
+                                        ) {
+                                            Text(
+                                                text = "${m.line}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(end = 8.dp),
+                                            )
+                                            Text(
+                                                text = highlightedSnippet(m),
+                                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(4.dp))
+                                }
                             }
                         }
-                        item(key = "div:${fileResult.file.path}") { HorizontalDivider() }
                     }
                     if (state.searching) {
                         item(key = "searching_footer") {
