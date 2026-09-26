@@ -21,7 +21,10 @@ import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
-import com.invictus.xcode.feature.settings.SettingsScreen
+import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
+import com.invictus.xcode.feature.settings.SettingsBehaviorScreen
+import com.invictus.xcode.feature.settings.SettingsEditingScreen
+import com.invictus.xcode.feature.settings.SettingsRootScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
 
 /** Shared-axis-X (slide + fade) screen transition, tween-based — cheap on low-end devices. */
@@ -91,7 +94,27 @@ fun XcodeNavHost(
             )
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(
+            SettingsRootScreen(
+                onBack = { navController.popBackStack() },
+                onOpenAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
+                onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },
+                onOpenBehavior = { navController.navigate(Routes.SETTINGS_BEHAVIOR) },
+            )
+        }
+        composable(Routes.SETTINGS_APPEARANCE) {
+            SettingsAppearanceScreen(
+                viewModel = editorViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_EDITING) {
+            SettingsEditingScreen(
+                viewModel = editorViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(Routes.SETTINGS_BEHAVIOR) {
+            SettingsBehaviorScreen(
                 viewModel = editorViewModel,
                 onBack = { navController.popBackStack() },
             )

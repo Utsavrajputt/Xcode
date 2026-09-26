@@ -158,6 +158,9 @@
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_editing">Editing</string>
     <string name="settings_section_behavior">Behavior</string>
+    <string name="settings_category_appearance_desc">Theme, editor theme, font size, symbol bar</string>
+    <string name="settings_category_editing_desc">Autocomplete and pair cursor</string>
+    <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
     <string name="settings_app_theme">App theme</string>
     <string name="settings_editor_theme">Editor theme</string>
     <string name="settings_font_size">Font size</string>
