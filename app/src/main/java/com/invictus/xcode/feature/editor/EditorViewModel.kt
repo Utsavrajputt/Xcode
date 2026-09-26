@@ -77,6 +77,14 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setSymbolBarVisible(visible) }
     }
 
+    /** Settings screen "Auto-preview" toggle -- md/html tabs jump straight to SPLIT on open; off by default. */
+    val autoPreviewEnabled: StateFlow<Boolean> = settingsStore.autoPreviewEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setAutoPreviewEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setAutoPreviewEnabled(enabled) }
+    }
+
     /** Settings screen "Font size" slider; also the last size the user zoomed to anywhere. */
     val fontSizePx: StateFlow<Float> = settingsStore.fontSizePx
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
@@ -115,11 +123,15 @@ class EditorViewModel(
     /** Mirrors [autoReloadExternalChanges] for use inside the non-suspend-friendly disk-check path. */
     private var autoReloadExternal: Boolean = false
 
+    /** Mirrors [autoPreviewEnabled] for use inside the non-suspend-friendly tab-open paths. */
+    private var autoPreview: Boolean = false
+
     init {
         // Grammars load while the user is still browsing the tree; editors upgrade when ready.
         viewModelScope.launch { textMate.ensureLoaded() }
         viewModelScope.launch { settingsStore.fontSizePx.collect { defaultFontSizePx = it } }
         viewModelScope.launch { settingsStore.autoReloadExternalChanges.collect { autoReloadExternal = it } }
+        viewModelScope.launch { settingsStore.autoPreviewEnabled.collect { autoPreview = it } }
     }
 
     private val buffers = LinkedHashMap<String, TabBuffer>()
@@ -353,7 +365,7 @@ class EditorViewModel(
                                 pageCount = session?.pageCount,
                                 previewType = previewType,
                                 // Auto: markdown/html land straight in split, per M5 UX decision.
-                                previewMode = if (previewType.isTextPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
+                                previewMode = if (previewType.isTextPreview && autoPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
                             ),
                             activePath = path,
                         )
@@ -753,7 +765,7 @@ class EditorViewModel(
                 pageIndex = buffer.pagedSession?.let { 0 },
                 pageCount = buffer.pagedSession?.pageCount,
                 previewType = previewType,
-                previewMode = if (previewType.isTextPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
+                previewMode = if (previewType.isTextPreview && autoPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
             )
         }
         if (restoredTabs.isEmpty()) return

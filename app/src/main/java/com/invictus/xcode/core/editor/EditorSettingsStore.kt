@@ -29,6 +29,7 @@ class EditorSettingsStore(private val context: Context) {
         val AUTOCOMPLETE_ENABLED = booleanPreferencesKey("editor_autocomplete_enabled")
         val PAIR_CURSOR_ENABLED = booleanPreferencesKey("editor_pair_cursor_enabled")
         val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
+        val AUTO_PREVIEW_ENABLED = booleanPreferencesKey("editor_auto_preview_enabled")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -58,6 +59,10 @@ class EditorSettingsStore(private val context: Context) {
     val symbolBarVisible: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.SYMBOL_BAR_VISIBLE] ?: false }
 
+    /** Settings screen "Auto-preview" toggle -- md/html tabs jump straight to SPLIT on open; off by default. */
+    val autoPreviewEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.AUTO_PREVIEW_ENABLED] ?: false }
+
     suspend fun setThemeId(id: String) {
         context.editorSettingsDataStore.edit { it[Keys.THEME_ID] = id }
     }
@@ -84,6 +89,10 @@ class EditorSettingsStore(private val context: Context) {
 
     suspend fun setSymbolBarVisible(visible: Boolean) {
         context.editorSettingsDataStore.edit { it[Keys.SYMBOL_BAR_VISIBLE] = visible }
+    }
+
+    suspend fun setAutoPreviewEnabled(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.AUTO_PREVIEW_ENABLED] = enabled }
     }
 
     companion object {

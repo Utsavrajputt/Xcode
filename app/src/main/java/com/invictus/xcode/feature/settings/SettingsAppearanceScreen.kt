@@ -57,6 +57,7 @@ fun SettingsAppearanceScreen(
     val fontSizePx by viewModel.fontSizePx.collectAsStateWithLifecycle()
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
     val symbolBarVisible by viewModel.symbolBarVisible.collectAsStateWithLifecycle()
+    val autoPreviewEnabled by viewModel.autoPreviewEnabled.collectAsStateWithLifecycle()
 
     var showThemePicker by remember { mutableStateOf(false) }
     var showSymbolCustomize by remember { mutableStateOf(false) }
@@ -118,6 +119,13 @@ fun SettingsAppearanceScreen(
                     subtitle = stringResource(R.string.settings_symbol_bar_visible_desc),
                     checked = symbolBarVisible,
                     onCheckedChange = { viewModel.setSymbolBarVisible(it) },
+                )
+                SettingsDivider()
+                SwitchSettingRow(
+                    title = stringResource(R.string.settings_auto_preview),
+                    subtitle = stringResource(R.string.settings_auto_preview_desc),
+                    checked = autoPreviewEnabled,
+                    onCheckedChange = { viewModel.setAutoPreviewEnabled(it) },
                 )
                 SettingsDivider()
                 ClickableSettingRow(

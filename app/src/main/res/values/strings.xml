@@ -177,6 +177,8 @@
     <string name="settings_symbol_bar">Symbol bar</string>
     <string name="settings_symbol_bar_visible">Show symbol bar</string>
     <string name="settings_symbol_bar_visible_desc">Quick-insert symbol strip above the keyboard</string>
+    <string name="settings_auto_preview">Auto-preview</string>
+    <string name="settings_auto_preview_desc">Open Markdown/HTML files straight into split view</string>
     <string name="settings_autocomplete">Autocomplete</string>
     <string name="settings_autocomplete_desc">Suggest words and keywords while typing</string>
     <string name="settings_pair_cursor">Pair cursor</string>

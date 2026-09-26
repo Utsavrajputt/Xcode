@@ -24,9 +24,9 @@ class GitOnboardingPrefs(private val context: Context) {
         val DONE_PROJECTS = stringSetPreferencesKey("git_onboarding_done_projects")
     }
 
-    /** Global switch; default true. */
+    /** Global switch; off by default -- the wizard no longer auto-triggers unless the user opts in. */
     val enabled: Flow<Boolean> = context.gitOnboardingDataStore.data
-        .map { it[Keys.ENABLED] ?: true }
+        .map { it[Keys.ENABLED] ?: false }
 
     suspend fun setEnabled(enabled: Boolean) {
         context.gitOnboardingDataStore.edit { it[Keys.ENABLED] = enabled }
