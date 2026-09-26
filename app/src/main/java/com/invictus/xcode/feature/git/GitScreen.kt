@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -317,7 +317,9 @@ private fun LazyListScope.changeSection(
             TextButton(onClick = onHeaderAction) { Text(stringResource(headerActionLabelRes)) }
         }
     }
-    items(changes, key = { "$keyPrefix:${it.repoRelativePath}" }) { change ->
+    // Index bhi key me shamil — agar kabhi upstream se same repoRelativePath do baar
+    // aa jaaye (kisi bhi wajah se), tab bhi LazyColumn crash nahi karega.
+    itemsIndexed(changes, key = { index, change -> "$keyPrefix:${change.repoRelativePath}:$index" }) { _, change ->
         ChangeRow(change = change, onClick = { onItemClick(change) })
     }
 }

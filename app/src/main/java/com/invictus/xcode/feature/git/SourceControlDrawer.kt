@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -296,7 +296,9 @@ private fun LazyListScope.drawerSection(
         }
     }
     if (expanded) {
-        items(changes, key = { "$key:${'$'}{it.repoRelativePath}" }) { change ->
+        // Index bhi key me shamil — kisi bhi wajah se duplicate repoRelativePath aaye
+        // to bhi LazyColumn crash nahi karega.
+        itemsIndexed(changes, key = { index, change -> "$key:${change.repoRelativePath}:$index" }) { _, change ->
             DrawerChangeItem(
                 change = change,
                 diff = state.diffs[change.repoRelativePath],

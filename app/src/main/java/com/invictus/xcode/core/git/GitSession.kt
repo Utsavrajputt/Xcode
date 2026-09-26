@@ -888,7 +888,12 @@ class GitSession(
         // Conflicting paths dono maps me hote hain (staged + unstaged), isliye distinct()
         // zaroori hai — warna wahi path do baar GitPathChange me aa jaata hai aur
         // LazyColumn ka "staged:<path>" key duplicate ho kar crash karta hai.
-        val all = (staged.keys + unstaged.keys).distinct().sorted()
+        val rawAll = staged.keys + unstaged.keys
+        val all = rawAll.distinct().sorted()
+        if (all.size != rawAll.size) {
+            val dupes = rawAll.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+            android.util.Log.w("XcodeGit", "doStatus: duplicate repoRelativePath(s) found: $dupes")
+        }
         return GitWorkingTreeStatus(
             changes = all.map {
                 GitPathChange(
