@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_files_hint">नाम से फ़ाइल खोजें…</string>
+    <string name="search_code_title">फ़ाइलों में खोजें</string>
+    <string name="search_code_hint">Workspace में code खोजें…</string>
+    <string name="search_searching">खोजा जा रहा है…</string>
+    <string name="search_history">हाल की खोजें</string>
+    <string name="search_regex">.*</string>
+    <string name="search_case_sensitive">Aa</string>
+    <string name="search_whole_word">Word</string>
+    <string name="search_include_glob">Include (जैसे *.kt)</string>
+    <string name="search_exclude_glob">Exclude (जैसे build/)</string>
+    <string name="search_matches_summary">%2$d फ़ाइलों में %1$d मैच</string>
+    <string name="search_locate_in_tree">File tree में दिखाएँ</string>
+    <string name="search_invalid_regex">गलत regex: %1$s</string>
+</resources>

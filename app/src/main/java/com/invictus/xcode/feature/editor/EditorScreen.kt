@@ -391,6 +391,8 @@ fun EditorScreen(
                         val editorContent: @Composable (Modifier) -> Unit = { m ->
                             CodeEditorView(
                                 buffer = buffer,
+                                path = path,
+                                jumpToLine = viewModel.jumpToLine,
                                 darkTheme = darkTheme,
                                 textMate = viewModel.textMate,
                                 highlightReady = highlightReady,

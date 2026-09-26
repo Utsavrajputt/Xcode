@@ -36,6 +36,8 @@ data class EditorUiState(
 
 sealed interface EditorEvent {
     data class Open(val file: File) : EditorEvent
+    /** M11: code search se exact line par open (1-based line number). */
+    data class OpenAtLine(val file: File, val line: Int) : EditorEvent
     data class Select(val path: String) : EditorEvent
     data class CloseTab(val path: String) : EditorEvent
     data class CloseOthers(val path: String) : EditorEvent

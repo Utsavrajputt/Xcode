@@ -34,6 +34,8 @@ import com.invictus.xcode.feature.preview.MediaPreviewScreen
 import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
 import com.invictus.xcode.feature.settings.SettingsBehaviorScreen
 import com.invictus.xcode.feature.settings.SettingsEditingScreen
+import com.invictus.xcode.feature.search.CodeSearchScreen
+import com.invictus.xcode.feature.search.SearchBus
 import com.invictus.xcode.feature.settings.SettingsRootScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
 
@@ -94,6 +96,9 @@ fun XcodeNavHost(
                 onOpenGit = { root -> navController.navigate(Routes.git(root.path)) },
                 onGitSetup = { root -> navController.navigate(Routes.gitOnboarding(root.path)) },
                 onClone = { navController.navigate(Routes.GIT_CLONE) },
+                onOpenCodeSearch = { root ->
+                    navController.navigate(Routes.codeSearch(root.path))
+                },
             )
         }
         composable(Routes.EDITOR) {
@@ -214,6 +219,23 @@ fun XcodeNavHost(
                 GitOnboardingScreen(
                     projectPath = path,
                     onDone = { navController.popBackStack() },
+                )
+            }
+        }
+        composable(Routes.CODE_SEARCH) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                CodeSearchScreen(
+                    projectPath = path,
+                    onBack = { navController.popBackStack() },
+                    onOpenMatch = { file, line ->
+                        editorViewModel.onEvent(EditorEvent.OpenAtLine(file, line))
+                        navController.navigate(Routes.EDITOR) { launchSingleTop = true }
+                    },
+                    onLocateInTree = { file ->
+                        SearchBus.requestReveal(file)
+                        navController.popBackStack(Routes.WORKSPACE, inclusive = false)
+                    },
                 )
             }
         }

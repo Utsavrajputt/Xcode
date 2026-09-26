@@ -2,7 +2,9 @@ package com.invictus.xcode.feature.editor
 
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -15,6 +17,7 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import io.github.rosemoe.sora.widget.schemes.SchemeDarcula
+import kotlinx.coroutines.flow.SharedFlow
 
 /** Lets the top bar reach the live editor for undo/redo without owning the view. */
 class EditorHandle {
@@ -53,10 +56,30 @@ fun CodeEditorView(
     onViewState: (line: Int, column: Int, textSizePx: Float, scrollX: Int, scrollY: Int) -> Unit,
     onScroll: OnEditorScroll = OnEditorScroll {},
     modifier: Modifier = Modifier,
+    /** M11: code-search jump requests (path to 1-based line) for this tab's view. */
+    path: String = "",
+    jumpToLine: SharedFlow<Pair<String, Int>>? = null,
 ) {
     val currentOnEdited by rememberUpdatedState(onEdited)
+    val currentOnJump by rememberUpdatedState(jumpToLine)
     val currentOnViewState by rememberUpdatedState(onViewState)
     val currentOnScroll by rememberUpdatedState(onScroll)
+
+    // Live editor reference so the jump collector (below) can drive the cursor.
+    val editorHolder = remember { arrayOfNulls<CodeEditor>(1) }
+
+    LaunchedEffect(path) {
+        val flow = currentOnJump ?: return@LaunchedEffect
+        flow.collect { (target, line) ->
+            if (target != path) return@collect
+            editorHolder[0]?.post {
+                editorHolder[0]?.let { editor ->
+                    val lc = (line - 1).coerceIn(0, buffer.content.lineCount - 1)
+                    editor.setSelection(lc, 0, true)
+                }
+            }
+        }
+    }
 
     AndroidView(
         modifier = modifier,
@@ -93,6 +116,7 @@ fun CodeEditorView(
                 restoreScroll(this, buffer.scrollX, buffer.scrollY)
 
                 handle.editor = this
+                editorHolder[0] = this
             }
         },
         update = { editor ->
@@ -106,6 +130,7 @@ fun CodeEditorView(
             val (scrollX, scrollY) = captureScroll(editor)
             currentOnViewState(cursor.leftLine, cursor.leftColumn, editor.textSizePx, scrollX, scrollY)
             if (handle.editor === editor) handle.editor = null
+            if (editorHolder[0] === editor) editorHolder[0] = null
             // Detach from the shared Content before releasing so the old view stops listening.
             editor.setText("")
             editor.release()

@@ -138,6 +138,10 @@ class EditorViewModel(
 
     /** Fired once a file is ready, so navigation can bring the editor screen forward. */
     private val _showEditor = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** M11: code-search jump requests (path to 1-based line); consumed by the live editor view. */
+    private val _jumpToLine = MutableSharedFlow<Pair<String, Int>>(extraBufferCapacity = 1)
+    val jumpToLine: SharedFlow<Pair<String, Int>> = _jumpToLine
     val showEditor: SharedFlow<Unit> = _showEditor.asSharedFlow()
 
     /**
@@ -182,6 +186,7 @@ class EditorViewModel(
     fun onEvent(event: EditorEvent) {
         when (event) {
             is EditorEvent.Open -> open(event.file)
+            is EditorEvent.OpenAtLine -> open(event.file, event.line)
             is EditorEvent.Select -> if (event.path in buffers) {
                 _uiState.update { it.copy(activePath = event.path) }
                 schedulePersist()
@@ -298,7 +303,7 @@ class EditorViewModel(
         schedulePersist()
     }
 
-    private fun open(file: File) {
+    private fun open(file: File, jumpToLine: Int? = null) {
         val previewType = PreviewRouter.typeOf(file)
         if (previewType.isMedia) {
             // Binary -- never a text tab. Full-screen preview route handles it from here.
@@ -309,6 +314,7 @@ class EditorViewModel(
         val path = file.path
         if (path in buffers) {
             _uiState.update { it.copy(activePath = path) }
+            jumpToLine?.let { _jumpToLine.tryEmit(path to it) }
             _showEditor.tryEmit(Unit)
             return
         }
@@ -328,6 +334,13 @@ class EditorViewModel(
             _uiState.update { it.copy(loading = loading.isNotEmpty()) }
             result.fold(
                 onSuccess = { buffer ->
+                    // M11: naye tab ka initial cursor/scroll search line se set ho jayega
+                    // (CodeEditorView factory buffer se restore karta hai).
+                    jumpToLine?.let {
+                        buffer.cursorLine = (it - 1).coerceAtLeast(0)
+                        buffer.cursorColumn = 0
+                        buffer.scrollY = 0
+                    }
                     buffers[path] = buffer
                     val session = buffer.pagedSession
                     _uiState.update {

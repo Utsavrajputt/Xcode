@@ -53,6 +53,8 @@ import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.feature.project.OpenProjectSheet
+import com.invictus.xcode.feature.search.FileSearchOverlay
+import com.invictus.xcode.feature.search.SearchBus
 import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
 import com.invictus.xcode.feature.project.ProjectsViewModel
@@ -80,6 +82,7 @@ fun WorkspaceScreen(
     onOpenGit: (File) -> Unit = {},
     onGitSetup: (File) -> Unit = {},
     onClone: () -> Unit = {},
+    onOpenCodeSearch: (File) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.root) { onProjectRoot(state.root) }
@@ -88,6 +91,7 @@ fun WorkspaceScreen(
         value = withContext(Dispatchers.IO) { File(state.root, ".git").isDirectory }
     }
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
+    var showFileSearch by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
     // M9: offer the Git setup wizard once when this project is not a repository yet.
@@ -138,6 +142,16 @@ fun WorkspaceScreen(
         }
     }
 
+    // M11: code search ka "Locate in file tree" -> existing Reveal/ScrollTo pipeline.
+    LaunchedEffect(Unit) {
+        SearchBus.revealRequest.collect { file ->
+            if (file != null) {
+                viewModel.onEvent(FileTreeEvent.Reveal(file, file.isDirectory))
+                SearchBus.consumeReveal()
+            }
+        }
+    }
+
     LaunchedEffect(projectsViewModel) {
         projectsViewModel.effects.collect { effect ->
             when (effect) {
@@ -167,6 +181,8 @@ fun WorkspaceScreen(
                 onOpenProjectSheet = { showProjectSheet = true },
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
                 onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
+                onOpenSearch = { showFileSearch = true },
+                onOpenCodeSearch = { onOpenCodeSearch(state.root) },
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -219,6 +235,18 @@ fun WorkspaceScreen(
             onDismiss = { showProjectSheet = false },
         )
     }
+
+    // M11: quick-open fuzzy file search overlay.
+    if (showFileSearch) {
+        FileSearchOverlay(
+            root = state.root,
+            onOpen = { file ->
+                showFileSearch = false
+                if (onOpenFile != null) onOpenFile(file)
+            },
+            onDismiss = { showFileSearch = false },
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -229,6 +257,8 @@ private fun WorkspaceTopBar(
     onOpenProjectSheet: () -> Unit,
     onBackup: () -> Unit,
     onOpenGit: (() -> Unit)? = null,
+    onOpenSearch: () -> Unit = {},
+    onOpenCodeSearch: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -246,6 +276,9 @@ private fun WorkspaceTopBar(
             }
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
+            }
+            IconButton(onClick = onOpenSearch) {
+                Icon(XIcons.Search, contentDescription = stringResource(R.string.search_files_hint))
             }
             if (onOpenGit != null) {
                 IconButton(onClick = onOpenGit) {
@@ -266,6 +299,14 @@ private fun WorkspaceTopBar(
                         text = { Text(stringResource(R.string.menu_show_git)) },
                         onClick = { onEvent(FileTreeEvent.SetShowGitFolder(!state.showGitFolder)) },
                         trailingIcon = { Checkbox(checked = state.showGitFolder, onCheckedChange = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search_code_title)) },
+                        leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onOpenCodeSearch()
+                        },
                     )
                     if (state.rootName != null) {
                         DropdownMenuItem(

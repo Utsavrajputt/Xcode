@@ -11,6 +11,9 @@ import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.core.fs.StoragePermission
 import com.invictus.xcode.core.project.ProjectBackup
 import com.invictus.xcode.core.project.ProjectRepository
+import com.invictus.xcode.core.search.CodeSearchEngine
+import com.invictus.xcode.core.search.FileSearchEngine
+import com.invictus.xcode.core.search.SearchHistoryStore
 import com.invictus.xcode.core.security.GitCredentialStore
 import java.io.File
 
@@ -43,6 +46,11 @@ class AppContainer(context: Context) {
     val gitCredentialStore: GitCredentialStore by lazy { GitCredentialStore(appContext) }
 
     val gitOnboardingPrefs: GitOnboardingPrefs by lazy { GitOnboardingPrefs(appContext) }
+
+    // M11 search: fuzzy file search + workspace grep + Room-backed search history.
+    val fileSearchEngine: FileSearchEngine by lazy { FileSearchEngine() }
+    val codeSearchEngine: CodeSearchEngine by lazy { CodeSearchEngine() }
+    val searchHistoryStore: SearchHistoryStore by lazy { SearchHistoryStore(database) }
 
     /** App-level (global) git identity file holding user.name / user.email. */
     val gitGlobalIdentityFile: File by lazy { File(appContext.filesDir, "git_identity") }
