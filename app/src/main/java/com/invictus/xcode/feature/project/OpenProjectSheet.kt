@@ -79,6 +79,7 @@ fun OpenProjectSheet(
     onEvent: (ProjectsEvent) -> Unit,
     onOpen: (File) -> Unit,
     onCopyPath: (File) -> Unit,
+    onClone: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -110,6 +111,11 @@ fun OpenProjectSheet(
                 onQueryChange = { query = it },
                 onGo = { if (typedPath != null && pathIsFolder == true) onOpen(File(typedPath)) },
             )
+            TextButton(onClick = onClone, modifier = Modifier.padding(horizontal = 24.dp)) {
+                Icon(XIcons.Commit, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.home_clone))
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

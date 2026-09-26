@@ -89,6 +89,10 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidsvg)
 
+    // M6 git: JGit (pure-Java Git) + SLF4J binding so its logging doesn't spam stderr.
+    implementation(libs.org.eclipse.jgit)
+    implementation(libs.slf4j.android)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

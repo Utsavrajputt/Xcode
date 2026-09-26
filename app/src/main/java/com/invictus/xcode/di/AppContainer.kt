@@ -10,6 +10,8 @@ import com.invictus.xcode.core.data.AppDatabase
 import com.invictus.xcode.core.fs.StoragePermission
 import com.invictus.xcode.core.project.ProjectBackup
 import com.invictus.xcode.core.project.ProjectRepository
+import com.invictus.xcode.core.security.GitCredentialStore
+import java.io.File
 
 /**
  * Manual dependency container (no Hilt/Koin, same approach as xmd).
@@ -36,4 +38,9 @@ class AppContainer(context: Context) {
     val editorSessionStore: EditorSessionStore by lazy { EditorSessionStore(appContext) }
 
     val editorSettingsStore: EditorSettingsStore by lazy { EditorSettingsStore(appContext) }
+
+    val gitCredentialStore: GitCredentialStore by lazy { GitCredentialStore(appContext) }
+
+    /** App-level (global) git identity file holding user.name / user.email. */
+    val gitGlobalIdentityFile: File by lazy { File(appContext.filesDir, "git_identity") }
 }

@@ -33,6 +33,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,8 +55,10 @@ import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
 import com.invictus.xcode.feature.project.ProjectsViewModel
 import com.invictus.xcode.ui.icons.XIcons
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -71,10 +74,15 @@ fun WorkspaceScreen(
     onOpenFile: ((File) -> Unit)? = null,
     externalMessages: Flow<UiText>? = null,
     onProjectRoot: (File) -> Unit = {},
+    onOpenGit: () -> Unit = {},
+    onClone: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.root) { onProjectRoot(state.root) }
     val projectsState by projectsViewModel.uiState.collectAsStateWithLifecycle()
+    val isGitRepo by produceState(false, state.root) {
+        value = withContext(Dispatchers.IO) { File(state.root, ".git").isDirectory }
+    }
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -144,6 +152,7 @@ fun WorkspaceScreen(
                 onEvent = viewModel::onEvent,
                 onOpenProjectSheet = { showProjectSheet = true },
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
+                onOpenGit = if (isGitRepo) onOpenGit else null,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -192,6 +201,7 @@ fun WorkspaceScreen(
                 viewModel.onEvent(FileTreeEvent.OpenProject(dir))
             },
             onCopyPath = copyPath,
+            onClone = onClone,
             onDismiss = { showProjectSheet = false },
         )
     }
@@ -204,6 +214,7 @@ private fun WorkspaceTopBar(
     onEvent: (FileTreeEvent) -> Unit,
     onOpenProjectSheet: () -> Unit,
     onBackup: () -> Unit,
+    onOpenGit: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -221,6 +232,11 @@ private fun WorkspaceTopBar(
             }
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
+            }
+            if (onOpenGit != null) {
+                IconButton(onClick = onOpenGit) {
+                    Icon(XIcons.Commit, contentDescription = stringResource(R.string.git_title))
+                }
             }
             Box {
                 IconButton(onClick = { menuOpen = true }) {

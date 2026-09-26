@@ -133,6 +133,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 actions = {
+                    IconButton(onClick = onClone) {
+                        Icon(XIcons.Commit, contentDescription = stringResource(R.string.home_clone))
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(XIcons.Settings, contentDescription = stringResource(R.string.action_settings))
                     }
@@ -184,6 +187,7 @@ fun HomeScreen(
             onEvent = projectsViewModel::onEvent,
             onOpen = openProject,
             onCopyPath = copyPath,
+            onClone = onClone,
             onDismiss = { showProjectSheet = false },
         )
     }

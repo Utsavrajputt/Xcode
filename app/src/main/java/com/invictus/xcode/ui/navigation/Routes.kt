@@ -10,4 +10,10 @@ object Routes {
     const val SETTINGS_EDITING = "settings/editing"
     const val SETTINGS_BEHAVIOR = "settings/behavior"
     const val MEDIA_PREVIEW = "media_preview"
+    const val GIT = "git/{projectPath}"
+    const val GIT_CLONE = "git_clone"
+
+    /** Encoded deep-link style route for a project's Source Control screen. */
+    fun git(projectPath: String): String =
+        "git/${android.net.Uri.encode(projectPath)}"
 }

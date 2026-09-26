@@ -18,6 +18,8 @@ import androidx.navigation.compose.rememberNavController
 import com.invictus.xcode.feature.editor.EditorEvent
 import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
+import com.invictus.xcode.feature.git.GitCloneScreen
+import com.invictus.xcode.feature.git.GitScreen
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
@@ -73,6 +75,7 @@ fun XcodeNavHost(
             HomeScreen(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onProjectOpened = { navController.navigate(Routes.WORKSPACE) },
+                onClone = { navController.navigate(Routes.GIT_CLONE) },
             )
         }
         composable(Routes.WORKSPACE) {
@@ -80,6 +83,8 @@ fun XcodeNavHost(
                 onOpenFile = { editorViewModel.onEvent(EditorEvent.Open(it)) },
                 externalMessages = editorViewModel.messages,
                 onProjectRoot = { editorViewModel.onProjectOpened(it.path) },
+                onOpenGit = { root -> navController.navigate(Routes.git(root.path)) },
+                onClone = { navController.navigate(Routes.GIT_CLONE) },
             )
         }
         composable(Routes.EDITOR) {
@@ -131,6 +136,15 @@ fun XcodeNavHost(
                     },
                 )
             }
+        }
+        composable(Routes.GIT) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(Routes.GIT_CLONE) {
+            GitCloneScreen(onBack = { navController.popBackStack() })
         }
     }
 
