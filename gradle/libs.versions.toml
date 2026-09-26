@@ -15,7 +15,7 @@ materialSymbols = "2.2.1"
 webkit = "1.13.0"
 coil = "2.7.0"
 androidsvg = "1.4"
-jgit = "7.8.0.202609011348-r"
+jgit = "5.13.5.202508271544-r"
 slf4j = "2.0.19"
 
 [libraries]

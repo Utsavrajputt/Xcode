@@ -106,7 +106,7 @@ class GitSession(
                     shortId = commit.abbreviate(7).name(),
                     message = commit.fullMessage,
                     author = commit.authorIdent.name,
-                    timeMs = commit.authorIdent.whenAsInstant.toEpochMilli(),
+                    timeMs = commit.authorIdent.`when`.time,
                 )
             }
         }
