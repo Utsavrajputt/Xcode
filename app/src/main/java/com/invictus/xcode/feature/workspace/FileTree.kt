@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.invictus.xcode.R
+import com.invictus.xcode.ui.components.expressivePressScale
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import java.io.File
@@ -115,6 +116,7 @@ private fun FileRow(
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var rowHeightPx by remember { mutableIntStateOf(0) }
+    var pressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val isRenaming = renaming != null
 
@@ -129,8 +131,17 @@ private fun FileRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 44.dp)
+                .expressivePressScale(pressed)
                 .pointerInput(row.file.path, isRenaming) {
                     detectTapGestures(
+                        onPress = {
+                            pressed = true
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                pressed = false
+                            }
+                        },
                         onTap = {
                             if (!isRenaming) onEvent(FileTreeEvent.RowClicked(row.file, row.isDirectory))
                         },
@@ -272,6 +283,7 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
     var rowHeightPx by remember { mutableIntStateOf(0) }
+    var pressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val file = row.item.file
     val menuOffset = with(density) { DpOffset(pressOffset.x.toDp(), (pressOffset.y - rowHeightPx).toDp()) }
@@ -281,8 +293,17 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
+                .expressivePressScale(pressed)
                 .pointerInput(file.path) {
                     detectTapGestures(
+                        onPress = {
+                            pressed = true
+                            try {
+                                tryAwaitRelease()
+                            } finally {
+                                pressed = false
+                            }
+                        },
                         onTap = {
                             if (row.item.isDirectory) {
                                 onEvent(FileTreeEvent.Reveal(file, isDirectory = true))

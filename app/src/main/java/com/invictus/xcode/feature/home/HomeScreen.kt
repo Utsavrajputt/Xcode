@@ -9,7 +9,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -60,6 +59,7 @@ import com.invictus.xcode.feature.project.RecentItem
 import com.invictus.xcode.feature.workspace.FileTreeEvent
 import com.invictus.xcode.feature.workspace.FileTreeViewModel
 import com.invictus.xcode.ui.icons.XIcons
+import com.invictus.xcode.ui.components.expressiveClickable
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.cos
@@ -199,7 +199,7 @@ private fun RecentProjectRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .expressiveClickable(onClick = onOpen)
             .padding(horizontal = 24.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

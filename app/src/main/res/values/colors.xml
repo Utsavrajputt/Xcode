@@ -4,4 +4,7 @@
          doesn't flash a mismatched white/black. -->
     <color name="window_background_light">#FFF2FAFA</color>
     <color name="window_background_dark">#FF0C1B1C</color>
+
+    <!-- Adaptive launcher icon background (mipmap-anydpi/ic_launcher*.xml). -->
+    <color name="ic_launcher_background">#1E1E2E</color>
 </resources>

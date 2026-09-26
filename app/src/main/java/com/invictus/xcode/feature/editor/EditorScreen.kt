@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -480,7 +480,7 @@ private fun EditorTab(
     var showMenu by remember { mutableStateOf(false) }
     Surface(
         color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp),
+        shape = MaterialTheme.shapes.small.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)),
         modifier = modifier
             .height(40.dp)
             .combinedClickable(onClick = onSelect, onLongClick = { showMenu = true }),

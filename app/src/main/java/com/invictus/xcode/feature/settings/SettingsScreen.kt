@@ -1,6 +1,6 @@
 package com.invictus.xcode.feature.settings
 
-import androidx.compose.foundation.clickable
+import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -269,7 +269,7 @@ private fun SettingsClickRow(title: String, subtitle: String, onClick: () -> Uni
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .expressiveClickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Column {
@@ -291,7 +291,7 @@ private fun SettingsSwitchRow(title: String, subtitle: String, checked: Boolean,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .expressiveClickable { onCheckedChange(!checked) }
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -358,7 +358,7 @@ private fun ExternalChangesRow(autoReload: Boolean, onSelect: (Boolean) -> Unit)
 private fun ExternalChangeOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp),
+        modifier = Modifier.fillMaxWidth().expressiveClickable(onClick = onClick).padding(vertical = 6.dp),
     ) {
         RadioButton(selected = selected, onClick = onClick)
         Column(modifier = Modifier.padding(start = 4.dp)) {
@@ -407,7 +407,7 @@ private fun ThemePickerDialog(
 private fun ThemeRow(name: String, isSelected: Boolean, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().expressiveClickable(onClick = onClick).padding(vertical = 10.dp),
     ) {
         Box(modifier = Modifier.size(24.dp)) {
             if (isSelected) Icon(XIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)

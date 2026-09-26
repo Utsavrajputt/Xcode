@@ -1,6 +1,6 @@
 package com.invictus.xcode.feature.project
 
-import androidx.compose.foundation.clickable
+import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -113,7 +113,7 @@ fun OpenProjectSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onEvent(ProjectsEvent.ToggleShowHidden) }
+                    .expressiveClickable { onEvent(ProjectsEvent.ToggleShowHidden) }
                     .padding(horizontal = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -239,7 +239,7 @@ private fun TypedPathRow(path: String, isFolder: Boolean?, onOpen: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .clickable(enabled = enabled, onClick = onOpen)
+            .expressiveClickable(enabled = enabled, onClick = onOpen)
             .alpha(if (isFolder == false) 0.6f else 1f)
             .padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -293,7 +293,7 @@ private fun FolderRow(name: String, onEnter: () -> Unit, onOpen: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clickable(onClick = onEnter)
+            .expressiveClickable(onClick = onEnter)
             .padding(start = 24.dp, end = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

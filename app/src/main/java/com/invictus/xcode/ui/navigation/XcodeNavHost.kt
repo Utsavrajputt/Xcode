@@ -1,5 +1,10 @@
 package com.invictus.xcode.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -15,6 +20,11 @@ import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.settings.SettingsScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
+
+/** Shared-axis-X (slide + fade) screen transition, tween-based — cheap on low-end devices. */
+private const val NavMotionDurationMs = 260
+private const val NavFadeDurationMs = 180
+private const val NavSlideFraction = 4
 
 /**
  * Permission gate + app screens. Starts on the permission screen when All files
@@ -35,6 +45,22 @@ fun XcodeNavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
+        enterTransition = {
+            slideInHorizontally(tween(NavMotionDurationMs)) { it / NavSlideFraction } +
+                fadeIn(tween(NavFadeDurationMs))
+        },
+        exitTransition = {
+            slideOutHorizontally(tween(NavMotionDurationMs)) { -it / NavSlideFraction } +
+                fadeOut(tween(NavFadeDurationMs))
+        },
+        popEnterTransition = {
+            slideInHorizontally(tween(NavMotionDurationMs)) { -it / NavSlideFraction } +
+                fadeIn(tween(NavFadeDurationMs))
+        },
+        popExitTransition = {
+            slideOutHorizontally(tween(NavMotionDurationMs)) { it / NavSlideFraction } +
+                fadeOut(tween(NavFadeDurationMs))
+        },
     ) {
         composable(Routes.PERMISSION) { PermissionScreen(onGrantClick = onGrantClick) }
         composable(Routes.HOME) {

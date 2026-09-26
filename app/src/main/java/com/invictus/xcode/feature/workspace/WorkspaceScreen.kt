@@ -4,7 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
+import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -212,7 +212,7 @@ private fun WorkspaceTopBar(
                 text = state.rootName ?: stringResource(R.string.workspace_root_internal),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(onClick = onOpenProjectSheet),
+                modifier = Modifier.expressiveClickable(onClick = onOpenProjectSheet),
             )
         },
         actions = {

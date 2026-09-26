@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 
 /**
  * Material 3 Expressive motion specs — springs over tweens for everything
@@ -13,7 +14,7 @@ import androidx.compose.animation.core.spring
 object ExpressiveMotion {
     /** Quick positional moves (chips, sheets sliding). */
     val FastSpatialSpring: SpringSpec<Float> =
-        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumHigh)
+        spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessHigh)
 
     /** Default component motion (cards, toggles). */
     val DefaultSpatialSpring: SpringSpec<Float> =
