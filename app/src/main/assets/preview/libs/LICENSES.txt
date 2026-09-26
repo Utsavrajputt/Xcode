@@ -1,0 +1,7 @@
+marked.min.js   -- marked (MIT)          https://github.com/markedjs/marked
+highlight.min.js -- highlight.js (BSD-3) https://github.com/highlightjs/highlight.js
+hljs-light.min.css / hljs-dark.min.css -- highlight.js "github" styles (BSD-3)
+
+highlight.min.js is a custom build (see hljs-entry.js in the M5 dev notes) bundling only the
+languages this app's editor supports, via highlight.js/lib/core + registerLanguage, to keep the
+asset small instead of shipping the ~1MB "all languages" bundle.

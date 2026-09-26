@@ -8,10 +8,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.feature.editor.EditorEvent
 import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.permission.PermissionScreen
+import com.invictus.xcode.feature.preview.MediaPreviewScreen
 import com.invictus.xcode.feature.settings.SettingsScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
 
@@ -59,6 +61,25 @@ fun XcodeNavHost(
                 viewModel = editorViewModel,
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable(Routes.MEDIA_PREVIEW) {
+            val file by editorViewModel.mediaPreviewFile.collectAsStateWithLifecycle()
+            file?.let {
+                MediaPreviewScreen(
+                    file = it,
+                    onBack = {
+                        if (navController.currentBackStackEntry?.destination?.route == Routes.MEDIA_PREVIEW) {
+                            navController.popBackStack()
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(editorViewModel) {
+        editorViewModel.openMediaPreview.collect {
+            navController.navigate(Routes.MEDIA_PREVIEW) { launchSingleTop = true }
         }
     }
 

@@ -55,7 +55,7 @@ class FileOpenPolicy(
         private const val SNIFF_BYTES = 8192
 
         private val PREVIEWABLE_MEDIA = setOf(
-            "png", "jpg", "jpeg", "webp", "gif", "bmp", "mp4", "mkv", "webm", "3gp", "mov",
+            "png", "jpg", "jpeg", "webp", "gif", "bmp", "mp4", "mkv", "webm", "3gp", "mov", "svg",
         )
         private val BINARY_EXTENSIONS = setOf(
             "zip", "jar", "aar", "apk", "aab", "so", "dex", "class", "o", "a", "bin", "exe", "dll",

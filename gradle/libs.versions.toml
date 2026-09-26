@@ -11,6 +11,9 @@ ksp = "2.3.3"
 room = "2.8.4"
 sora = "0.24.5"
 datastore = "1.1.7"
+webkit = "1.13.0"
+coil = "2.7.0"
+androidsvg = "1.4"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -31,6 +34,9 @@ sora-editor = { module = "io.github.rosemoe:editor", version.ref = "sora" }
 sora-textmate = { module = "io.github.rosemoe:language-textmate", version.ref = "sora" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

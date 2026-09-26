@@ -18,6 +18,9 @@ import com.invictus.xcode.core.editor.TabBuffer
 import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.editor.TextFileIo
 import com.invictus.xcode.core.fs.ExternalChangeWatcher
+import com.invictus.xcode.core.preview.PreviewMode
+import com.invictus.xcode.core.preview.PreviewRouter
+import com.invictus.xcode.core.preview.PreviewType
 import com.invictus.xcode.feature.workspace.UiText
 import io.github.rosemoe.sora.text.Content
 import kotlinx.coroutines.CoroutineDispatcher
@@ -128,12 +131,24 @@ class EditorViewModel(
     private val _showEditor = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val showEditor: SharedFlow<Unit> = _showEditor.asSharedFlow()
 
+    /**
+     * M5: SVG/image/video never become a [TabBuffer] -- they're binary, there's nothing to edit
+     * or split against, so tapping one fires this instead of the usual tab-open path.
+     */
+    private val _mediaPreviewFile = MutableStateFlow<File?>(null)
+    val mediaPreviewFile: StateFlow<File?> = _mediaPreviewFile.asStateFlow()
+    private val _openMediaPreview = MutableSharedFlow<File>(extraBufferCapacity = 1)
+    val openMediaPreview: SharedFlow<File> = _openMediaPreview.asSharedFlow()
+
     /** The workspace this session belongs to; set once by [onProjectOpened]. */
     private var projectPath: String? = null
     private var restoredForProject: String? = null
     private var persistJob: Job? = null
 
     fun buffer(path: String): TabBuffer? = buffers[path]
+
+    /** Exposed for HTML preview, which needs the project root to resolve relative asset paths. */
+    val projectRoot: File? get() = projectPath?.let { File(it) }
 
     /**
      * Called when the workspace root becomes known (once at cold start, and again on every
@@ -185,7 +200,30 @@ class EditorViewModel(
                 clearExternalChangeUi(event.path)
                 setDirty(event.path, true) // Nothing on disk to match anymore -- next save recreates it.
             }
+            is EditorEvent.CyclePreviewMode -> cyclePreviewMode(event.path)
+            is EditorEvent.SetSplitRatio -> setSplitRatio(event.path, event.ratio)
+            is EditorEvent.SetHtmlJsEnabled -> setHtmlJsEnabled(event.path, event.enabled)
         }
+    }
+
+    private fun cyclePreviewMode(path: String) {
+        val tab = _uiState.value.tabs.firstOrNull { it.path == path } ?: return
+        if (!tab.previewType.isTextPreview) return
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.path == path) it.copy(previewMode = it.previewMode.next()) else it })
+        }
+    }
+
+    private fun setSplitRatio(path: String, ratio: Float) {
+        buffers[path]?.previewSplitRatio = ratio.coerceIn(MIN_SPLIT_RATIO, MAX_SPLIT_RATIO)
+    }
+
+    private fun setHtmlJsEnabled(path: String, enabled: Boolean) {
+        val buffer = buffers[path] ?: return
+        buffer.htmlJsEnabled = enabled
+        buffer.htmlJsPromptShown = true
+        // Bumps nothing observable -- PreviewPane reads the buffer directly on next recompose,
+        // and this only ever follows a user tap on the dialog that triggered it.
     }
 
     override fun onCleared() {
@@ -207,6 +245,9 @@ class EditorViewModel(
         buffer.revision++
         val tab = _uiState.value.tabs.firstOrNull { it.path == path }
         if (tab != null && !tab.dirty) setDirty(path, true)
+        // Markdown/HTML preview's redraw signal -- cheap to bump unconditionally since it's only
+        // ever observed by the currently visible split/preview pane (see PreviewPane).
+        _uiState.update { it.copy(activeContentRevision = it.activeContentRevision + 1) }
         schedulePersist()
     }
 
@@ -227,6 +268,13 @@ class EditorViewModel(
     }
 
     private fun open(file: File) {
+        val previewType = PreviewRouter.typeOf(file)
+        if (previewType.isMedia) {
+            // Binary -- never a text tab. Full-screen preview route handles it from here.
+            _mediaPreviewFile.value = file
+            _openMediaPreview.tryEmit(file)
+            return
+        }
         val path = file.path
         if (path in buffers) {
             _uiState.update { it.copy(activePath = path) }
@@ -265,7 +313,14 @@ class EditorViewModel(
                     buffers[path] = buffer
                     _uiState.update {
                         it.copy(
-                            tabs = it.tabs + EditorTabUi(path, file.name, dirty = false),
+                            tabs = it.tabs + EditorTabUi(
+                                path = path,
+                                name = file.name,
+                                dirty = false,
+                                previewType = previewType,
+                                // Auto: markdown/html land straight in split, per M5 UX decision.
+                                previewMode = if (previewType.isTextPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
+                            ),
                             activePath = path,
                         )
                     }
@@ -566,7 +621,15 @@ class EditorViewModel(
                 if (trustSnapshot) revision = 1 // savedRevision stays 0 -> dirty
             }
             buffers[saved.path] = buffer
-            restoredTabs += EditorTabUi(saved.path, saved.name, dirty = trustSnapshot, isPinned = saved.isPinned)
+            val previewType = PreviewRouter.typeOf(file)
+            restoredTabs += EditorTabUi(
+                path = saved.path,
+                name = saved.name,
+                dirty = trustSnapshot,
+                isPinned = saved.isPinned,
+                previewType = previewType,
+                previewMode = if (previewType.isTextPreview) PreviewMode.SPLIT else PreviewMode.EDITOR,
+            )
         }
         if (restoredTabs.isEmpty()) return
         val active = session.activePath?.takeIf { p -> restoredTabs.any { it.path == p } } ?: restoredTabs.first().path
@@ -582,6 +645,8 @@ class EditorViewModel(
         private const val SESSION_LOAD_KEY = "__session__"
         private const val PERSIST_DEBOUNCE_MS = 600L
         private const val EXTERNAL_EVENT_DEBOUNCE_MS = 400L
+        private const val MIN_SPLIT_RATIO = 0.15f
+        private const val MAX_SPLIT_RATIO = 0.85f
 
         val Factory = viewModelFactory {
             initializer {
