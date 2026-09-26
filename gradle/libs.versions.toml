@@ -15,8 +15,8 @@ materialSymbols = "2.2.1"
 webkit = "1.13.0"
 coil = "2.7.0"
 androidsvg = "1.4"
-jgit = "7.2.0.202503050940-r"
-slf4j = "2.0.17"
+jgit = "7.8.0.202609011348-r"
+slf4j = "2.0.19"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -43,7 +43,7 @@ androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 org-eclipse-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
-slf4j-android = { module = "org.slf4j:slf4j-android", version.ref = "slf4j" }
+slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
