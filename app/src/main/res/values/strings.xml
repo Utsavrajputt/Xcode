@@ -268,6 +268,10 @@
     <string name="git_diff_truncated">Diff truncated — too many changes</string>
     <string name="git_diff_loading">Loading diff…</string>
     <string name="git_open_in_editor">Open</string>
+    <string name="git_discard">Discard changes</string>
+    <string name="git_discard_confirm_title">Discard changes?</string>
+    <string name="git_discard_confirm_message">This will permanently undo your changes to \'%1$s\'. This can\'t be undone.</string>
+    <string name="git_discard_confirm_delete_message">This will permanently delete \'%1$s\'. This can\'t be undone.</string>
 
     <!-- M8: Git advanced -->
     <string name="git_branches_title">Branches</string>

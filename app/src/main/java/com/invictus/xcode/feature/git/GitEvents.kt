@@ -8,6 +8,10 @@ sealed interface GitEvent {
     data object UnstageAll : GitEvent
     data class Stage(val path: String) : GitEvent
     data class Unstage(val path: String) : GitEvent
+    /** Long-press menu: ask to discard an unstaged/untracked change (shows a confirm dialog). */
+    data class RequestDiscard(val path: String, val isUntracked: Boolean) : GitEvent
+    data object ConfirmDiscard : GitEvent
+    data object DismissDiscard : GitEvent
     data class CommitMessageChange(val text: String) : GitEvent
     data object ToggleAmend : GitEvent
     data object Commit : GitEvent

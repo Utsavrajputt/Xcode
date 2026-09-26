@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -122,6 +123,37 @@ fun GitScreen(
     }
     state.error?.let { details ->
         GitErrorDialog(details = details, onDismiss = { viewModel.onEvent(GitEvent.DismissError) })
+    }
+    state.discardConfirm?.let { target ->
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(GitEvent.DismissDiscard) },
+            title = { Text(stringResource(R.string.git_discard_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (target.isUntracked) {
+                            R.string.git_discard_confirm_delete_message
+                        } else {
+                            R.string.git_discard_confirm_message
+                        },
+                        target.path,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(GitEvent.ConfirmDiscard) }) {
+                    Text(
+                        stringResource(R.string.git_discard),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(GitEvent.DismissDiscard) }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 
     Scaffold(
@@ -361,9 +393,9 @@ private fun ChangeRow(
             MaterialTheme.colorScheme.error to R.string.git_state_deleted
         else -> MaterialTheme.colorScheme.primary to R.string.git_state_modified
     }
-    val expanded = diff != null || diffLoading
     var menuOpen by remember { mutableStateOf(false) }
     val toggleStage = { onEvent(if (isStagedSection) GitEvent.Unstage(path) else GitEvent.Stage(path)) }
+    val isUntracked = change.unstaged == GitWorkingState.UNTRACKED
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -371,7 +403,7 @@ private fun ChangeRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = { onEvent(if (expanded) GitEvent.CloseDiff(path) else GitEvent.LoadDiff(path)) },
+                    onClick = { onEvent(GitEvent.OpenFile(path)) },
                     onLongClick = { menuOpen = true },
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -419,6 +451,20 @@ private fun ChangeRow(
                             onEvent(GitEvent.OpenFile(path))
                         },
                     )
+                    if (!isStagedSection) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.git_discard),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                menuOpen = false
+                                onEvent(GitEvent.RequestDiscard(path, isUntracked))
+                            },
+                        )
+                    }
                 }
             }
         }

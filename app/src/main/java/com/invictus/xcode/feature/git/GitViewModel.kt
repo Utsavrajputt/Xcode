@@ -95,7 +95,11 @@ class GitViewModel(
         val completeMergeMessage: String = "",
         val completingMerge: Boolean = false,
         val conflictPreview: ConflictPreviewState? = null,
+        /** Long-press "Discard changes" confirmation, pending [GitEvent.ConfirmDiscard]. */
+        val discardConfirm: DiscardConfirmState? = null,
     )
+
+    data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
 
     sealed interface Effect {
         data class Message(val text: UiText) : Effect
@@ -126,6 +130,10 @@ class GitViewModel(
             GitEvent.UnstageAll -> unstage(null)
             is GitEvent.Stage -> stage(event.path)
             is GitEvent.Unstage -> unstage(event.path)
+            is GitEvent.RequestDiscard ->
+                _uiState.update { it.copy(discardConfirm = DiscardConfirmState(event.path, event.isUntracked)) }
+            GitEvent.ConfirmDiscard -> discard()
+            GitEvent.DismissDiscard -> _uiState.update { it.copy(discardConfirm = null) }
             is GitEvent.CommitMessageChange ->
                 _uiState.update { it.copy(commitMessage = event.text) }
             GitEvent.ToggleAmend -> _uiState.update { it.copy(amend = !it.amend) }
@@ -215,6 +223,17 @@ class GitViewModel(
         viewModelScope.launch(io) {
             val result = if (path == null) session.unstageAll() else session.unstage(path)
             when (result) {
+                is GitResult.Ok -> refresh()
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun discard() {
+        val target = _uiState.value.discardConfirm ?: return
+        _uiState.update { it.copy(discardConfirm = null) }
+        viewModelScope.launch(io) {
+            when (val result = session.discard(target.path, target.isUntracked)) {
                 is GitResult.Ok -> refresh()
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }

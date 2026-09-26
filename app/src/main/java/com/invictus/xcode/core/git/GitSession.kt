@@ -136,6 +136,21 @@ class GitSession(
         Unit
     }
 
+    /**
+     * Discard a working-tree change: reverts a tracked file back to HEAD, or deletes an
+     * untracked file outright. Never touches the index (caller ensures it's unstaged first).
+     */
+    suspend fun discard(path: String, isUntracked: Boolean): GitResult<Unit> = ioOp(TITLE_STAGE) {
+        mutex.withLock {
+            if (isUntracked) {
+                File(workTree, path).deleteRecursively()
+            } else {
+                git.checkout().addPath(path.normalized()).call()
+            }
+        }
+        Unit
+    }
+
     // ---- commit ------------------------------------------------------------
 
     suspend fun commit(message: String, amend: Boolean): GitResult<GitCommitSummary> =
