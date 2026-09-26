@@ -29,6 +29,9 @@ data class GitWorkingTreeStatus(
     val staged: List<GitPathChange> get() = changes.filter { it.staged != GitStageState.NONE }
     val unstaged: List<GitPathChange> get() = changes.filter { it.unstaged != GitWorkingState.NONE }
     val untracked: List<GitPathChange> get() = changes.filter { it.unstaged == GitWorkingState.UNTRACKED }
+    val conflicts: List<GitPathChange> get() = changes.filter {
+        it.staged == GitStageState.CONFLICT || it.unstaged == GitWorkingState.CONFLICT
+    }
 }
 
 /** One repo-relative path and how it differs from HEAD/index in both directions. */
@@ -83,3 +86,58 @@ enum class GitAuthFailureType { NONE, AUTH_REQUIRED, INVALID_CREDENTIALS, EXPIRE
 
 /** Which network operation to retry once the user supplies a fresh token. */
 enum class GitPendingAction { PUSH, PULL, FETCH, CLONE }
+
+// ---- M7: diff + file-tree decoration models --------------------------------
+
+/** Line classification for one side of a diff row. PADDING = that side has no line. */
+enum class GitDiffLineType { CONTEXT, ADDED, REMOVED, PADDING }
+
+/**
+ * One aligned row of a side-by-side diff. Adds/deletes pair up inside a hunk; a leftover
+ * line on one side gets PADDING on the other. [intralineLeft]/[intralineRight] hold the
+ * changed character ranges inside a paired line for the soft highlight.
+ */
+data class GitDiffRow(
+    val leftNumber: Int?,
+    val leftText: String?,
+    val leftType: GitDiffLineType,
+    val rightNumber: Int?,
+    val rightText: String?,
+    val rightType: GitDiffLineType,
+    val intralineLeft: List<IntRange> = emptyList(),
+    val intralineRight: List<IntRange> = emptyList(),
+)
+
+/**
+ * Parsed diff for one file, render-ready (no JGit on the UI thread).
+ * [oldImageBytes] is only filled for image files so the diff UI can show "before".
+ * [workFilePath] is the absolute worktree path, used as the "after" image source.
+ */
+data class GitFileDiffResult(
+    val path: String,
+    val oldLabel: String,
+    val newLabel: String,
+    val isBinary: Boolean,
+    val isImage: Boolean,
+    val rows: List<GitDiffRow>,
+    val truncated: Boolean = false,
+    val oldImageBytes: ByteArray? = null,
+    val workFilePath: String? = null,
+) {
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is GitFileDiffResult && other.path == path && other.rows == rows)
+
+    override fun hashCode(): Int = 31 * path.hashCode() + rows.hashCode()
+}
+
+/** File-tree status stripe for one repo-relative path (plan 3.4 GitPathDecoration). */
+data class GitPathDecoration(
+    val repoRelativePath: String,
+    val label: String,
+    val kind: Kind,
+) {
+    /** [priority] orders aggregation when a folder contains mixed states. */
+    enum class Kind(val priority: Int) {
+        CONFLICT(4), DELETED(3), MODIFIED(2), ADDED(1), UNTRACKED(0),
+    }
+}

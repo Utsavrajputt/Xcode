@@ -24,6 +24,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +34,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -38,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +71,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorSettingsStore
+import com.invictus.xcode.feature.git.GitEvent
+import com.invictus.xcode.feature.git.GitViewModel
+import com.invictus.xcode.feature.git.SourceControlDrawerSheet
+import java.io.File
 import com.invictus.xcode.core.preview.PreviewMode
 import com.invictus.xcode.core.preview.PreviewType
 import com.invictus.xcode.feature.preview.PreviewPane
@@ -99,6 +109,23 @@ fun EditorScreen(
     val symbolBar by viewModel.symbolBar.collectAsStateWithLifecycle()
     val symbolBarVisible by viewModel.symbolBarVisible.collectAsStateWithLifecycle()
 
+    // M7 Source Control drawer: shares the project root with the editor session.
+    val projectRoot = viewModel.projectRoot
+    val gitViewModel: GitViewModel? = projectRoot
+        ?.takeIf { File(it, ".git").isDirectory }
+        ?.let { root ->
+            androidx.lifecycle.viewmodel.compose.viewModel(
+                key = "git-drawer:${root.path}",
+                factory = GitViewModel.factory(root.path),
+            )
+        }
+    // Fallback flow keeps collectAsStateWithLifecycle unconditional (composition safety
+    // if the project root flips between null/non-null across recompositions).
+    val gitStateFlow = gitViewModel?.uiState
+        ?: kotlinx.coroutines.flow.MutableStateFlow(GitViewModel.UiState())
+    val gitState by gitStateFlow.collectAsStateWithLifecycle()
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+
     // Collapsible app bar: scrolling the editor content hides the title/nav/action row (not the
     // tab bar below it) to give the small-screen keyboard more room, VS Code-mobile style.
     val density = LocalDensity.current
@@ -115,6 +142,16 @@ fun EditorScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
+    }
+    LaunchedEffect(gitViewModel) {
+        gitViewModel?.effects?.collect { effect ->
+            when (effect) {
+                is GitViewModel.Effect.OpenFile ->
+                    viewModel.onEvent(EditorEvent.Open(effect.file))
+                is GitViewModel.Effect.Message ->
+                    snackbarHostState.showSnackbar(effect.text.resolve(context))
+            }
+        }
     }
     // Last tab closed: nothing left to show here.
     LaunchedEffect(state.tabs.isEmpty()) {
@@ -159,6 +196,21 @@ fun EditorScreen(
         }
     }
 
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        gesturesEnabled = gitViewModel != null,
+        drawerContent = {
+            if (gitViewModel != null && gitState != null && projectRoot != null) {
+                ModalDrawerSheet {
+                    SourceControlDrawerSheet(
+                        state = gitState,
+                        projectRoot = projectRoot,
+                        onEvent = gitViewModel::onEvent,
+                    )
+                }
+            }
+        },
+    ) {
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -213,6 +265,23 @@ fun EditorScreen(
                             enabled = active?.dirty == true,
                         ) {
                             Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
+                        }
+                        if (gitViewModel != null) {
+                            val changedCount = gitState?.status?.changes?.size ?: 0
+                            BadgedBox(
+                                badge = {
+                                    if (changedCount > 0) Badge { Text("$changedCount") }
+                                },
+                            ) {
+                                IconButton(
+                                    onClick = { scrollScope.launch { drawerState.open() } },
+                                ) {
+                                    Icon(
+                                        XIcons.Commit,
+                                        contentDescription = stringResource(R.string.git_title),
+                                    )
+                                }
+                            }
                         }
                         if (active?.previewType?.isTextPreview == true) {
                             IconButton(onClick = { viewModel.onEvent(EditorEvent.CyclePreviewMode(active.path)) }) {
@@ -378,6 +447,7 @@ fun EditorScreen(
                 )
             }
         }
+    }
     }
 
     state.pendingClose?.let { pending ->

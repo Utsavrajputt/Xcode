@@ -14,6 +14,7 @@ import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitPendingAction
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
@@ -38,7 +39,7 @@ import java.io.File
  * auth-retry dialog on 401/403 instead of a dead end.
  */
 class GitViewModel(
-    projectPath: String,
+    private val projectPath: String,
     private val credentialStore: GitCredentialStore,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
@@ -73,10 +74,16 @@ class GitViewModel(
         val identity: IdentityDialogState? = null,
         val tokenDialog: TokenDialogState? = null,
         val error: GitErrorDetails? = null,
+        // M7 drawer
+        val expandedSections: Set<String> = setOf(SECTION_CONFLICTS, SECTION_STAGED, SECTION_CHANGES),
+        val diffs: Map<String, GitFileDiffResult> = emptyMap(),
+        val diffLoading: Set<String> = emptySet(),
     )
 
     sealed interface Effect {
         data class Message(val text: UiText) : Effect
+        /** The drawer asked to open a repo-relative path in the editor. */
+        data class OpenFile(val file: java.io.File) : Effect
     }
 
     private val _uiState = MutableStateFlow(UiState())
@@ -107,6 +114,16 @@ class GitViewModel(
             GitEvent.Push -> push()
             GitEvent.Pull -> pull()
             GitEvent.Fetch -> fetch()
+            is GitEvent.ToggleSection -> _uiState.update {
+                it.copy(
+                    expandedSections = if (event.name in it.expandedSections)
+                        it.expandedSections - event.name else it.expandedSections + event.name,
+                )
+            }
+            is GitEvent.LoadDiff -> loadDiff(event.path)
+            is GitEvent.CloseDiff -> _uiState.update { it.copy(diffs = it.diffs - event.path) }
+            is GitEvent.OpenFile ->
+                _effects.trySend(Effect.OpenFile(java.io.File(projectPath, event.path)))
             GitEvent.OpenIdentity -> openIdentity()
             is GitEvent.SaveIdentity -> saveIdentity(event.name, event.email, event.isLocal)
             GitEvent.DismissIdentity -> _uiState.update { it.copy(identity = null) }
@@ -182,6 +199,24 @@ class GitViewModel(
                 }
             }
             _uiState.update { it.copy(committing = false) }
+        }
+    }
+
+    private fun loadDiff(path: String) {
+        if (_uiState.value.diffs.containsKey(path) || path in _uiState.value.diffLoading) return
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(diffLoading = it.diffLoading + path) }
+            when (val result = session.fileDiff(path)) {
+                is GitResult.Ok -> _uiState.update {
+                    it.copy(
+                        diffs = it.diffs + (path to result.value),
+                        diffLoading = it.diffLoading - path,
+                    )
+                }
+                is GitResult.Err -> _uiState.update {
+                    it.copy(diffLoading = it.diffLoading - path, error = result.error)
+                }
+            }
         }
     }
 
@@ -335,6 +370,11 @@ class GitViewModel(
 
     companion object {
         private const val DEFAULT_USERNAME = "x-access-token"
+
+        const val SECTION_CONFLICTS = "conflicts"
+        const val SECTION_STAGED = "staged"
+        const val SECTION_CHANGES = "changes"
+        const val SECTION_UNTRACKED = "untracked"
 
         fun factory(projectPath: String) = viewModelFactory {
             initializer {

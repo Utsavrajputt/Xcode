@@ -12,6 +12,12 @@ sealed interface GitEvent {
     data object Push : GitEvent
     data object Pull : GitEvent
     data object Fetch : GitEvent
+    // M7 drawer
+    data class ToggleSection(val name: String) : GitEvent
+    data class LoadDiff(val path: String) : GitEvent
+    data class CloseDiff(val path: String) : GitEvent
+    /** Repo-relative path the editor should open. */
+    data class OpenFile(val path: String) : GitEvent
     data object OpenIdentity : GitEvent
     data class SaveIdentity(val name: String, val email: String, val isLocal: Boolean) : GitEvent
     data object DismissIdentity : GitEvent

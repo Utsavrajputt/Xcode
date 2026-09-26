@@ -245,4 +245,14 @@
     <string name="clone_empty_folder">Enter a folder name for the clone.</string>
     <string name="clone_folder_exists">A folder named "%1$s" already exists.</string>
     <string name="clone_done">Cloned to %1$s</string>
+    <string name="git_section_conflicts">Conflicts</string>
+    <string name="git_sync">Sync</string>
+    <string name="git_diff_inline">Inline</string>
+    <string name="git_diff_side_by_side">Side by side</string>
+    <string name="git_diff_binary">Binary file — text diff unavailable</string>
+    <string name="git_diff_before">Before</string>
+    <string name="git_diff_after">After</string>
+    <string name="git_diff_truncated">Diff truncated — too many changes</string>
+    <string name="git_diff_loading">Loading diff…</string>
+    <string name="git_open_in_editor">Open</string>
 </resources>

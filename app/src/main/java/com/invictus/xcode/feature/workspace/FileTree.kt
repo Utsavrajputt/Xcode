@@ -42,11 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -59,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.invictus.xcode.R
+import com.invictus.xcode.core.git.model.GitPathDecoration
 import com.invictus.xcode.ui.components.expressivePressScale
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
@@ -92,6 +95,9 @@ fun FileTree(
                     isCutMarked = state.clipboard?.let { it.isCut && it.file.path == row.file.path } == true,
                     canPaste = state.clipboard != null,
                     isPinned = row.file.path in state.pinnedPaths,
+                    decoration = state.gitDecorations[
+                        row.file.path.removePrefix(state.root.path).trim('/'),
+                    ],
                     onEvent = onEvent,
                     onCopyPath = onCopyPath,
                 )
@@ -110,6 +116,7 @@ private fun FileRow(
     isCutMarked: Boolean,
     canPaste: Boolean,
     isPinned: Boolean,
+    decoration: GitPathDecoration?,
     onEvent: (FileTreeEvent) -> Unit,
     onCopyPath: (File) -> Unit,
 ) {
@@ -127,9 +134,30 @@ private fun FileRow(
     }
 
     Box(modifier = Modifier.fillMaxWidth().onSizeChanged { rowHeightPx = it.height }) {
+        val stripeColor = decoration?.let {
+            when (it.kind) {
+                GitPathDecoration.Kind.CONFLICT -> MaterialTheme.colorScheme.error
+                GitPathDecoration.Kind.DELETED ->
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                GitPathDecoration.Kind.MODIFIED -> MaterialTheme.colorScheme.primary
+                GitPathDecoration.Kind.ADDED -> MaterialTheme.colorScheme.tertiary
+                GitPathDecoration.Kind.UNTRACKED -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .let { m ->
+                    if (stripeColor != null) {
+                        m.drawBehind {
+                            drawRect(
+                                color = stripeColor,
+                                topLeft = Offset(0f, size.height * 0.25f),
+                                size = Size(3.dp.toPx(), size.height * 0.5f),
+                            )
+                        }
+                    } else m
+                }
                 .heightIn(min = 44.dp)
                 .expressivePressScale(pressed)
                 .pointerInput(row.file.path, isRenaming) {

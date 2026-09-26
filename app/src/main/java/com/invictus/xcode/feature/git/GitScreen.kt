@@ -85,6 +85,8 @@ fun GitScreen(
             when (effect) {
                 is GitViewModel.Effect.Message ->
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
+                is GitViewModel.Effect.OpenFile ->
+                    scope.launch { snackbarHostState.showSnackbar(effect.file.name) }
             }
         }
     }

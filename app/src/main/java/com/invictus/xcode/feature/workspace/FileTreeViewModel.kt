@@ -15,6 +15,12 @@ import com.invictus.xcode.core.fs.FsEntry
 import com.invictus.xcode.core.fs.FsError
 import com.invictus.xcode.core.fs.FsResult
 import com.invictus.xcode.core.fs.OpenDecision
+import com.invictus.xcode.core.git.GitResult
+import com.invictus.xcode.core.git.GitSession
+import com.invictus.xcode.core.git.model.GitPathDecoration
+import com.invictus.xcode.core.git.model.GitStageState
+import com.invictus.xcode.core.git.model.GitWorkingState
+import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
 import com.invictus.xcode.core.project.PathUtil
 import com.invictus.xcode.core.project.ProjectRepository
 import kotlinx.coroutines.CoroutineDispatcher
@@ -77,6 +83,7 @@ class FileTreeViewModel(
 
     private val rootPath = MutableStateFlow(root.path)
     private val pinTick = MutableStateFlow(0)
+    private var gitSession: GitSession? = null
 
     init {
         viewModelScope.launch { debounceWatcherEvents() }
@@ -168,6 +175,7 @@ class FileTreeViewModel(
         }
         loadDir(newRoot)
         syncWatcher()
+        refreshGitDecorations()
         if (record) viewModelScope.launch { projects.recordOpened(newRoot) }
     }
 
@@ -240,6 +248,54 @@ class FileTreeViewModel(
     private fun refreshAll() {
         expanded.toList().forEach { loadDir(File(it)) }
         pinTick.update { it + 1 }
+        refreshGitDecorations()
+    }
+
+    /** M7: refresh the git status stripe map for the open project (no-op outside a repo). */
+    private fun refreshGitDecorations() {
+        val root = this.root
+        viewModelScope.launch(io) {
+            if (!File(root, ".git").isDirectory) {
+                if (_uiState.value.gitDecorations.isNotEmpty()) {
+                    publish { copy(gitDecorations = emptyMap()) }
+                }
+                return@launch
+            }
+            val session = gitSession ?: GitSession(root).also { gitSession = it }
+            val status = (session.status() as? GitResult.Ok)?.value ?: return@launch
+            val decorations = toDecorations(status)
+            publish { copy(gitDecorations = decorations) }
+        }
+    }
+
+    /** File + folder stripes; a folder shows the highest-priority state inside it. */
+    private fun toDecorations(status: GitWorkingTreeStatus): Map<String, GitPathDecoration> {
+        val map = HashMap<String, GitPathDecoration>()
+        fun put(rel: String, kind: GitPathDecoration.Kind) {
+            val existing = map[rel]
+            if (existing == null || kind.priority > existing.kind.priority) {
+                map[rel] = GitPathDecoration(rel, rel, kind)
+            }
+        }
+        status.changes.forEach { change ->
+            val kind = when {
+                change.staged == GitStageState.CONFLICT ||
+                    change.unstaged == GitWorkingState.CONFLICT -> GitPathDecoration.Kind.CONFLICT
+                change.unstaged == GitWorkingState.UNTRACKED -> GitPathDecoration.Kind.UNTRACKED
+                change.staged == GitStageState.ADDED -> GitPathDecoration.Kind.ADDED
+                change.staged == GitStageState.DELETED ||
+                    change.unstaged == GitWorkingState.DELETED -> GitPathDecoration.Kind.DELETED
+                else -> GitPathDecoration.Kind.MODIFIED
+            }
+            put(change.repoRelativePath, kind)
+            // Aggregate up to every parent folder (but not the root itself).
+            var parent = change.repoRelativePath.substringBeforeLast('/', "")
+            while (parent.isNotEmpty()) {
+                put(parent, kind)
+                parent = parent.substringBeforeLast('/', "")
+            }
+        }
+        return map
     }
 
     private fun reloadIfExpanded(dir: File) {

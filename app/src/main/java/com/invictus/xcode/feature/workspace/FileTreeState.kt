@@ -3,6 +3,7 @@ package com.invictus.xcode.feature.workspace
 import android.content.Context
 import androidx.annotation.StringRes
 import com.invictus.xcode.core.fs.OpenDecision
+import com.invictus.xcode.core.git.model.GitPathDecoration
 import com.invictus.xcode.core.project.PinnedItem
 import java.io.File
 
@@ -69,6 +70,8 @@ data class FileTreeUiState(
     val rootError: UiText? = null,
     val pins: List<PinnedItem> = emptyList(),
     val pinnedPaths: Set<String> = emptySet(),
+    /** M7: repo-relative path -> git status stripe decoration (files and folders). */
+    val gitDecorations: Map<String, GitPathDecoration> = emptyMap(),
 )
 
 sealed interface FileTreeEvent {

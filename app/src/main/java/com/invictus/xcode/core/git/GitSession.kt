@@ -1,6 +1,9 @@
 package com.invictus.xcode.core.git
 
 import com.invictus.xcode.core.git.model.GitBranchInfo
+import com.invictus.xcode.core.git.model.GitDiffLineType
+import com.invictus.xcode.core.git.model.GitDiffRow
+import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitPathChange
 import com.invictus.xcode.core.git.model.GitRemoteInfo
@@ -24,6 +27,11 @@ import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileBasedConfig
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.treewalk.AbstractTreeIterator
+import org.eclipse.jgit.treewalk.CanonicalTreeParser
+import org.eclipse.jgit.treewalk.EmptyTreeIterator
+import org.eclipse.jgit.treewalk.TreeWalk
+import org.eclipse.jgit.treewalk.filter.PathFilter
 import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.util.FS
 import java.io.File
@@ -158,6 +166,60 @@ class GitSession(
                 .call()
         }
         Unit
+    }
+
+    // ---- diff (M7) -----------------------------------------------------------
+
+    /** HEAD-vs-worktree diff for one repo-relative path, parsed into render rows. */
+    suspend fun fileDiff(path: String): GitResult<GitFileDiffResult> =
+        ioOp(TITLE_DIFF) { mutex.withLock { doFileDiff(path.normalized()) } }
+
+    private fun doFileDiff(relPath: String): GitFileDiffResult {
+        val headId = repository.resolve("HEAD")
+        val reader = repository.newObjectReader()
+        val oldTree: AbstractTreeIterator = try {
+            if (headId != null) {
+                val revWalk = RevWalk(repository)
+                try {
+                    val tree = revWalk.parseCommit(headId).tree
+                    CanonicalTreeParser().apply { reset(reader, tree) }
+                } finally {
+                    revWalk.close()
+                }
+            } else {
+                EmptyTreeIterator()
+            }
+        } finally {
+            reader.close()
+        }
+        val out = java.io.ByteArrayOutputStream()
+        git.diff()
+            .setOldTree(oldTree)
+            .setPathFilter(PathFilter.create(relPath))
+            .setOutputStream(out)
+            .call()
+        val raw = out.toString("UTF-8")
+        val base = DiffParser.parse(raw, relPath, File(workTree, relPath).absolutePath)
+        // Image "before": pull the HEAD blob bytes so the UI can show old vs new.
+        if (base.isImage && headId != null && base.oldImageBytes == null) {
+            runCatching {
+                val revWalk = RevWalk(repository)
+                try {
+                    val tree = revWalk.parseCommit(headId).tree
+                    TreeWalk(repository).use { tw ->
+                        tw.addTree(tree)
+                        tw.isRecursive = true
+                        tw.filter = PathFilter.create(relPath)
+                        if (tw.next() && tw.getFileMode(0).objectType == org.eclipse.jgit.lib.Constants.OBJ_BLOB) {
+                            return base.copy(oldImageBytes = repository.open(tw.getObjectId(0)).bytes)
+                        }
+                    }
+                } finally {
+                    revWalk.close()
+                }
+            }
+        }
+        return base
     }
 
     // ---- remotes / branches -------------------------------------------------
@@ -355,5 +417,93 @@ class GitSession(
         private const val TITLE_PULL = "Git pull"
         private const val TITLE_FETCH = "Git fetch"
         private const val TITLE_IDENTITY = "Git identity"
+        private const val TITLE_DIFF = "Git diff"
+    }
+}
+
+
+/** Unified-diff text -> [GitFileDiffResult]. Pure string work, no JGit; unit-testable. */
+private object DiffParser {
+    private val HUNK_RE = Regex("""@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@""")
+    private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")
+    private const val MAX_ROWS = 4000
+
+    fun parse(raw: String, relPath: String, workFilePath: String): GitFileDiffResult {
+        val rows = ArrayList<GitDiffRow>()
+        var isBinary = false
+        var truncated = false
+        var leftNo = 0
+        var rightNo = 0
+        val pendingRemoved = ArrayList<Pair<Int, String>>()
+
+        fun flushRemoved() {
+            while (pendingRemoved.isNotEmpty()) {
+                val (ln, text) = pendingRemoved.removeAt(0)
+                rows += GitDiffRow(ln, text, GitDiffLineType.REMOVED, null, null, GitDiffLineType.PADDING)
+            }
+        }
+
+        for (line in raw.lineSequence()) {
+            if (rows.size >= MAX_ROWS) { truncated = true; break }
+            when {
+                line.startsWith("Binary files") || line.startsWith("GIT binary patch") -> isBinary = true
+                line.startsWith("@@") -> {
+                    flushRemoved()
+                    val m = HUNK_RE.find(line) ?: continue
+                    leftNo = m.groupValues[1].toInt()
+                    rightNo = m.groupValues[2].toInt()
+                }
+                line.startsWith("---") || line.startsWith("+++") ||
+                    line.startsWith("diff ") || line.startsWith("index ") -> Unit
+                line.startsWith("-") -> pendingRemoved += leftNo++ to line.substring(1)
+                line.startsWith("+") -> {
+                    val text = line.substring(1)
+                    if (pendingRemoved.isNotEmpty()) {
+                        val (ln, oldText) = pendingRemoved.removeAt(0)
+                        val (l, r) = intraline(oldText, text)
+                        rows += GitDiffRow(
+                            ln, oldText, GitDiffLineType.REMOVED,
+                            rightNo++, text, GitDiffLineType.ADDED, l, r,
+                        )
+                    } else {
+                        rows += GitDiffRow(null, null, GitDiffLineType.PADDING, rightNo++, text, GitDiffLineType.ADDED)
+                    }
+                }
+                line.startsWith(" ") -> {
+                    flushRemoved()
+                    val text = line.substring(1)
+                    rows += GitDiffRow(leftNo++, text, GitDiffLineType.CONTEXT, rightNo++, text, GitDiffLineType.CONTEXT)
+                }
+            }
+        }
+        flushRemoved()
+
+        val isImage = relPath.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+        return GitFileDiffResult(
+            path = relPath,
+            oldLabel = "HEAD:$relPath",
+            newLabel = relPath,
+            isBinary = isBinary,
+            isImage = isImage,
+            rows = rows,
+            truncated = truncated,
+            workFilePath = workFilePath,
+        )
+    }
+
+    /** Common prefix/suffix trim -> differing character ranges of a paired line pair. */
+    private fun intraline(old: String, new: String): Pair<List<IntRange>, List<IntRange>> {
+        var prefix = 0
+        val min = minOf(old.length, new.length)
+        while (prefix < min && old[prefix] == new[prefix]) prefix++
+        var suffix = 0
+        while (suffix < min - prefix &&
+            old[old.length - 1 - suffix] == new[new.length - 1 - suffix]
+        ) suffix++
+        val leftRange =
+            if (old.length - suffix > prefix) listOf(prefix until old.length - suffix) else emptyList()
+        val rightRange =
+            if (new.length - suffix > prefix) listOf(prefix until new.length - suffix) else emptyList()
+        return leftRange to rightRange
     }
 }
