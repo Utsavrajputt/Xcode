@@ -100,6 +100,7 @@ fun XcodeNavHost(
                 onOpenCodeSearch = { root ->
                     navController.navigate(Routes.codeSearch(root.path))
                 },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.EDITOR) {

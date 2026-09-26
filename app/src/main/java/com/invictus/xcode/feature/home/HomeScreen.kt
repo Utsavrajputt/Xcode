@@ -3,19 +3,17 @@ package com.invictus.xcode.feature.home
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,11 +63,9 @@ import com.invictus.xcode.ui.icons.XIcons
 import com.invictus.xcode.ui.components.expressiveClickable
 import kotlinx.coroutines.launch
 import java.io.File
-import kotlin.math.cos
-import kotlin.math.sin
 
 /**
- * Home screen: app name + settings in the top bar, a compass "build your app" hero with the
+ * Home screen: app name + settings in the top bar, a compass+pencil "build your app" hero with the
  * Open Project button at its center, and recent projects below. Opening a project from here
  * (button or a recent row) records it in recents and takes the user to the workspace.
  */
@@ -152,8 +150,13 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Column(Modifier.fillMaxSize().padding(innerPadding)) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Compass(Modifier.fillMaxSize().padding(28.dp))
+            Column(
+                Modifier.fillMaxWidth().weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                BuildIllustration(Modifier.size(110.dp))
+                Spacer(Modifier.height(24.dp))
                 Button(onClick = { showProjectSheet = true }) {
                     Icon(XIcons.FolderOpen, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
@@ -254,83 +257,76 @@ private fun RecentProjectRow(
     }
 }
 
-/** Blueprint grid + rings + ticks + slowly rotating needle — "build your app" compass. */
+/** Static "build your app" illustration: a drafting compass crossed with a pencil. */
 @Composable
-private fun Compass(modifier: Modifier = Modifier) {
+private fun BuildIllustration(modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary
-    val outline = MaterialTheme.colorScheme.outlineVariant
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
-    val surface = MaterialTheme.colorScheme.surface
-    val infiniteTransition = rememberInfiniteTransition(label = "compass")
-    val angle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(24000, easing = LinearEasing)),
-        label = "angle",
-    )
-    Box(modifier) {
-        Canvas(Modifier.fillMaxSize()) {
-            val c = center
-            val r = size.minDimension / 2f * 0.92f
-            // blueprint grid
-            val grid = r / 5f
-            var gx = c.x % grid
-            while (gx < size.width) {
-                drawLine(outline.copy(alpha = 0.3f), Offset(gx, 0f), Offset(gx, size.height))
-                gx += grid
-            }
-            var gy = c.y % grid
-            while (gy < size.height) {
-                drawLine(outline.copy(alpha = 0.3f), Offset(0f, gy), Offset(size.width, gy))
-                gy += grid
-            }
-            // rings
-            drawCircle(primary, r, c, style = Stroke(width = 3f))
-            drawCircle(primary.copy(alpha = 0.55f), r * 0.78f, c, style = Stroke(width = 1.5f))
-            drawCircle(primary.copy(alpha = 0.3f), r * 0.42f, c, style = Stroke(width = 1f))
-            // crosshair
-            drawLine(outline, Offset(c.x - r, c.y), Offset(c.x + r, c.y))
-            drawLine(outline, Offset(c.x, c.y - r), Offset(c.x, c.y + r))
-            // degree ticks
-            for (i in 0 until 72) {
-                val a = Math.toRadians((i * 5).toDouble())
-                val ca = cos(a).toFloat()
-                val sa = sin(a).toFloat()
-                val major = i % 18 == 0
-                val len = if (major) r * 0.12f else if (i % 6 == 0) r * 0.07f else r * 0.035f
-                drawLine(
-                    color = primary.copy(alpha = if (major) 0.9f else 0.5f),
-                    start = Offset(c.x + (r - len) * ca, c.y + (r - len) * sa),
-                    end = Offset(c.x + r * ca, c.y + r * sa),
-                    strokeWidth = if (major) 4f else 2f,
-                )
-            }
-            // rotating needle
-            val rad = Math.toRadians(angle.toDouble())
-            val nx = cos(rad).toFloat()
-            val ny = sin(rad).toFloat()
-            val tip = Offset(c.x + nx * r * 0.74f, c.y + ny * r * 0.74f)
-            val tail = Offset(c.x - nx * r * 0.52f, c.y - ny * r * 0.52f)
-            val w1 = Offset(c.x - ny * r * 0.09f, c.y + nx * r * 0.09f)
-            val w2 = Offset(c.x + ny * r * 0.09f, c.y - nx * r * 0.09f)
-            val needle = Path().apply {
-                moveTo(tip.x, tip.y)
-                lineTo(w1.x, w1.y)
-                lineTo(tail.x, tail.y)
-                lineTo(w2.x, w2.y)
-                close()
-            }
-            drawPath(needle, primary.copy(alpha = 0.85f))
-            // clean hole behind the center button
-            drawCircle(surface, radius = r * 0.16f, center = c)
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        val stroke = Stroke(width = w * 0.045f, cap = StrokeCap.Round, join = StrokeJoin.Round)
 
-            drawCircle(primary, radius = 5f, center = c)
+        // --- Drafting compass (two legs joined at a hinge near the top) ---
+        val hinge = Offset(w * 0.50f, h * 0.14f)
+        val leftFoot = Offset(w * 0.22f, h * 0.92f)
+        val rightFoot = Offset(w * 0.72f, h * 0.92f)
+
+        // hinge knob
+        drawCircle(primary, radius = w * 0.045f, center = hinge)
+        drawCircle(primary, radius = w * 0.045f, center = hinge, style = Stroke(width = w * 0.02f))
+
+        // legs
+        drawLine(primary, hinge, leftFoot, strokeWidth = stroke.width, cap = StrokeCap.Round)
+        drawLine(primary, hinge, rightFoot, strokeWidth = stroke.width, cap = StrokeCap.Round)
+
+        // left foot: pivot point (small filled dot)
+        drawCircle(primary, radius = w * 0.028f, center = leftFoot)
+
+        // right foot: pencil tip (small triangle)
+        val tipPath = Path().apply {
+            moveTo(rightFoot.x, rightFoot.y)
+            lineTo(rightFoot.x - w * 0.05f, rightFoot.y - h * 0.09f)
+            lineTo(rightFoot.x + w * 0.05f, rightFoot.y - h * 0.09f)
+            close()
         }
-        val labelStyle = MaterialTheme.typography.labelLarge
-        val labelColor = MaterialTheme.colorScheme.primary
-        Text("N", style = labelStyle, color = labelColor, modifier = Modifier.align(Alignment.TopCenter))
-        Text("S", style = labelStyle, color = labelColor, modifier = Modifier.align(Alignment.BottomCenter))
-        Text("W", style = labelStyle, color = labelColor, modifier = Modifier.align(Alignment.CenterStart))
-        Text("E", style = labelStyle, color = labelColor, modifier = Modifier.align(Alignment.CenterEnd))
+        drawPath(tipPath, primary)
+
+        // cross-bar connecting the two legs partway down (compass hallmark)
+        val barT = 0.5f
+        val barStart = Offset(
+            hinge.x + (leftFoot.x - hinge.x) * barT,
+            hinge.y + (leftFoot.y - hinge.y) * barT,
+        )
+        val barEnd = Offset(
+            hinge.x + (rightFoot.x - hinge.x) * barT,
+            hinge.y + (rightFoot.y - hinge.y) * barT,
+        )
+        drawLine(onSurfaceVariant, barStart, barEnd, strokeWidth = w * 0.02f, cap = StrokeCap.Round)
+
+        // faint drawn arc under the pivot foot, as if the compass just traced it
+        val arcRect = androidx.compose.ui.geometry.Rect(
+            center = leftFoot,
+            radius = w * 0.16f,
+        )
+        drawArc(
+            color = onSurfaceVariant.copy(alpha = 0.5f),
+            startAngle = -50f,
+            sweepAngle = 220f,
+            useCenter = false,
+            topLeft = arcRect.topLeft,
+            size = arcRect.size,
+            style = Stroke(width = w * 0.014f, cap = StrokeCap.Round),
+        )
+
+        // --- Pencil, laid diagonally across the compass ---
+        val pencilStart = Offset(w * 0.08f, h * 0.62f)
+        val pencilBodyEnd = Offset(w * 0.72f, h * 0.20f)
+        val pencilTip = Offset(w * 0.86f, h * 0.08f)
+
+        drawLine(primary, pencilStart, pencilBodyEnd, strokeWidth = w * 0.075f, cap = StrokeCap.Square)
+        drawLine(onSurfaceVariant, pencilBodyEnd, pencilTip, strokeWidth = w * 0.03f, cap = StrokeCap.Round)
+        drawCircle(onSurfaceVariant, radius = w * 0.014f, center = pencilTip)
     }
 }

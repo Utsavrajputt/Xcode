@@ -5,9 +5,11 @@ import android.content.ClipboardManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
 import com.invictus.xcode.ui.components.expressiveClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -44,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,7 +60,6 @@ import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.feature.project.OpenProjectSheet
-import com.invictus.xcode.feature.search.FileSearchOverlay
 import com.invictus.xcode.feature.search.SearchBus
 import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
@@ -86,6 +89,7 @@ fun WorkspaceScreen(
     onGitSetup: (File) -> Unit = {},
     onClone: () -> Unit = {},
     onOpenCodeSearch: (File) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     LaunchedEffect(state.root) { onProjectRoot(state.root) }
@@ -94,7 +98,7 @@ fun WorkspaceScreen(
         value = withContext(Dispatchers.IO) { File(state.root, ".git").isDirectory }
     }
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
-    var showFileSearch by rememberSaveable { mutableStateOf(false) }
+    var filterQuery by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val context = LocalContext.current
     // M9: offer the Git setup wizard once when this project is not a repository yet.
@@ -184,8 +188,8 @@ fun WorkspaceScreen(
                 onOpenProjectSheet = { showProjectSheet = true },
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
                 onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
-                onOpenSearch = { showFileSearch = true },
                 onOpenCodeSearch = { onOpenCodeSearch(state.root) },
+                onOpenSettings = onOpenSettings,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -211,12 +215,21 @@ fun WorkspaceScreen(
                     color = MaterialTheme.colorScheme.error,
                 )
             } else {
-                FileTree(
-                    state = state,
-                    onEvent = viewModel::onEvent,
-                    onCopyPath = copyPath,
-                    listState = listState,
-                )
+                Column(Modifier.fillMaxSize()) {
+                    FileFilterBar(
+                        query = filterQuery,
+                        onQueryChange = { filterQuery = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
+                    FileTree(
+                        state = state,
+                        onEvent = viewModel::onEvent,
+                        onCopyPath = copyPath,
+                        listState = listState,
+                        filterQuery = filterQuery,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
@@ -240,18 +253,6 @@ fun WorkspaceScreen(
             showRecent = true,
         )
     }
-
-    // M11: quick-open fuzzy file search overlay.
-    if (showFileSearch) {
-        FileSearchOverlay(
-            root = state.root,
-            onOpen = { file ->
-                showFileSearch = false
-                if (onOpenFile != null) onOpenFile(file)
-            },
-            onDismiss = { showFileSearch = false },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -262,8 +263,8 @@ private fun WorkspaceTopBar(
     onOpenProjectSheet: () -> Unit,
     onBackup: () -> Unit,
     onOpenGit: (() -> Unit)? = null,
-    onOpenSearch: () -> Unit = {},
     onOpenCodeSearch: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
@@ -292,9 +293,6 @@ private fun WorkspaceTopBar(
         actions = {
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
-            }
-            IconButton(onClick = onOpenSearch) {
-                Icon(XIcons.Search, contentDescription = stringResource(R.string.search_files_hint))
             }
             if (onOpenGit != null) {
                 IconButton(onClick = onOpenGit) {
@@ -340,10 +338,70 @@ private fun WorkspaceTopBar(
                             onEvent(FileTreeEvent.CollapseAll)
                         },
                     )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_settings)) },
+                        leadingIcon = { Icon(XIcons.Settings, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onOpenSettings()
+                        },
+                    )
                 }
             }
         },
     )
+}
+
+/** Inline filename filter shown just above the file tree, like a regular file-manager search bar. */
+@Composable
+private fun FileFilterBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            XIcons.Search,
+            contentDescription = stringResource(R.string.search_files_hint),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        Box(Modifier.weight(1f)) {
+            if (query.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.search_files_hint),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(20.dp)) {
+                Icon(
+                    XIcons.Close,
+                    contentDescription = stringResource(R.string.action_clear),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
 }
 
 @Composable

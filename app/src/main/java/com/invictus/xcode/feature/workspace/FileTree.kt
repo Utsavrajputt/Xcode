@@ -78,10 +78,21 @@ fun FileTree(
     onCopyPath: (File) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    filterQuery: String = "",
 ) {
     val rootLabel = state.rootName ?: stringResource(R.string.workspace_root_internal)
+    val visibleRows = remember(state.rows, filterQuery) {
+        val query = filterQuery.trim()
+        if (query.isEmpty()) {
+            state.rows
+        } else {
+            state.rows.filter { row ->
+                row !is TreeRow.Entry || row.file.name.contains(query, ignoreCase = true)
+            }
+        }
+    }
     LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
-        items(items = state.rows, key = { it.key }) { row ->
+        items(items = visibleRows, key = { it.key }) { row ->
             // Expressive: rows spring into place when the tree expands/collapses.
             Box(modifier = Modifier.animateItem()) {
             when (row) {
