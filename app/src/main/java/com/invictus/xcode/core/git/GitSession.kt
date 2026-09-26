@@ -1,14 +1,18 @@
 package com.invictus.xcode.core.git
 
+import com.invictus.xcode.core.git.model.GitBranchDetail
 import com.invictus.xcode.core.git.model.GitBranchInfo
 import com.invictus.xcode.core.git.model.GitDiffLineType
 import com.invictus.xcode.core.git.model.GitDiffRow
 import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitCommitSummary
+import com.invictus.xcode.core.git.model.GitLogSearchMode
 import com.invictus.xcode.core.git.model.GitPathChange
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitStageState
+import com.invictus.xcode.core.git.model.GitStashInfo
+import com.invictus.xcode.core.git.model.GitTagInfo
 import com.invictus.xcode.core.git.model.GitTrackingInfo
 import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
@@ -22,6 +26,7 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.ConfigConstants
+import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevWalk
@@ -33,6 +38,7 @@ import org.eclipse.jgit.treewalk.EmptyTreeIterator
 import org.eclipse.jgit.treewalk.TreeWalk
 import org.eclipse.jgit.treewalk.filter.PathFilter
 import org.eclipse.jgit.transport.CredentialsProvider
+import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.util.FS
 import java.io.File
 
@@ -121,17 +127,42 @@ class GitSession(
 
     // ---- network (M6: token auth, non-force only) --------------------------
 
+    /**
+     * M8: [force] pushes with a force-with-lease style check: the remote tip is
+     * compared against our stored remote-tracking ref first; if the remote has
+     * commits we never fetched, we refuse instead of clobbering.
+     */
     suspend fun push(
         remote: String,
         credentials: CredentialsProvider?,
+        force: Boolean = false,
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_PUSH) {
         mutex.withLock {
-            git.push()
+            if (force) {
+                val branch = currentBranchName()
+                    ?: throw IllegalStateException("Detached HEAD: force push needs a branch.")
+                val remoteTip = runCatching {
+                    git.lsRemote()
+                        .setRemote(remote)
+                        .setCredentialsProvider(credentials)
+                        .call()
+                        .firstOrNull { it.name == "refs/heads/$branch" }
+                        ?.objectId
+                }.getOrNull()
+                val stored = repository.resolve("refs/remotes/$remote/$branch")
+                if (remoteTip != null && stored != null && remoteTip != stored) {
+                    throw IllegalStateException(
+                        "'$remote/$branch' has commits you have not fetched. Fetch first, then force push.",
+                    )
+                }
+            }
+            val cmd = git.push()
                 .setRemote(remote)
                 .setCredentialsProvider(credentials)
                 .setProgressMonitor(gitProgressMonitor(onProgress))
-                .call()
+            if (force) cmd.setForce(true)
+            cmd.call()
         }
         Unit
     }
@@ -300,6 +331,291 @@ class GitSession(
             Unit
         }
 
+    // ---- M8: branches (unborn-aware) ----------------------------------------
+
+    private fun currentBranchName(): String? =
+        runCatching { repository.fullBranch }.getOrNull()
+            ?.takeIf { it.startsWith("refs/heads/") }
+            ?.removePrefix("refs/heads/")
+
+    /** Local branches + current unborn branch (empty repo me bhi HEAD wali dikhe). */
+    suspend fun listBranchesDetailed(): GitResult<List<GitBranchDetail>> = ioOp(TITLE_BRANCH) {
+        mutex.withLock {
+            val current = currentBranchName()
+            val listed = git.branchList().call().map { ref ->
+                val name = ref.name.removePrefix("refs/heads/")
+                val track = runCatching { trackingInfo(name) }.getOrNull()
+                GitBranchDetail(
+                    name = name,
+                    isCurrent = name == current,
+                    upstream = track?.let { "${it.remote}/${it.branch}" },
+                    ahead = track?.ahead ?: 0,
+                    behind = track?.behind ?: 0,
+                )
+            }
+            // Unborn branch: branchList() is empty but HEAD already points at one.
+            if (listed.none { it.isCurrent } && current != null) {
+                listed + GitBranchDetail(current, isCurrent = true, upstream = null, ahead = 0, behind = 0)
+            } else {
+                listed
+            }
+        }
+    }
+
+    suspend fun createBranch(name: String, checkout: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val n = name.trim()
+        require(n.isNotEmpty()) { "Branch name is empty." }
+        mutex.withLock {
+            if (repository.resolve("HEAD") == null) {
+                // Unborn: branch has no tip yet, just point HEAD at the new name.
+                repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
+            } else {
+                git.branchCreate().setName(n).call()
+                if (checkout) git.checkout().setName(n).call()
+            }
+        }
+        Unit
+    }
+
+    suspend fun checkoutBranch(name: String, create: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val n = name.trim()
+        mutex.withLock {
+            if (create && repository.resolve("HEAD") == null) {
+                repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
+            } else {
+                git.checkout().setName(n).setCreateBranch(create).call()
+            }
+        }
+        Unit
+    }
+
+    suspend fun renameBranch(oldName: String?, newName: String): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val nn = newName.trim()
+        require(nn.isNotEmpty()) { "Branch name is empty." }
+        mutex.withLock {
+            val old = oldName?.trim()?.takeIf { it.isNotEmpty() } ?: currentBranchName()
+                ?: throw IllegalStateException("No current branch to rename.")
+            if (repository.resolve("HEAD") == null) {
+                // Unborn rename: move HEAD symref, drop the stale (tip-less) ref.
+                runCatching {
+                    val staleRef = repository.updateRef(Constants.R_HEADS + old)
+                    staleRef.setForceUpdate(true)
+                    staleRef.delete()
+                }
+                repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + nn)
+            } else {
+                git.branchRename().setOldName(old).setNewName(nn).call()
+            }
+        }
+        Unit
+    }
+
+    suspend fun deleteBranch(name: String, force: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val n = name.trim()
+        if (n == currentBranchName()) throw IllegalStateException("Cannot delete the current branch.")
+        mutex.withLock { git.branchDelete().setBranchNames(n).setForce(force).call() }
+        Unit
+    }
+
+    // ---- M8: history + cherry-pick --------------------------------------------
+
+    suspend fun log(max: Int = 300, path: String? = null): GitResult<List<GitCommitSummary>> =
+        ioOp(TITLE_LOG) {
+            mutex.withLock {
+                if (repository.resolve("HEAD") == null) return@ioOp emptyList()
+                val cmd = git.log().setMaxCount(max)
+                if (path != null) cmd.addPath(path.normalized())
+                cmd.call().map { it.toSummary() }.toList()
+            }
+        }
+
+    /** History search: message / author / hash-prefix filter over a capped walk. */
+    suspend fun searchLog(
+        query: String,
+        mode: GitLogSearchMode,
+        max: Int = 300,
+    ): GitResult<List<GitCommitSummary>> = ioOp(TITLE_LOG) {
+        mutex.withLock {
+            if (repository.resolve("HEAD") == null) return@ioOp emptyList()
+            val q = query.trim()
+            git.log().setMaxCount(3000).call()
+                .asSequence()
+                .map { it.toSummary() }
+                .filter {
+                    when (mode) {
+                        GitLogSearchMode.MESSAGE -> it.message.contains(q, ignoreCase = true)
+                        GitLogSearchMode.AUTHOR -> it.author.contains(q, ignoreCase = true)
+                        GitLogSearchMode.HASH ->
+                            it.id.startsWith(q, ignoreCase = true) ||
+                                it.shortId.startsWith(q, ignoreCase = true)
+                    }
+                }
+                .take(max)
+                .toList()
+        }
+    }
+
+    suspend fun cherryPick(commitId: String): GitResult<Unit> = ioOp(TITLE_CHERRY_PICK) {
+        mutex.withLock {
+            val result = git.cherryPick()
+                .include(repository.resolve(commitId.trim()))
+                .call()
+            if (result.status != org.eclipse.jgit.api.CherryPickResult.CherryPickStatus.OK) {
+                throw IllegalStateException(
+                    "Cherry-pick finished with status ${result.status}. Resolve conflicts in the drawer.",
+                )
+            }
+        }
+        Unit
+    }
+
+    private fun org.eclipse.jgit.revwalk.RevCommit.toSummary() = GitCommitSummary(
+        id = name,
+        shortId = abbreviate(7).name(),
+        message = fullMessage,
+        author = authorIdent.name,
+        timeMs = authorIdent.`when`.time,
+    )
+
+    // ---- M8: stash --------------------------------------------------------------
+
+    suspend fun stashCreate(message: String?): GitResult<Unit> = ioOp(TITLE_STASH) {
+        mutex.withLock {
+            val cmd = git.stashCreate()
+            if (!message.isNullOrBlank()) cmd.setWorkingDirectoryMessage(message.trim())
+            cmd.call()
+        }
+        Unit
+    }
+
+    suspend fun stashList(): GitResult<List<GitStashInfo>> = ioOp(TITLE_STASH) {
+        mutex.withLock {
+            git.stashList().call().toList().mapIndexed { index, c ->
+                GitStashInfo(
+                    ref = "stash@{$index}",
+                    index = index,
+                    message = c.shortMessage,
+                    timeMs = c.authorIdent.`when`.time,
+                )
+            }
+        }
+    }
+
+    suspend fun stashApply(ref: String, pop: Boolean): GitResult<Unit> = ioOp(TITLE_STASH) {
+        mutex.withLock {
+            git.stashApply().setStashRef(ref).call()
+            if (pop) git.stashDrop().setStashRef(stashIndexFromRef(ref)).call()
+        }
+        Unit
+    }
+
+    suspend fun stashDrop(ref: String): GitResult<Unit> = ioOp(TITLE_STASH) {
+        mutex.withLock { git.stashDrop().setStashRef(stashIndexFromRef(ref)).call() }
+        Unit
+    }
+
+    /** JGit's StashDropCommand wants the numeric index, not the "stash@{N}" ref string. */
+    private fun stashIndexFromRef(ref: String): Int =
+        Regex("""\{(\d+)\}""").find(ref)?.groupValues?.get(1)?.toIntOrNull()
+            ?: ref.trim().toIntOrNull()
+            ?: throw IllegalArgumentException("Invalid stash ref: $ref")
+
+    // ---- M8: tags ----------------------------------------------------------------
+
+    suspend fun listTags(): GitResult<List<GitTagInfo>> = ioOp(TITLE_TAG) {
+        mutex.withLock {
+            val walk = RevWalk(repository)
+            try {
+                git.tagList().call().map { ref ->
+                    val peeled = runCatching { repository.refDatabase.peel(ref) }.getOrNull()
+                    val commitId = peeled?.peeledObjectId ?: ref.objectId
+                    val commit = runCatching { walk.parseCommit(commitId) }.getOrNull()
+                    GitTagInfo(
+                        name = ref.name.removePrefix("refs/tags/"),
+                        commitId = commitId.name,
+                        message = commit?.shortMessage,
+                        timeMs = commit?.authorIdent?.`when`?.time ?: 0L,
+                    )
+                }
+            } finally {
+                walk.close()
+            }
+        }
+    }
+
+    suspend fun createTag(name: String, message: String?): GitResult<Unit> = ioOp(TITLE_TAG) {
+        val n = name.trim()
+        require(n.isNotEmpty()) { "Tag name is empty." }
+        mutex.withLock {
+            val cmd = git.tag().setName(n)
+            if (!message.isNullOrBlank()) cmd.setAnnotated(true).setMessage(message.trim())
+            cmd.call()
+        }
+        Unit
+    }
+
+    suspend fun deleteTag(name: String): GitResult<Unit> = ioOp(TITLE_TAG) {
+        mutex.withLock { git.tagDelete().setTags(name.trim()).call() }
+        Unit
+    }
+
+    // ---- M8: remotes ---------------------------------------------------------------
+
+    suspend fun addRemote(name: String, url: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
+        mutex.withLock {
+            git.remoteAdd().setName(name.trim()).setUri(URIish(url.trim())).call()
+        }
+        Unit
+    }
+
+    suspend fun setRemoteUrl(name: String, url: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
+        mutex.withLock {
+            repository.config.setString(
+                ConfigConstants.CONFIG_REMOTE_SECTION, name, ConfigConstants.CONFIG_KEY_URL, url.trim(),
+            )
+            repository.config.save()
+        }
+        Unit
+    }
+
+    suspend fun renameRemote(oldName: String, newName: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
+        val old = oldName.trim()
+        val new = newName.trim()
+        mutex.withLock {
+            val cfg = repository.config
+            val url = cfg.getString(
+                ConfigConstants.CONFIG_REMOTE_SECTION, old, ConfigConstants.CONFIG_KEY_URL,
+            ) ?: throw IllegalStateException("Remote '$old' does not exist.")
+            val fetch = cfg.getString(ConfigConstants.CONFIG_REMOTE_SECTION, old, "fetch")
+            cfg.unsetSection(ConfigConstants.CONFIG_REMOTE_SECTION, old)
+            cfg.setString(ConfigConstants.CONFIG_REMOTE_SECTION, new, ConfigConstants.CONFIG_KEY_URL, url)
+            if (fetch != null) {
+                cfg.setString(
+                    ConfigConstants.CONFIG_REMOTE_SECTION, new, "fetch",
+                    fetch.replace("refs/remotes/$old/", "refs/remotes/$new/"),
+                )
+            }
+            cfg.save()
+            // Move remote-tracking refs so ahead/behind keeps working after rename.
+            val prefix = "refs/remotes/$old/"
+            repository.refDatabase.getRefsByPrefix(prefix).forEach { ref ->
+                val moved = repository.updateRef("refs/remotes/$new/" + ref.name.removePrefix(prefix))
+                moved.setNewObjectId(ref.objectId)
+                moved.setForceUpdate(true)
+                moved.update()
+                val stale = repository.updateRef(ref.name)
+                stale.setForceUpdate(true)
+                stale.delete()
+            }
+        }
+        Unit
+    }
+
+    suspend fun removeRemote(name: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
+        mutex.withLock { git.remoteRemove().setRemoteName(name.trim()).call() }
+        Unit
+    }
+
     // ---- internals ----------------------------------------------------------
 
     private fun resolveIdentity(): Identity? {
@@ -418,6 +734,12 @@ class GitSession(
         private const val TITLE_FETCH = "Git fetch"
         private const val TITLE_IDENTITY = "Git identity"
         private const val TITLE_DIFF = "Git diff"
+        private const val TITLE_BRANCH = "Git branch"
+        private const val TITLE_LOG = "Git history"
+        private const val TITLE_CHERRY_PICK = "Git cherry-pick"
+        private const val TITLE_STASH = "Git stash"
+        private const val TITLE_TAG = "Git tag"
+        private const val TITLE_REMOTE = "Git remote"
     }
 }
 

@@ -18,8 +18,15 @@ import androidx.navigation.compose.rememberNavController
 import com.invictus.xcode.feature.editor.EditorEvent
 import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
+import androidx.navigation.navArgument
+import com.invictus.xcode.feature.git.GitBranchesScreen
 import com.invictus.xcode.feature.git.GitCloneScreen
+import com.invictus.xcode.feature.git.GitCredentialsScreen
+import com.invictus.xcode.feature.git.GitHistoryScreen
+import com.invictus.xcode.feature.git.GitRemotesScreen
 import com.invictus.xcode.feature.git.GitScreen
+import com.invictus.xcode.feature.git.GitStashScreen
+import com.invictus.xcode.feature.git.GitTagsScreen
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
@@ -140,11 +147,64 @@ fun XcodeNavHost(
         composable(Routes.GIT) { entry ->
             val path = entry.arguments?.getString("projectPath")
             if (path != null) {
-                GitScreen(projectPath = path, onBack = { navController.popBackStack() })
+                GitScreen(
+                    projectPath = path,
+                    onBack = { navController.popBackStack() },
+                    onOpenRoute = { route -> navController.navigate(route) },
+                )
             }
         }
         composable(Routes.GIT_CLONE) {
             GitCloneScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.GIT_BRANCHES) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitBranchesScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(
+            route = Routes.GIT_HISTORY,
+            arguments = listOf(navArgument("path") { defaultValue = "" }),
+        ) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitHistoryScreen(
+                    projectPath = path,
+                    filePath = entry.arguments?.getString("path")?.takeIf { it.isNotBlank() },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
+        composable(Routes.GIT_STASH) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitStashScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(Routes.GIT_TAGS) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitTagsScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(Routes.GIT_REMOTES) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitRemotesScreen(
+                    projectPath = path,
+                    onBack = { navController.popBackStack() },
+                    onOpenCredentials = {
+                        navController.navigate(Routes.gitCredentials(path))
+                    },
+                )
+            }
+        }
+        composable(Routes.GIT_CREDENTIALS) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitCredentialsScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
         }
     }
 

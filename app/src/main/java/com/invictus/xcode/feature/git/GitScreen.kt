@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -36,8 +38,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +59,7 @@ import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitStageState
 import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.ui.icons.XIcons
+import com.invictus.xcode.ui.navigation.Routes
 import kotlinx.coroutines.launch
 
 /**
@@ -67,12 +72,14 @@ import kotlinx.coroutines.launch
 fun GitScreen(
     projectPath: String,
     onBack: () -> Unit,
+    onOpenRoute: (String) -> Unit = {},
     viewModel: GitViewModel = viewModel(
         key = "git:$projectPath",
         factory = GitViewModel.factory(projectPath),
     ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var overflowOpen by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -137,6 +144,48 @@ fun GitScreen(
                     }
                     IconButton(onClick = { viewModel.onEvent(GitEvent.OpenIdentity) }) {
                         Icon(XIcons.Person, contentDescription = stringResource(R.string.git_identity))
+                    }
+                    Box {
+                        IconButton(onClick = { overflowOpen = true }) {
+                            Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_title))
+                        }
+                        DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_branches_title)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    onOpenRoute(Routes.gitBranches(projectPath))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_history_title)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    onOpenRoute(Routes.gitHistory(projectPath))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_stash_title)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    onOpenRoute(Routes.gitStash(projectPath))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_tags_title)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    onOpenRoute(Routes.gitTags(projectPath))
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_remotes_title)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    onOpenRoute(Routes.gitRemotes(projectPath))
+                                },
+                            )
+                        }
                     }
                 },
             )

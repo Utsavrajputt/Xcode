@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M8: Git advanced -->
+    <string name="git_branches_title">ब्रांचें</string>
+    <string name="git_branch_create">नई ब्रांच</string>
+    <string name="git_branch_name_hint">ब्रांच का नाम</string>
+    <string name="git_branch_checkout">चेकआउट</string>
+    <string name="git_branch_rename">नाम बदलें</string>
+    <string name="git_branch_rename_hint">नया नाम</string>
+    <string name="git_branch_delete">हटाएँ</string>
+    <string name="git_branch_delete_confirm">ब्रांच \'%1$s\' हटाएँ? Unmerged commits खो सकते हैं।</string>
+    <string name="git_upstream_none">कोई upstream नहीं</string>
+    <string name="git_force_push">Force push</string>
+    <string name="git_force_push_confirm_text">Remote branch को local history से overwrite करें? पहले lease-check होगा।</string>
+    <string name="git_history_title">History</string>
+    <string name="git_history_search_hint">Commits खोजें…</string>
+    <string name="git_history_mode_message">Message</string>
+    <string name="git_history_mode_author">Author</string>
+    <string name="git_history_mode_hash">Hash</string>
+    <string name="git_history_empty">कोई commit नहीं मिला।</string>
+    <string name="git_cherry_pick">Cherry-pick</string>
+    <string name="git_stash_title">Stash</string>
+    <string name="git_stash_create">Stash करें</string>
+    <string name="git_stash_message_hint">Stash message (वैकल्पिक)</string>
+    <string name="git_stash_apply">Apply</string>
+    <string name="git_stash_apply_pop">Apply और drop</string>
+    <string name="git_stash_drop">Drop</string>
+    <string name="git_stash_drop_confirm">%1$s हमेशा के लिए drop करें?</string>
+    <string name="git_stash_empty">कोई stash नहीं।</string>
+    <string name="git_tags_title">Tags</string>
+    <string name="git_tag_create">नया tag</string>
+    <string name="git_tag_name_hint">Tag का नाम</string>
+    <string name="git_tag_message_hint">Message (वैकल्पिक, annotated बनाता है)</string>
+    <string name="git_tag_delete">हटाएँ</string>
+    <string name="git_tag_delete_confirm">Tag \'%1$s\' हटाएँ?</string>
+    <string name="git_tags_empty">कोई tag नहीं।</string>
+    <string name="git_remotes_title">Remotes</string>
+    <string name="git_remote_add">जोड़ें</string>
+    <string name="git_remote_edit">Edit</string>
+    <string name="git_remote_rename">नाम बदलें</string>
+    <string name="git_remote_delete">हटाएँ</string>
+    <string name="git_remote_delete_confirm">Remote \'%1$s\' हटाएँ?</string>
+    <string name="git_remote_name_hint">Remote का नाम</string>
+    <string name="git_remote_url_hint">Remote URL (https)</string>
+    <string name="git_remotes_empty">कोई remote configure नहीं।</string>
+    <string name="git_remote_manage_tokens">Tokens</string>
+    <string name="git_credentials_title">Credentials</string>
+    <string name="git_cred_add">Token जोड़ें</string>
+    <string name="git_cred_edit">Edit</string>
+    <string name="git_cred_delete">हटाएँ</string>
+    <string name="git_cred_delete_confirm">\'%1$s\' के लिए stored token हटाएँ?</string>
+    <string name="git_cred_host_hint">Host (जैसे github.com)</string>
+    <string name="git_cred_user_hint">Username</string>
+    <string name="git_cred_token_hint">Token</string>
+    <string name="git_credentials_empty">कोई token नहीं। Tokens Android Keystore में रहते हैं।</string>
+</resources>

@@ -141,3 +141,30 @@ data class GitPathDecoration(
         CONFLICT(4), DELETED(3), MODIFIED(2), ADDED(1), UNTRACKED(0),
     }
 }
+
+// ---- M8: advanced ops models ------------------------------------------------
+
+/** Branch with tracking info (upstream + divergence) for the branches screen. */
+data class GitBranchDetail(
+    val name: String,
+    val isCurrent: Boolean,
+    val upstream: String?,   // "origin/main", null when no tracking config
+    val ahead: Int,
+    val behind: Int,
+)
+
+data class GitTagInfo(
+    val name: String,
+    val commitId: String,
+    val message: String?,
+    val timeMs: Long,
+)
+
+data class GitStashInfo(
+    val ref: String,     // "stash@{0}"
+    val index: Int,
+    val message: String,
+    val timeMs: Long,
+)
+
+enum class GitLogSearchMode { MESSAGE, AUTHOR, HASH }
