@@ -9,6 +9,7 @@ data class GitRepoSnapshot(
     val headId: String?,
     val headName: String?,
     val trackingInfo: GitTrackingInfo?,
+    val mergeInProgress: Boolean = false,
 )
 
 /** Upstream tracking: which remote/branch HEAD follows, and how far it has diverged. */
@@ -168,3 +169,9 @@ data class GitStashInfo(
 )
 
 enum class GitLogSearchMode { MESSAGE, AUTHOR, HASH }
+
+// ---- M10: merge + conflict models -------------------------------------------
+
+enum class GitConflictSide { OURS, THEIRS }
+
+enum class MergeOutcome { FAST_FORWARD, MERGED, ALREADY_UP_TO_DATE, CONFLICTS }

@@ -1,5 +1,7 @@
 package com.invictus.xcode.feature.git
 
+import com.invictus.xcode.core.git.model.GitConflictSide
+
 sealed interface GitEvent {
     data object Refresh : GitEvent
     data object StageAll : GitEvent
@@ -24,6 +26,20 @@ sealed interface GitEvent {
     data class SaveToken(val host: String, val username: String, val token: String) : GitEvent
     data object DismissToken : GitEvent
     data object DismissError : GitEvent
+    // M10: merge + conflicts
+    data object OpenMerge : GitEvent
+    data object DismissMerge : GitEvent
+    data class Merge(val branch: String) : GitEvent
+    data class ResolveConflict(val path: String, val side: GitConflictSide) : GitEvent
+    data class MarkResolved(val path: String) : GitEvent
+    data class PreviewConflictSide(val path: String, val side: GitConflictSide) : GitEvent
+    data object DismissConflictPreview : GitEvent
+    data object AbortMerge : GitEvent
+    data object ConfirmAbortMerge : GitEvent
+    data object DismissAbortMerge : GitEvent
+    data object CompleteMerge : GitEvent
+    data class CompleteMergeMessageChange(val text: String) : GitEvent
+    data object DismissCompleteMerge : GitEvent
 }
 
 sealed interface GitCloneEvent {

@@ -330,6 +330,18 @@ fun EditorScreen(
             active?.let { tab ->
                 ExternalChangeBanner(tab = tab, onEvent = viewModel::onEvent)
             }
+            val activeText = handle.editor?.text?.toString()
+            val conflictBlocks = remember(active?.dirty, activePath, activeText) {
+                activeText
+                    ?.takeIf { active?.previewType == PreviewType.NONE }
+                    ?.let { com.invictus.xcode.core.git.ConflictParser.parse(it) }
+                    .orEmpty()
+            }
+            ConflictBlocksBar(
+                blocks = conflictBlocks,
+                handle = handle,
+                onEdited = { activePath?.let { viewModel.onEdited(it) } },
+            )
             val activePageIndex = active?.pageIndex
             val activePageCount = active?.pageCount
             if (activePath != null && activePageIndex != null && activePageCount != null) {

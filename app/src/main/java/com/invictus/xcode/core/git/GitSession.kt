@@ -1,6 +1,8 @@
 package com.invictus.xcode.core.git
 
 import com.invictus.xcode.core.git.model.GitBranchDetail
+import com.invictus.xcode.core.git.model.GitConflictSide
+import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitBranchInfo
 import com.invictus.xcode.core.git.model.GitDiffLineType
 import com.invictus.xcode.core.git.model.GitDiffRow
@@ -22,8 +24,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.eclipse.jgit.api.CheckoutCommand
 import org.eclipse.jgit.api.Git
+import org.eclipse.jgit.api.ListBranchCommand
+import org.eclipse.jgit.api.MergeCommand
+import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.ResetCommand
+import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.Constants
@@ -41,6 +48,7 @@ import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.util.FS
 import java.io.File
+import java.nio.charset.StandardCharsets
 
 /** Thrown by [GitSession.commit] when no author identity is configured anywhere. */
 class GitIdentityMissingException : Exception("Git author name/email not configured")
@@ -640,6 +648,161 @@ class GitSession(
         Unit
     }
 
+    // ---- M10: merge + conflict resolution ------------------------------------
+
+    /**
+     * Merge [branch] into HEAD. Accepts a local short name ("feature"), a
+     * remote-tracking path ("origin/feature"), or a tracked branch's short name.
+     * Fast-forwards when possible, commits the merge otherwise; stops with
+     * [MergeOutcome.CONFLICTS] (MERGE_HEAD written) when the trees clash.
+     */
+    suspend fun mergeBranch(branch: String): GitResult<MergeOutcome> = ioOp(TITLE_MERGE) {
+        val name = branch.trim()
+        require(name.isNotEmpty()) { "Branch name is empty." }
+        mutex.withLock {
+            val commitId = repository.resolve("refs/heads/$name")
+                ?: if (name.contains('/')) repository.resolve("refs/remotes/$name") else null
+                ?: run {
+                    // Tracked branch: fall back to its configured remote ref.
+                    val remote = repository.config.getString(
+                        ConfigConstants.CONFIG_BRANCH_SECTION, name,
+                        ConfigConstants.CONFIG_KEY_REMOTE,
+                    )
+                    val merge = repository.config.getString(
+                        ConfigConstants.CONFIG_BRANCH_SECTION, name,
+                        ConfigConstants.CONFIG_KEY_MERGE,
+                    )
+                    if (remote != null && merge != null) {
+                        repository.resolve(
+                            "refs/remotes/$remote/${merge.removePrefix("refs/heads/")}",
+                        )
+                    } else null
+                }
+                ?: throw IllegalStateException("Cannot resolve branch '$name'.")
+            if (currentBranchName() == name) {
+                throw IllegalStateException("Already on '$name'.")
+            }
+            val result = git.merge()
+                .include(commitId)
+                .setFastForward(MergeCommand.FastForwardMode.FF)
+                .setCommit(true)
+                .call()
+            when (result.mergeStatus) {
+                MergeResult.MergeStatus.FAST_FORWARD -> MergeOutcome.FAST_FORWARD
+                MergeResult.MergeStatus.MERGED -> MergeOutcome.MERGED
+                MergeResult.MergeStatus.ALREADY_UP_TO_DATE -> MergeOutcome.ALREADY_UP_TO_DATE
+                MergeResult.MergeStatus.CONFLICTING -> MergeOutcome.CONFLICTS
+                else -> throw IllegalStateException(
+                    "Merge finished with status ${result.mergeStatus}.",
+                )
+            }
+        }
+    }
+
+    /** Local + remote short names minus the current branch, for the merge picker. */
+    suspend fun mergeCandidates(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
+        mutex.withLock {
+            val current = currentBranchName()
+            val local = git.branchList().call()
+                .map { it.name.removePrefix("refs/heads/") }
+            val remote = git.branchList().setListMode(ListBranchCommand.ListMode.REMOTE).call()
+                .map { it.name.removePrefix("refs/remotes/") }
+                .filter { !it.endsWith("/HEAD") }
+            (local + remote).filter { it != current }.distinct().sorted()
+        }
+    }
+
+    /** Saved MERGE_MSG content, to prefill the "Complete merge" dialog. */
+    suspend fun mergeMessage(): GitResult<String?> = ioOp(TITLE_MERGE) {
+        mutex.withLock {
+            val f = File(repository.directory, "MERGE_MSG")
+            if (f.isFile) f.readText().trim().ifBlank { null } else null
+        }
+    }
+
+    /** Plan-solved abort: drop the merge state files, then hard-reset the tree. */
+    suspend fun abortMerge(): GitResult<Unit> = ioOp(TITLE_MERGE) {
+        mutex.withLock {
+            if (repository.readMergeHeads() == null) return@ioOp Unit
+            repository.writeMergeCommitMsg(null)
+            repository.writeMergeHeads(null)
+            git.reset().setMode(ResetCommand.ResetType.HARD).call()
+        }
+        Unit
+    }
+
+    /** Commit the merge once every conflicted path is staged. */
+    suspend fun completeMerge(message: String): GitResult<GitCommitSummary> =
+        ioOp(TITLE_MERGE) {
+            val msg = message.trim()
+            require(msg.isNotEmpty()) { "Commit message is empty." }
+            mutex.withLock {
+                if (repository.readMergeHeads() == null) {
+                    throw IllegalStateException("No merge is in progress.")
+                }
+                val identity = resolveIdentity() ?: throw GitIdentityMissingException()
+                git.commit()
+                    .setMessage(msg)
+                    .setAuthor(identity.name, identity.email)
+                    .call()
+                    .toSummary()
+            }
+        }
+
+    /** File-level resolution (ACSIDE pattern): checkout one stage, then stage it. */
+    suspend fun checkoutConflictSide(
+        path: String,
+        side: GitConflictSide,
+    ): GitResult<Unit> = ioOp(TITLE_MERGE) {
+        val p = path.normalized()
+        mutex.withLock {
+            git.checkout()
+                .setStage(
+                    if (side == GitConflictSide.OURS) CheckoutCommand.Stage.OURS
+                    else CheckoutCommand.Stage.THEIRS,
+                )
+                .addPath(p)
+                .call()
+            git.add().addFilepattern(p).call()
+        }
+        Unit
+    }
+
+    /** "Mark resolved" = keep the file exactly as edited and stage it (plan 3.4). */
+    suspend fun markConflictResolved(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
+        mutex.withLock { git.add().addFilepattern(path.normalized()).call() }
+        Unit
+    }
+
+    /** Stage-2 (ours) / stage-3 (theirs) content of a conflicted path, for preview. */
+    suspend fun conflictSideContent(
+        path: String,
+        side: GitConflictSide,
+    ): GitResult<String> = ioOp(TITLE_DIFF) {
+        val p = path.normalized()
+        mutex.withLock {
+            val stage = if (side == GitConflictSide.OURS) {
+                DirCacheEntry.STAGE_2
+            } else {
+                DirCacheEntry.STAGE_3
+            }
+            val dc = repository.readDirCache()
+            val firstIdx = dc.findEntry(p)
+            if (firstIdx < 0) {
+                throw IllegalStateException("No ${side.name.lowercase()} version found for $p.")
+            }
+            val nextIdx = dc.nextEntry(firstIdx)
+            val entry = (firstIdx until nextIdx)
+                .map { dc.getEntry(it) }
+                .firstOrNull { it.stage == stage }
+                ?: throw IllegalStateException(
+                    "No ${side.name.lowercase()} version found for $p.",
+                )
+            val loader = repository.open(entry.objectId)
+            String(loader.cachedBytes, StandardCharsets.UTF_8)
+        }
+    }
+
     // ---- internals ----------------------------------------------------------
 
     private fun resolveIdentity(): Identity? {
@@ -669,6 +832,8 @@ class GitSession(
             headId = headId,
             headName = branch,
             trackingInfo = tracking,
+            mergeInProgress = runCatching { repository.readMergeHeads() != null }
+                .getOrDefault(false),
         )
     }
 
@@ -765,6 +930,7 @@ class GitSession(
         private const val TITLE_TAG = "Git tag"
         private const val TITLE_REMOTE = "Git remote"
         private const val TITLE_INIT = "Initialize repository"
+        private const val TITLE_MERGE = "Git merge"
     }
 }
 

@@ -13,6 +13,8 @@ import com.invictus.xcode.core.git.GitSession
 import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitAuthFailureType
+import com.invictus.xcode.core.git.model.GitConflictSide
+import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitPendingAction
@@ -60,6 +62,12 @@ class GitViewModel(
         val pending: GitPendingAction?,
     )
 
+    data class ConflictPreviewState(
+        val path: String,
+        val side: GitConflictSide,
+        val content: String,
+    )
+
     data class UiState(
         val loading: Boolean = true,
         val notARepo: Boolean = false,
@@ -78,6 +86,15 @@ class GitViewModel(
         val expandedSections: Set<String> = setOf(SECTION_CONFLICTS, SECTION_STAGED, SECTION_CHANGES),
         val diffs: Map<String, GitFileDiffResult> = emptyMap(),
         val diffLoading: Set<String> = emptySet(),
+        // M10 merge + conflicts
+        val mergeDialog: Boolean = false,
+        val mergeCandidates: List<String> = emptyList(),
+        val merging: Boolean = false,
+        val abortConfirm: Boolean = false,
+        val completeMergeDialog: Boolean = false,
+        val completeMergeMessage: String = "",
+        val completingMerge: Boolean = false,
+        val conflictPreview: ConflictPreviewState? = null,
     )
 
     sealed interface Effect {
@@ -85,6 +102,8 @@ class GitViewModel(
         /** The drawer asked to open a repo-relative path in the editor. */
         data class OpenFile(val file: java.io.File) : Effect
     }
+
+    private var lastConflictCount = 0
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -130,6 +149,24 @@ class GitViewModel(
             is GitEvent.SaveToken -> saveToken(event.host, event.username, event.token)
             GitEvent.DismissToken -> _uiState.update { it.copy(tokenDialog = null) }
             GitEvent.DismissError -> _uiState.update { it.copy(error = null) }
+            // M10: merge + conflicts
+            GitEvent.OpenMerge -> openMergeDialog()
+            GitEvent.DismissMerge ->
+                _uiState.update { it.copy(mergeDialog = false, mergeCandidates = emptyList()) }
+            is GitEvent.Merge -> merge(event.branch)
+            is GitEvent.ResolveConflict -> resolveConflict(event.path, event.side)
+            is GitEvent.MarkResolved -> markResolved(event.path)
+            is GitEvent.PreviewConflictSide -> previewConflictSide(event.path, event.side)
+            GitEvent.DismissConflictPreview ->
+                _uiState.update { it.copy(conflictPreview = null) }
+            GitEvent.AbortMerge -> _uiState.update { it.copy(abortConfirm = true) }
+            GitEvent.ConfirmAbortMerge -> abortMerge()
+            GitEvent.DismissAbortMerge -> _uiState.update { it.copy(abortConfirm = false) }
+            GitEvent.CompleteMerge -> openCompleteMerge()
+            is GitEvent.CompleteMergeMessageChange ->
+                _uiState.update { it.copy(completeMergeMessage = event.text) }
+            GitEvent.DismissCompleteMerge ->
+                _uiState.update { it.copy(completeMergeDialog = false) }
         }
     }
 
@@ -140,13 +177,22 @@ class GitViewModel(
             _uiState.update { it.copy(loading = it.snapshot == null) }
             val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
             when (val result = session.refresh()) {
-                is GitResult.Ok -> _uiState.update {
-                    it.copy(
-                        loading = false,
-                        snapshot = result.value.first,
-                        status = result.value.second,
-                        remotes = remotes,
-                    )
+                is GitResult.Ok -> {
+                    val conflicts = result.value.second.conflicts.size
+                    _uiState.update {
+                        it.copy(
+                            loading = false,
+                            snapshot = result.value.first,
+                            status = result.value.second,
+                            remotes = remotes,
+                        )
+                    }
+                    if (result.value.first.mergeInProgress &&
+                        lastConflictCount > 0 && conflicts == 0
+                    ) {
+                        message(R.string.git_msg_all_conflicts_resolved)
+                    }
+                    lastConflictCount = conflicts
                 }
                 is GitResult.Err -> _uiState.update { it.copy(loading = false, error = result.error) }
             }
@@ -318,6 +364,121 @@ class GitViewModel(
             this == GitAuthFailureType.INVALID_CREDENTIALS ||
             this == GitAuthFailureType.EXPIRED_TOKEN ||
             this == GitAuthFailureType.PERMISSION_DENIED
+
+    // ---- M10: merge + conflicts ------------------------------------------------
+
+    private fun openMergeDialog() {
+        val snapshot = _uiState.value.snapshot ?: return
+        if (!snapshot.hasCommits || snapshot.mergeInProgress) return
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(mergeDialog = true, mergeCandidates = emptyList()) }
+            when (val result = session.mergeCandidates()) {
+                is GitResult.Ok -> _uiState.update { it.copy(mergeCandidates = result.value) }
+                is GitResult.Err -> _uiState.update {
+                    it.copy(mergeDialog = false, error = result.error)
+                }
+            }
+        }
+    }
+
+    private fun merge(branch: String) {
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(merging = true, mergeDialog = false) }
+            when (val result = session.mergeBranch(branch)) {
+                is GitResult.Ok -> message(
+                    when (result.value) {
+                        MergeOutcome.FAST_FORWARD -> R.string.git_msg_merged_ff
+                        MergeOutcome.MERGED -> R.string.git_msg_merged
+                        MergeOutcome.ALREADY_UP_TO_DATE -> R.string.git_msg_merge_uptodate
+                        MergeOutcome.CONFLICTS -> R.string.git_msg_merge_conflicts
+                    },
+                )
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+            _uiState.update { it.copy(merging = false, mergeCandidates = emptyList()) }
+            refresh()
+        }
+    }
+
+    private fun resolveConflict(path: String, side: GitConflictSide) {
+        viewModelScope.launch(io) {
+            when (val result = session.checkoutConflictSide(path, side)) {
+                is GitResult.Ok -> refresh()
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun markResolved(path: String) {
+        viewModelScope.launch(io) {
+            when (val result = session.markConflictResolved(path)) {
+                is GitResult.Ok -> refresh()
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun previewConflictSide(path: String, side: GitConflictSide) {
+        viewModelScope.launch(io) {
+            when (val result = session.conflictSideContent(path, side)) {
+                is GitResult.Ok -> _uiState.update {
+                    it.copy(conflictPreview = ConflictPreviewState(path, side, result.value))
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun abortMerge() {
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(abortConfirm = false) }
+            when (val result = session.abortMerge()) {
+                is GitResult.Ok -> {
+                    message(R.string.git_msg_merge_aborted)
+                    refresh()
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun openCompleteMerge() {
+        viewModelScope.launch(io) {
+            val saved = (session.mergeMessage() as? GitResult.Ok)?.value
+            val head = _uiState.value.snapshot?.headName.orEmpty()
+            _uiState.update {
+                it.copy(
+                    completeMergeDialog = true,
+                    completeMergeMessage = saved ?: "Merge branch '$head'",
+                )
+            }
+        }
+    }
+
+    private fun completeMerge() {
+        val message = _uiState.value.completeMergeMessage.trim()
+        if (message.isEmpty()) return
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(completingMerge = true) }
+            when (val result = session.completeMerge(message)) {
+                is GitResult.Ok -> {
+                    _uiState.update { it.copy(completeMergeDialog = false) }
+                    message(R.string.git_msg_committed)
+                    refresh()
+                }
+                is GitResult.Err -> {
+                    when {
+                        result.error.exceptionClass.endsWith("GitIdentityMissingException") -> {
+                            _uiState.update { it.copy(completeMergeDialog = false) }
+                            openIdentity()
+                        }
+                        else -> _uiState.update { it.copy(error = result.error) }
+                    }
+                }
+            }
+            _uiState.update { it.copy(completingMerge = false) }
+        }
+    }
 
     // ---- identity / token dialogs ----------------------------------------------
 

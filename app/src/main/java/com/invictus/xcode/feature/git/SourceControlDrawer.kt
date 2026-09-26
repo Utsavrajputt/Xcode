@@ -70,6 +70,9 @@ fun SourceControlDrawerSheet(
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item("commit") { DrawerCommitCard(state, onEvent) }
                 item("actions") { DrawerQuickActions(state, onEvent) }
+                if (state.snapshot?.mergeInProgress == true) {
+                    item("merge-banner") { MergeInProgressBanner(state, onEvent) }
+                }
                 if (status.isClean) {
                     item("clean") {
                         Text(
@@ -133,6 +136,35 @@ fun SourceControlDrawerSheet(
     state.error?.let {
         GitErrorDialog(details = it, onDismiss = { onEvent(GitEvent.DismissError) })
     }
+    GitMergeDialogs(state, onEvent)
+}
+
+@Composable
+private fun MergeInProgressBanner(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    val conflicts = state.status?.conflicts?.size ?: 0
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = if (conflicts > 0)
+                stringResource(R.string.git_merge_in_progress_conflicts, conflicts)
+            else stringResource(R.string.git_merge_in_progress),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(onClick = { onEvent(GitEvent.CompleteMerge) }) {
+                Text(stringResource(R.string.git_complete_merge))
+            }
+            TextButton(onClick = { onEvent(GitEvent.AbortMerge) }) {
+                Text(
+                    stringResource(R.string.git_abort_merge),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+    HorizontalDivider()
 }
 
 @Composable
@@ -217,6 +249,11 @@ private fun DrawerQuickActions(state: GitViewModel.UiState, onEvent: (GitEvent) 
             Spacer(Modifier.width(4.dp))
             Text(stringResource(R.string.git_pull))
         }
+        OutlinedButton(
+            onClick = { onEvent(GitEvent.OpenMerge) },
+            enabled = state.snapshot?.hasCommits == true &&
+                state.snapshot?.mergeInProgress != true && !state.merging,
+        ) { Text(stringResource(R.string.git_merge)) }
     }
 }
 
@@ -323,6 +360,11 @@ private fun DrawerChangeItem(
             ) {
                 GitDiffViewer(result = it)
             }
+        }
+        val isConflict = change.staged == GitStageState.CONFLICT ||
+            change.unstaged == GitWorkingState.CONFLICT
+        if (isConflict) {
+            ConflictActionsRow(change, onEvent)
         }
     }
 }
