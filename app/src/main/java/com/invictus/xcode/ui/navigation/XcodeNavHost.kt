@@ -31,6 +31,7 @@ import com.invictus.xcode.feature.git.GitTagsScreen
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
+import com.invictus.xcode.feature.diagnostics.CrashLogsScreen
 import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
 import com.invictus.xcode.feature.settings.SettingsBehaviorScreen
 import com.invictus.xcode.feature.settings.SettingsEditingScreen
@@ -118,7 +119,11 @@ fun XcodeNavHost(
                 onOpenAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                 onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },
                 onOpenBehavior = { navController.navigate(Routes.SETTINGS_BEHAVIOR) },
+                onOpenDiagnostics = { navController.navigate(Routes.SETTINGS_DIAGNOSTICS) },
             )
+        }
+        composable(Routes.SETTINGS_DIAGNOSTICS) {
+            CrashLogsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS_APPEARANCE) {
             SettingsAppearanceScreen(

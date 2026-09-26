@@ -26,6 +26,7 @@ fun SettingsRootScreen(
     onOpenAppearance: () -> Unit,
     onOpenEditing: () -> Unit,
     onOpenBehavior: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -71,8 +72,16 @@ fun SettingsRootScreen(
                     chevron = XIcons.ChevronRight,
                     title = stringResource(R.string.settings_section_behavior),
                     subtitle = stringResource(R.string.settings_category_behavior_desc),
-                    isLast = true,
                     onClick = onOpenBehavior,
+                )
+                CategoryRowGap()
+                CategoryRow(
+                    icon = XIcons.Bolt,
+                    chevron = XIcons.ChevronRight,
+                    title = stringResource(R.string.settings_section_diagnostics),
+                    subtitle = stringResource(R.string.settings_category_diagnostics_desc),
+                    isLast = true,
+                    onClick = onOpenDiagnostics,
                 )
             }
         }

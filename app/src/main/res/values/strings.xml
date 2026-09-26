@@ -161,6 +161,15 @@
     <string name="settings_category_appearance_desc">Theme, editor theme, font size, symbol bar</string>
     <string name="settings_category_editing_desc">Autocomplete and pair cursor</string>
     <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
+    <string name="settings_section_diagnostics">Diagnostics</string>
+    <string name="settings_category_diagnostics_desc">Crash logs you can copy or share</string>
+    <string name="diagnostics_title">Crash logs</string>
+    <string name="diagnostics_empty">No crashes recorded yet.</string>
+    <string name="diagnostics_copied">Copied to clipboard</string>
+    <string name="diagnostics_kind_crash">Crash</string>
+    <string name="diagnostics_kind_caught">Handled error</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
     <string name="settings_app_theme">App theme</string>
     <string name="settings_editor_theme">Editor theme</string>
     <string name="settings_font_size">Font size</string>

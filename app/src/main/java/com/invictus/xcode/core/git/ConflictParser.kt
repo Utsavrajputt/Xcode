@@ -38,6 +38,9 @@ object ConflictParser {
         if (text.length >= MAX_SCAN) return emptyList()
         val lines = text.split('\n')
         val blocks = ArrayList<Block>()
+        // A stray/unterminated "<<<<<<<" line makes the inner scan re-walk the rest of the
+        // file on every outer step; this bounds total work to stay linear-ish even then.
+        var budget = lines.size.toLong() * 4 + 1000
         var i = 0
         while (i < lines.size) {
             if (lines[i].marker() != "<<<<<<<") { i++; continue }
@@ -45,6 +48,7 @@ object ConflictParser {
             var sep = -1
             var j = i + 1
             while (j < lines.size) {
+                if (--budget <= 0) return blocks
                 when (lines[j].marker()) {
                     "=======" -> { if (sep < 0) sep = j }
                     ">>>>>>>" -> {

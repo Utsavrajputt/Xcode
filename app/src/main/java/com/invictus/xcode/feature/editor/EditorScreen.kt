@@ -334,7 +334,15 @@ fun EditorScreen(
             val conflictBlocks = remember(active?.dirty, activePath, activeText) {
                 activeText
                     ?.takeIf { active?.previewType == PreviewType.NONE }
-                    ?.let { com.invictus.xcode.core.git.ConflictParser.parse(it) }
+                    ?.let { text ->
+                        runCatching { com.invictus.xcode.core.git.ConflictParser.parse(text) }
+                            .onFailure {
+                                com.invictus.xcode.core.diagnostics.CrashHandler.logCaught(
+                                    context, "ConflictParser.parse", it,
+                                )
+                            }
+                            .getOrNull()
+                    }
                     .orEmpty()
             }
             ConflictBlocksBar(
