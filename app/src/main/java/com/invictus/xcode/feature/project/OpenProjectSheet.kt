@@ -81,6 +81,7 @@ fun OpenProjectSheet(
     onCopyPath: (File) -> Unit,
     onClone: () -> Unit = {},
     onDismiss: () -> Unit,
+    showRecent: Boolean = true,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by rememberSaveable { mutableStateOf("") }
@@ -99,8 +100,14 @@ fun OpenProjectSheet(
     val shortcuts = state.shortcuts.filter { matches(it.file, needle) }
     val entries = state.browseEntries.filter { matches(it, needle) }
 
+    // Fixed 90% height makes sense once there's enough content to scroll through (browsing into
+    // a folder, an active search, or a real recents list); otherwise it just leaves blank space
+    // below a handful of shortcut rows, so let the sheet wrap to its content instead.
+    val expandFull = state.browseDir != null || needle.isNotEmpty() || (showRecent && recents.isNotEmpty())
+    val heightModifier = if (expandFull) Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION) else Modifier
+
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.fillMaxWidth().fillMaxHeight(SHEET_HEIGHT_FRACTION).imePadding()) {
+        Column(modifier = Modifier.fillMaxWidth().then(heightModifier).imePadding()) {
             Text(
                 text = stringResource(R.string.sheet_title),
                 style = MaterialTheme.typography.titleLarge,
@@ -133,13 +140,14 @@ fun OpenProjectSheet(
                     onCheckedChange = { onEvent(ProjectsEvent.ToggleShowHidden) },
                 )
             }
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            val listModifier = if (expandFull) Modifier.weight(1f) else Modifier
+            LazyColumn(modifier = listModifier) {
                 if (typedPath != null) {
                     item(key = "typed") {
                         TypedPathRow(path = typedPath, isFolder = pathIsFolder, onOpen = { onOpen(File(typedPath)) })
                     }
                 }
-                if (recents.isNotEmpty()) {
+                if (recents.isNotEmpty() && showRecent) {
                     item(key = "h-recent") { SectionLabel(R.string.sheet_recent) }
                     items(items = recents, key = { "r:" + it.file.path }) { item ->
                         RecentRow(

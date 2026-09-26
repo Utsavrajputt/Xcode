@@ -30,6 +30,7 @@ class EditorSettingsStore(private val context: Context) {
         val PAIR_CURSOR_ENABLED = booleanPreferencesKey("editor_pair_cursor_enabled")
         val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
         val AUTO_PREVIEW_ENABLED = booleanPreferencesKey("editor_auto_preview_enabled")
+        val PROJECT_SHEET_SHOW_HIDDEN = booleanPreferencesKey("project_sheet_show_hidden")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -63,6 +64,11 @@ class EditorSettingsStore(private val context: Context) {
     val autoPreviewEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.AUTO_PREVIEW_ENABLED] ?: false }
 
+    /** Open Project sheet's "Show hidden files" toggle -- was in-memory only, reset every time the
+     * sheet's ViewModel was recreated (e.g. Home vs Workspace each own one); now persisted. */
+    val projectSheetShowHidden: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.PROJECT_SHEET_SHOW_HIDDEN] ?: false }
+
     suspend fun setThemeId(id: String) {
         context.editorSettingsDataStore.edit { it[Keys.THEME_ID] = id }
     }
@@ -93,6 +99,10 @@ class EditorSettingsStore(private val context: Context) {
 
     suspend fun setAutoPreviewEnabled(enabled: Boolean) {
         context.editorSettingsDataStore.edit { it[Keys.AUTO_PREVIEW_ENABLED] = enabled }
+    }
+
+    suspend fun setProjectSheetShowHidden(show: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.PROJECT_SHEET_SHOW_HIDDEN] = show }
     }
 
     companion object {

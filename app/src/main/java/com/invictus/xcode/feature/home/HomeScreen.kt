@@ -196,6 +196,8 @@ fun HomeScreen(
             onCopyPath = copyPath,
             onClone = onClone,
             onDismiss = { showProjectSheet = false },
+            // Home screen already shows Recent Projects behind the sheet; no need to repeat it here.
+            showRecent = false,
         )
     }
 }

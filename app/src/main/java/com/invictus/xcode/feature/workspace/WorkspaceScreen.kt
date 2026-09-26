@@ -233,6 +233,8 @@ fun WorkspaceScreen(
             onCopyPath = copyPath,
             onClone = onClone,
             onDismiss = { showProjectSheet = false },
+            // Inside a project there's no Home recents list visible, so keep it here.
+            showRecent = true,
         )
     }
 

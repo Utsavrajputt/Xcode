@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.fs.FileOps
 import com.invictus.xcode.core.fs.FsResult
 import com.invictus.xcode.core.project.ProjectBackup
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
@@ -40,6 +42,7 @@ class ProjectsViewModel(
     private val fileOps: FileOps,
     private val backup: ProjectBackup,
     private val storageRoot: File,
+    private val settingsStore: EditorSettingsStore,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -55,6 +58,10 @@ class ProjectsViewModel(
     init {
         viewModelScope.launch { observeRecents() }
         viewModelScope.launch { loadShortcuts() }
+        viewModelScope.launch {
+            val stored = settingsStore.projectSheetShowHidden.first()
+            _uiState.update { it.copy(showHidden = stored) }
+        }
     }
 
     fun onEvent(event: ProjectsEvent) {
@@ -137,6 +144,7 @@ class ProjectsViewModel(
         val next = !_uiState.value.showHidden
         _uiState.update { it.copy(showHidden = next) }
         _uiState.value.browseDir?.let { browse(it) }
+        viewModelScope.launch { settingsStore.setProjectSheetShowHidden(next) }
     }
 
     private fun browseUp() {
@@ -191,6 +199,7 @@ class ProjectsViewModel(
                     fileOps = app.container.fileOps,
                     backup = app.container.projectBackup,
                     storageRoot = Environment.getExternalStorageDirectory(),
+                    settingsStore = app.container.editorSettingsStore,
                 )
             }
         }
