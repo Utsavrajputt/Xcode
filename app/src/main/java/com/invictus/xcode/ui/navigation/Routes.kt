@@ -18,6 +18,7 @@ object Routes {
     const val GIT_TAGS = "git_tags/{projectPath}"
     const val GIT_REMOTES = "git_remotes/{projectPath}"
     const val GIT_CREDENTIALS = "git_credentials/{projectPath}"
+    const val GIT_ONBOARDING = "git_onboarding/{projectPath}"
 
     /** Encoded deep-link style route for a project's Source Control screen. */
     fun git(projectPath: String): String =
@@ -33,4 +34,5 @@ object Routes {
     fun gitTags(p: String) = "git_tags/${android.net.Uri.encode(p)}"
     fun gitRemotes(p: String) = "git_remotes/${android.net.Uri.encode(p)}"
     fun gitCredentials(p: String) = "git_credentials/${android.net.Uri.encode(p)}"
+    fun gitOnboarding(p: String) = "git_onboarding/${android.net.Uri.encode(p)}"
 }

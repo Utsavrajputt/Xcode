@@ -309,4 +309,27 @@
     <string name="git_cred_user_hint">Username</string>
     <string name="git_cred_token_hint">Token</string>
     <string name="git_credentials_empty">No tokens stored. Tokens live in Android Keystore.</string>
+
+    <!-- M9: guided Git onboarding -->
+    <string name="git_setup_title">Set up Git</string>
+    <string name="onboarding_step_indicator">Step %1$d of %2$d</string>
+    <string name="onboarding_step_init_title">Initialize repository</string>
+    <string name="onboarding_step_init_body">This folder is not a Git repository yet. Initializing creates a hidden .git folder so you can track changes, commit, and sync with a remote.</string>
+    <string name="onboarding_repo_initialized">Repository initialized.</string>
+    <string name="onboarding_step_identity_title">Your identity</string>
+    <string name="onboarding_step_identity_body">This name and email are recorded as the author of every commit you make.</string>
+    <string name="onboarding_step_remote_title">Add a remote (optional)</string>
+    <string name="onboarding_step_remote_body">Connect this repository to GitHub, GitLab, or another host so you can push and pull. Skip this if you only want local version control.</string>
+    <string name="onboarding_step_commit_title">First commit</string>
+    <string name="onboarding_step_commit_body">All current files will be staged and committed as the starting point of your history.</string>
+    <string name="onboarding_commit_message_hint">Initial commit</string>
+    <string name="onboarding_step_push_title">Push to remote</string>
+    <string name="onboarding_step_push_body">Push your branch now and set it to track the remote, so future push/pull operations know where to go.</string>
+    <string name="onboarding_push_action">Push &amp; set upstream</string>
+    <string name="onboarding_push_remote">Remote: %1$s</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_finish">Finish</string>
+    <string name="onboarding_dont_ask_again">Don\'t ask again for this project</string>
+    <string name="git_identity_missing">Please enter both name and email.</string>
 </resources>

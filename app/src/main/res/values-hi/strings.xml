@@ -53,4 +53,27 @@
     <string name="git_cred_user_hint">Username</string>
     <string name="git_cred_token_hint">Token</string>
     <string name="git_credentials_empty">कोई token नहीं। Tokens Android Keystore में रहते हैं।</string>
+
+    <!-- M9: guided Git onboarding -->
+    <string name="git_setup_title">Git सेटअप करें</string>
+    <string name="onboarding_step_indicator">चरण %1$d / %2$d</string>
+    <string name="onboarding_step_init_title">रिपॉज़िटरी शुरू करें</string>
+    <string name="onboarding_step_init_body">यह फ़ोल्डर अभी Git रिपॉज़िटरी नहीं है। शुरू करने पर एक छिपा हुआ .git फ़ोल्डर बनेगा ताकि बदलाव ट्रैक हो सकें।</string>
+    <string name="onboarding_repo_initialized">रिपॉज़िटरी तैयार है।</string>
+    <string name="onboarding_step_identity_title">आपकी पहचान</string>
+    <string name="onboarding_step_identity_body">यह नाम और ईमेल हर कमिट के लेखक के रूप में दर्ज होंगे।</string>
+    <string name="onboarding_step_remote_title">रिमोट जोड़ें (वैकल्पिक)</string>
+    <string name="onboarding_step_remote_body">GitHub, GitLab आदि से जुड़ें ताकि push और pull कर सकें। केवल लोकल उपयोग के लिए इसे छोड़ें।</string>
+    <string name="onboarding_step_commit_title">पहला कमिट</string>
+    <string name="onboarding_step_commit_body">मौजूदा सभी फ़ाइलें stage करके इतिहास की शुरुआती कमिट बनाई जाएगी।</string>
+    <string name="onboarding_commit_message_hint">Initial commit</string>
+    <string name="onboarding_step_push_title">रिमोट पर push करें</string>
+    <string name="onboarding_step_push_body">अपनी ब्रांच push करें और उसे रिमोट से जोड़ें, ताकि आगे के push/pull सीधे चलें।</string>
+    <string name="onboarding_push_action">Push करें और upstream सेट करें</string>
+    <string name="onboarding_push_remote">रिमोट: %1$s</string>
+    <string name="onboarding_skip">छोड़ें</string>
+    <string name="onboarding_next">आगे</string>
+    <string name="onboarding_finish">समाप्त</string>
+    <string name="onboarding_dont_ask_again">इस प्रोजेक्ट के लिए दोबारा न पूछें</string>
+    <string name="git_identity_missing">कृपया नाम और ईमेल दोनों भरें।</string>
 </resources>

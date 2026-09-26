@@ -7,6 +7,7 @@ import com.invictus.xcode.core.editor.TextMateSupport
 import com.invictus.xcode.core.fs.FileOpenPolicy
 import com.invictus.xcode.core.fs.FileOps
 import com.invictus.xcode.core.data.AppDatabase
+import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.core.fs.StoragePermission
 import com.invictus.xcode.core.project.ProjectBackup
 import com.invictus.xcode.core.project.ProjectRepository
@@ -40,6 +41,8 @@ class AppContainer(context: Context) {
     val editorSettingsStore: EditorSettingsStore by lazy { EditorSettingsStore(appContext) }
 
     val gitCredentialStore: GitCredentialStore by lazy { GitCredentialStore(appContext) }
+
+    val gitOnboardingPrefs: GitOnboardingPrefs by lazy { GitOnboardingPrefs(appContext) }
 
     /** App-level (global) git identity file holding user.name / user.email. */
     val gitGlobalIdentityFile: File by lazy { File(appContext.filesDir, "git_identity") }

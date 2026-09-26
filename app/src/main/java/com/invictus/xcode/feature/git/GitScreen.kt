@@ -185,6 +185,15 @@ fun GitScreen(
                                     onOpenRoute(Routes.gitRemotes(projectPath))
                                 },
                             )
+                            if (state.notARepo) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.git_setup_title)) },
+                                    onClick = {
+                                        overflowOpen = false
+                                        onOpenRoute(Routes.gitOnboarding(projectPath))
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -214,11 +223,19 @@ fun GitScreen(
                     CircularProgressIndicator()
                 }
                 state.notARepo -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = stringResource(R.string.git_not_a_repo),
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(24.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    ) {
+                        Text(
+                            text = stringResource(R.string.git_not_a_repo),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(onClick = { onOpenRoute(Routes.gitOnboarding(projectPath)) }) {
+                            Text(stringResource(R.string.git_setup_title))
+                        }
+                    }
                 }
                 else -> GitContent(state = state, canSync = canSync, onEvent = viewModel::onEvent)
             }

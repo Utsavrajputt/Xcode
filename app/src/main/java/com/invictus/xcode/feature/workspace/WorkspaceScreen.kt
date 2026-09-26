@@ -50,6 +50,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
+import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.feature.project.OpenProjectSheet
 import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
@@ -58,6 +60,7 @@ import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -75,6 +78,7 @@ fun WorkspaceScreen(
     externalMessages: Flow<UiText>? = null,
     onProjectRoot: (File) -> Unit = {},
     onOpenGit: (File) -> Unit = {},
+    onGitSetup: (File) -> Unit = {},
     onClone: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -86,6 +90,16 @@ fun WorkspaceScreen(
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val context = LocalContext.current
+    // M9: offer the Git setup wizard once when this project is not a repository yet.
+    val gitOnboardingPrefs = remember {
+        GitOnboardingPrefs((context.applicationContext as XcodeApp).applicationContext)
+    }
+    LaunchedEffect(state.root) {
+        if (File(state.root, ".git").isDirectory) return@LaunchedEffect
+        if (gitOnboardingPrefs.enabled.first() && !gitOnboardingPrefs.isDone(state.root.path)) {
+            onGitSetup(state.root)
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 

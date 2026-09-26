@@ -23,6 +23,7 @@ import com.invictus.xcode.feature.git.GitBranchesScreen
 import com.invictus.xcode.feature.git.GitCloneScreen
 import com.invictus.xcode.feature.git.GitCredentialsScreen
 import com.invictus.xcode.feature.git.GitHistoryScreen
+import com.invictus.xcode.feature.git.GitOnboardingScreen
 import com.invictus.xcode.feature.git.GitRemotesScreen
 import com.invictus.xcode.feature.git.GitScreen
 import com.invictus.xcode.feature.git.GitStashScreen
@@ -91,6 +92,7 @@ fun XcodeNavHost(
                 externalMessages = editorViewModel.messages,
                 onProjectRoot = { editorViewModel.onProjectOpened(it.path) },
                 onOpenGit = { root -> navController.navigate(Routes.git(root.path)) },
+                onGitSetup = { root -> navController.navigate(Routes.gitOnboarding(root.path)) },
                 onClone = { navController.navigate(Routes.GIT_CLONE) },
             )
         }
@@ -204,6 +206,15 @@ fun XcodeNavHost(
             val path = entry.arguments?.getString("projectPath")
             if (path != null) {
                 GitCredentialsScreen(projectPath = path, onBack = { navController.popBackStack() })
+            }
+        }
+        composable(Routes.GIT_ONBOARDING) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitOnboardingScreen(
+                    projectPath = path,
+                    onDone = { navController.popBackStack() },
+                )
             }
         }
     }

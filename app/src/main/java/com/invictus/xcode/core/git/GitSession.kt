@@ -69,6 +69,30 @@ class GitSession(
 
     data class Identity(val name: String, val email: String)
 
+    // ---- M9: onboarding ------------------------------------------------------
+
+    /** Create a fresh repository in [workTree] (`git init`). Safe on a folder without .git. */
+    suspend fun initRepository(): GitResult<Unit> = ioOp(TITLE_INIT) {
+        mutex.withLock {
+            Git.init().setDirectory(workTree).call().close()
+        }
+        Unit
+    }
+
+    /** Make [branch] track [remote]/[branch] (`branch.<name>.remote` + `branch.<name>.merge`). */
+    suspend fun setUpstream(remote: String, branch: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
+        mutex.withLock {
+            repository.config.setString(
+                ConfigConstants.CONFIG_BRANCH_SECTION, branch, "remote", remote,
+            )
+            repository.config.setString(
+                ConfigConstants.CONFIG_BRANCH_SECTION, branch, "merge", "refs/heads/$branch",
+            )
+            repository.config.save()
+        }
+        Unit
+    }
+
     // ---- status / snapshot -------------------------------------------------
 
     /** Refresh snapshot + status together under the mutex; what the UI shows after any op. */
@@ -740,6 +764,7 @@ class GitSession(
         private const val TITLE_STASH = "Git stash"
         private const val TITLE_TAG = "Git tag"
         private const val TITLE_REMOTE = "Git remote"
+        private const val TITLE_INIT = "Initialize repository"
     }
 }
 
