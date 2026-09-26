@@ -62,6 +62,15 @@ class TabBuffer(
     /** Set once a background watcher or resume check has seen the file differ; drives the banner. */
     var externalChange: ExternalChange = ExternalChange.None
 
+    /** M5: split-view drag handle ratio (editor pane's share), remembered per tab for the session. */
+    var previewSplitRatio: Float = 0.5f
+
+    /** M5: HTML preview's JS toggle, off by default and asked about once per tab per session. */
+    var htmlJsEnabled: Boolean = false
+
+    /** Whether the "Enable JavaScript?" dialog has already been shown once for this tab. */
+    var htmlJsPromptShown: Boolean = false
+
     /**
      * Set right before the outgoing page's Compose view tears down (see `key(path, pageIndex)`
      * in EditorScreen), so the routine teardown -> `onViewState` capture -- which would report

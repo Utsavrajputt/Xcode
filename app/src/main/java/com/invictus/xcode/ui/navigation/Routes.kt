@@ -6,4 +6,5 @@ object Routes {
     const val WORKSPACE = "workspace"
     const val EDITOR = "editor"
     const val SETTINGS = "settings"
+    const val MEDIA_PREVIEW = "media_preview"
 }

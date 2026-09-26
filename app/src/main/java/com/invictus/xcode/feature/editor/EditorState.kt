@@ -1,6 +1,8 @@
 package com.invictus.xcode.feature.editor
 
 import com.invictus.xcode.core.editor.ExternalChange
+import com.invictus.xcode.core.preview.PreviewMode
+import com.invictus.xcode.core.preview.PreviewType
 import java.io.File
 
 data class EditorTabUi(
@@ -14,6 +16,10 @@ data class EditorTabUi(
     val pageIndex: Int? = null,
     /** Null for a normal tab; the file's total page count when [pageIndex] is set. */
     val pageCount: Int? = null,
+    /** M5: NONE for anything but markdown/html (media never reaches the tab system at all). */
+    val previewType: PreviewType = PreviewType.NONE,
+    /** Markdown/html open straight into SPLIT; the app bar toggle cycles it from there. */
+    val previewMode: PreviewMode = PreviewMode.EDITOR,
 )
 
 /** A close the user has to confirm because some of [paths] have unsaved edits. */
@@ -24,6 +30,8 @@ data class EditorUiState(
     val activePath: String? = null,
     val loading: Boolean = false,
     val pendingClose: PendingClose? = null,
+    /** Bumped on every real edit to the active tab -- the markdown/html preview's redraw signal. */
+    val activeContentRevision: Long = 0,
 )
 
 sealed interface EditorEvent {
@@ -61,4 +69,10 @@ sealed interface EditorEvent {
         val fromScrollX: Int,
         val fromScrollY: Int,
     ) : EditorEvent
+    /** App bar's preview toggle: Editor -> Split -> Preview -> Editor, for markdown/html tabs. */
+    data class CyclePreviewMode(val path: String) : EditorEvent
+    /** Drag handle in split mode; ratio is the editor pane's share of the available height. */
+    data class SetSplitRatio(val path: String, val ratio: Float) : EditorEvent
+    /** HTML preview's one-time "Enable JavaScript?" dialog. */
+    data class SetHtmlJsEnabled(val path: String, val enabled: Boolean) : EditorEvent
 }

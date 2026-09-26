@@ -174,4 +174,14 @@
     <string name="settings_external_changes_ask_desc">Show Reload / Keep my edits when a file changes on disk</string>
     <string name="settings_external_changes_auto">Reload automatically</string>
     <string name="settings_external_changes_auto_desc">Always take the on-disk version, even over unsaved edits</string>
+
+    <!-- M5: markdown/HTML/SVG/image/video preview -->
+    <string name="preview_mode_editor">Source view — tap to split</string>
+    <string name="preview_mode_split">Split view — tap for preview only</string>
+    <string name="preview_mode_preview">Preview only — tap for source</string>
+    <string name="preview_html_js_dialog_title">Enable JavaScript in this preview?</string>
+    <string name="preview_html_js_dialog_body">This HTML file can run scripts. Only enable this if you trust what it does — scripts can still load anything else this file references.</string>
+    <string name="preview_html_js_dialog_enable">Enable</string>
+    <string name="preview_html_js_dialog_keep_off">Keep off</string>
+    <string name="preview_unsupported">Can\'t preview this file</string>
 </resources>

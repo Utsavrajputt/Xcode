@@ -1,6 +1,10 @@
 package com.invictus.xcode.ui.icons
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.unit.dp
 import com.composables.icons.materialsymbols.MaterialSymbols
 import com.composables.icons.materialsymbols.roundedfilled.Add
 import com.composables.icons.materialsymbols.roundedfilled.Arrow_back
@@ -53,4 +57,44 @@ object XIcons {
 
     // Convenience alias used by some newer call sites.
     val Add: ImageVector = MaterialSymbols.RoundedFilled.Add
+
+    // M5 preview feature: not in the Material Symbols cmp artifact's current release,
+    // so drawn from path data the same way, rather than risk an unverifiable binding name.
+    /** M5 preview toggle, "Editor" state / code-file preview affordance. */
+    val Code: ImageVector by lazy {
+        icon(
+            "Code",
+            "M9.4,16.6L4.8,12l4.6,-4.6L8,6l-6,6 6,6 1.4,-1.4z" +
+                "M14.6,16.6l4.6,-4.6 -4.6,-4.6L16,6l6,6 -6,6 -1.4,-1.4z",
+        )
+    }
+
+    /** M5 preview toggle, "Preview" state. */
+    val Visibility: ImageVector by lazy {
+        icon(
+            "Visibility",
+            "M12,4.5C7,4.5 2.73,7.61 1,12c1.73,4.39 6,7.5 11,7.5s9.27,-3.11 11,-7.5c-1.73,-4.39" +
+                " -6,-7.5 -11,-7.5z M12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5 -2.24,5 -5,5z" +
+                "M12,9c-1.66,0 -3,1.34 -3,3s1.34,3 3,3 3,-1.34 3,-3 -1.34,-3 -3,-3z",
+        )
+    }
+
+    /** M5 preview toggle, "Split" state (editor top, preview bottom). */
+    val HorizontalSplit: ImageVector by lazy {
+        icon("HorizontalSplit", "M3,19h18v-6H3v6z M3,11h18V9H3v2z M3,5v2h18V5H3z")
+    }
+
+    private fun icon(name: String, pathData: String): ImageVector =
+        ImageVector.Builder(
+            name = name,
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        )
+            .addPath(
+                pathData = PathParser().parsePathString(pathData).toNodes(),
+                fill = SolidColor(Color.Black),
+            )
+            .build()
 }

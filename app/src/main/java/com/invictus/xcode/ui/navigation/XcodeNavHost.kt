@@ -7,8 +7,10 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,6 +20,7 @@ import com.invictus.xcode.feature.editor.EditorScreen
 import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.PermissionScreen
+import com.invictus.xcode.feature.preview.MediaPreviewScreen
 import com.invictus.xcode.feature.settings.SettingsScreen
 import com.invictus.xcode.feature.workspace.WorkspaceScreen
 
@@ -93,6 +96,19 @@ fun XcodeNavHost(
                 onBack = { navController.popBackStack() },
             )
         }
+        composable(Routes.MEDIA_PREVIEW) {
+            val file by editorViewModel.mediaPreviewFile.collectAsStateWithLifecycle()
+            file?.let {
+                MediaPreviewScreen(
+                    file = it,
+                    onBack = {
+                        if (navController.currentBackStackEntry?.destination?.route == Routes.MEDIA_PREVIEW) {
+                            navController.popBackStack()
+                        }
+                    },
+                )
+            }
+        }
     }
 
     LaunchedEffect(editorViewModel) {
@@ -100,6 +116,12 @@ fun XcodeNavHost(
             if (navController.currentBackStackEntry?.destination?.route == Routes.WORKSPACE) {
                 navController.navigate(Routes.EDITOR) { launchSingleTop = true }
             }
+        }
+    }
+
+    LaunchedEffect(editorViewModel) {
+        editorViewModel.openMediaPreview.collect {
+            navController.navigate(Routes.MEDIA_PREVIEW) { launchSingleTop = true }
         }
     }
 

@@ -12,6 +12,9 @@ room = "2.8.4"
 sora = "0.24.5"
 datastore = "1.1.7"
 materialSymbols = "2.2.1"
+webkit = "1.13.0"
+coil = "2.7.0"
+androidsvg = "1.4"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -34,6 +37,9 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 compose-material-symbols = { module = "com.composables:icons-material-symbols-cmp", version.ref = "materialSymbols" }
 compose-material-symbols-rounded-filled = { module = "com.composables:icons-material-symbols-rounded-filled-cmp", version.ref = "materialSymbols" }
+androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

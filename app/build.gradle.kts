@@ -84,6 +84,11 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore.preferences)
 
+    // M5 preview: WebViewAssetLoader (markdown/HTML), Coil (images), AndroidSVG (svg -> Picture).
+    implementation(libs.androidx.webkit)
+    implementation(libs.coil.compose)
+    implementation(libs.androidsvg)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

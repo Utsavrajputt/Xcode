@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -64,6 +65,10 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorSettingsStore
+import com.invictus.xcode.core.preview.PreviewMode
+import com.invictus.xcode.core.preview.PreviewType
+import com.invictus.xcode.feature.preview.PreviewPane
+import com.invictus.xcode.feature.preview.SplitDragHandle
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import io.github.rosemoe.sora.widget.EditorSearcher
@@ -209,6 +214,16 @@ fun EditorScreen(
                         ) {
                             Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
                         }
+                        if (active?.previewType?.isTextPreview == true) {
+                            IconButton(onClick = { viewModel.onEvent(EditorEvent.CyclePreviewMode(active.path)) }) {
+                                val (icon, description) = when (active.previewMode) {
+                                    PreviewMode.EDITOR -> XIcons.Code to R.string.preview_mode_editor
+                                    PreviewMode.SPLIT -> XIcons.HorizontalSplit to R.string.preview_mode_split
+                                    PreviewMode.PREVIEW -> XIcons.Visibility to R.string.preview_mode_preview
+                                }
+                                Icon(icon, contentDescription = stringResource(description))
+                            }
+                        }
                         Box {
                             IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
                                 Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
@@ -290,24 +305,67 @@ fun EditorScreen(
                 val buffer = activeBuffer
                 if (path != null && buffer != null) {
                     key(path, activePageIndex ?: 0) {
-                        CodeEditorView(
-                            buffer = buffer,
-                            darkTheme = darkTheme,
-                            textMate = viewModel.textMate,
-                            highlightReady = highlightReady,
-                            themeId = themeId,
-                            autocompleteEnabled = autocompleteEnabled,
-                            handle = handle,
-                            onEdited = {
-                                viewModel.onEdited(path)
-                                if (showFind) findState.editEpoch++
-                            },
-                            onViewState = { line, column, size, scrollX, scrollY ->
-                                viewModel.onViewState(path, line, column, size, scrollX, scrollY)
-                            },
-                            onScroll = onEditorScroll,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        val previewType = active?.previewType ?: PreviewType.NONE
+                        val previewMode = active?.previewMode ?: PreviewMode.EDITOR
+                        val editorContent: @Composable (Modifier) -> Unit = { m ->
+                            CodeEditorView(
+                                buffer = buffer,
+                                darkTheme = darkTheme,
+                                textMate = viewModel.textMate,
+                                highlightReady = highlightReady,
+                                themeId = themeId,
+                                autocompleteEnabled = autocompleteEnabled,
+                                handle = handle,
+                                onEdited = {
+                                    viewModel.onEdited(path)
+                                    if (showFind) findState.editEpoch++
+                                },
+                                onViewState = { line, column, size, scrollX, scrollY ->
+                                    viewModel.onViewState(path, line, column, size, scrollX, scrollY)
+                                },
+                                onScroll = onEditorScroll,
+                                modifier = m,
+                            )
+                        }
+                        // Preview never applies to a paged large file -- PreviewRouter only routes
+                        // markdown/html, and a file that size is never one of those in practice,
+                        // but the guard keeps the two M4/M5 features from ever fighting over `key`.
+                        if (previewType == PreviewType.NONE || previewMode == PreviewMode.EDITOR || buffer.isPaged) {
+                            editorContent(Modifier.fillMaxSize())
+                        } else if (previewMode == PreviewMode.PREVIEW) {
+                            PreviewPane(
+                                buffer = buffer,
+                                previewType = previewType,
+                                revision = state.activeContentRevision,
+                                darkTheme = darkTheme,
+                                projectRoot = viewModel.projectRoot,
+                                onSetHtmlJsEnabled = { viewModel.onEvent(EditorEvent.SetHtmlJsEnabled(path, it)) },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        } else { // SPLIT: editor on top, drag handle, preview below (M5 decision).
+                            BoxWithConstraints(Modifier.fillMaxSize()) {
+                                val totalHeightPx = with(density) { maxHeight.toPx() }
+                                var ratio by remember(path) { mutableFloatStateOf(buffer.previewSplitRatio) }
+                                Column(Modifier.fillMaxSize()) {
+                                    editorContent(Modifier.weight(ratio).fillMaxWidth())
+                                    SplitDragHandle(onDragDeltaPx = { deltaY ->
+                                        if (totalHeightPx > 0f) {
+                                            ratio = (ratio + deltaY / totalHeightPx).coerceIn(0.15f, 0.85f)
+                                            viewModel.onEvent(EditorEvent.SetSplitRatio(path, ratio))
+                                        }
+                                    })
+                                    PreviewPane(
+                                        buffer = buffer,
+                                        previewType = previewType,
+                                        revision = state.activeContentRevision,
+                                        darkTheme = darkTheme,
+                                        projectRoot = viewModel.projectRoot,
+                                        onSetHtmlJsEnabled = { viewModel.onEvent(EditorEvent.SetHtmlJsEnabled(path, it)) },
+                                        modifier = Modifier.weight(1f - ratio).fillMaxWidth(),
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
