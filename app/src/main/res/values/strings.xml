@@ -217,6 +217,8 @@
     <string name="git_identity_scope_global">All repositories</string>
     <string name="git_stage_all">Stage all</string>
     <string name="git_unstage_all">Unstage all</string>
+    <string name="git_stage">Stage</string>
+    <string name="git_unstage">Unstage</string>
     <string name="git_section_staged">Staged</string>
     <string name="git_section_changes">Changes</string>
     <string name="git_section_untracked">Untracked</string>

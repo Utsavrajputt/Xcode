@@ -28,7 +28,7 @@ built from scratch.
 source. Xcode is a from-scratch, open reference implementation focused purely
 on **source control + editing** — no on-device build/run, since that's a
 different (and much heavier) problem best left to GitHub Actions / a PC.
-
+.
 ---
 
 ## ✨ Planned features

@@ -1,7 +1,9 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +57,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
+import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitPathChange
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitStageState
@@ -268,28 +272,34 @@ private fun GitContent(
         }
         status?.let { st ->
             changeSection(
-                keyPrefix = "staged",
-                titleRes = R.string.git_section_staged,
-                changes = st.staged,
-                headerActionLabelRes = R.string.git_unstage_all,
-                onHeaderAction = { onEvent(GitEvent.UnstageAll) },
-                onItemClick = { onEvent(GitEvent.Unstage(it.repoRelativePath)) },
-            )
-            changeSection(
                 keyPrefix = "changes",
                 titleRes = R.string.git_section_changes,
                 changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED },
                 headerActionLabelRes = R.string.git_stage_all,
+                isStagedSection = false,
+                state = state,
                 onHeaderAction = { onEvent(GitEvent.StageAll) },
-                onItemClick = { onEvent(GitEvent.Stage(it.repoRelativePath)) },
+                onEvent = onEvent,
             )
             changeSection(
                 keyPrefix = "untracked",
                 titleRes = R.string.git_section_untracked,
                 changes = st.untracked,
                 headerActionLabelRes = R.string.git_stage_all,
+                isStagedSection = false,
+                state = state,
                 onHeaderAction = { onEvent(GitEvent.StageAll) },
-                onItemClick = { onEvent(GitEvent.Stage(it.repoRelativePath)) },
+                onEvent = onEvent,
+            )
+            changeSection(
+                keyPrefix = "staged",
+                titleRes = R.string.git_section_staged,
+                changes = st.staged,
+                headerActionLabelRes = R.string.git_unstage_all,
+                isStagedSection = true,
+                state = state,
+                onHeaderAction = { onEvent(GitEvent.UnstageAll) },
+                onEvent = onEvent,
             )
         }
     }
@@ -300,8 +310,10 @@ private fun LazyListScope.changeSection(
     titleRes: Int,
     changes: List<GitPathChange>,
     headerActionLabelRes: Int,
+    isStagedSection: Boolean,
+    state: GitViewModel.UiState,
     onHeaderAction: () -> Unit,
-    onItemClick: (GitPathChange) -> Unit,
+    onEvent: (GitEvent) -> Unit,
 ) {
     if (changes.isEmpty()) return
     item(key = "$keyPrefix:header") {
@@ -320,12 +332,26 @@ private fun LazyListScope.changeSection(
     // Index bhi key me shamil — agar kabhi upstream se same repoRelativePath do baar
     // aa jaaye (kisi bhi wajah se), tab bhi LazyColumn crash nahi karega.
     itemsIndexed(changes, key = { index, change -> "$keyPrefix:${change.repoRelativePath}:$index" }) { _, change ->
-        ChangeRow(change = change, onClick = { onItemClick(change) })
+        ChangeRow(
+            change = change,
+            isStagedSection = isStagedSection,
+            diff = state.diffs[change.repoRelativePath],
+            diffLoading = change.repoRelativePath in state.diffLoading,
+            onEvent = onEvent,
+        )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChangeRow(change: GitPathChange, onClick: () -> Unit) {
+private fun ChangeRow(
+    change: GitPathChange,
+    isStagedSection: Boolean,
+    diff: GitFileDiffResult?,
+    diffLoading: Boolean,
+    onEvent: (GitEvent) -> Unit,
+) {
+    val path = change.repoRelativePath
     val (color, labelRes) = when {
         change.staged == GitStageState.CONFLICT || change.unstaged == GitWorkingState.CONFLICT ->
             MaterialTheme.colorScheme.error to R.string.git_state_conflict
@@ -335,31 +361,90 @@ private fun ChangeRow(change: GitPathChange, onClick: () -> Unit) {
             MaterialTheme.colorScheme.error to R.string.git_state_deleted
         else -> MaterialTheme.colorScheme.primary to R.string.git_state_modified
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Box(
+    val expanded = diff != null || diffLoading
+    var menuOpen by remember { mutableStateOf(false) }
+    val toggleStage = { onEvent(if (isStagedSection) GitEvent.Unstage(path) else GitEvent.Stage(path)) }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .padding(end = 12.dp)
-                .size(8.dp)
-                .background(color, CircleShape),
-        )
-        Text(
-            text = change.repoRelativePath,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = stringResource(labelRes),
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-        )
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = { onEvent(if (expanded) GitEvent.CloseDiff(path) else GitEvent.LoadDiff(path)) },
+                    onLongClick = { menuOpen = true },
+                )
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(20.dp)
+                    .clickable(onClick = toggleStage),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(8.dp).background(color, CircleShape))
+            }
+            Text(
+                text = path,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = stringResource(labelRes),
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+            )
+            Box {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                stringResource(
+                                    if (isStagedSection) R.string.git_unstage else R.string.git_stage,
+                                ),
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            toggleStage()
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.git_open_in_editor)) },
+                        onClick = {
+                            menuOpen = false
+                            onEvent(GitEvent.OpenFile(path))
+                        },
+                    )
+                }
+            }
+        }
+        if (diffLoading) {
+            Row(
+                Modifier.padding(start = 40.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(R.string.git_diff_loading),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        diff?.let {
+            Box(
+                Modifier
+                    .padding(start = 28.dp, end = 8.dp, bottom = 8.dp)
+                    .heightIn(max = 360.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+            ) {
+                GitDiffViewer(result = it)
+            }
+        }
     }
 }
 
