@@ -75,6 +75,7 @@ import kotlin.math.sin
 fun HomeScreen(
     onOpenSettings: () -> Unit,
     onProjectOpened: () -> Unit,
+    onClone: () -> Unit = {},
     modifier: Modifier = Modifier,
     projectsViewModel: ProjectsViewModel = viewModel(factory = ProjectsViewModel.Factory),
     fileTreeViewModel: FileTreeViewModel = viewModel(factory = FileTreeViewModel.Factory),

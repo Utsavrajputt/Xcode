@@ -74,7 +74,7 @@ fun WorkspaceScreen(
     onOpenFile: ((File) -> Unit)? = null,
     externalMessages: Flow<UiText>? = null,
     onProjectRoot: (File) -> Unit = {},
-    onOpenGit: () -> Unit = {},
+    onOpenGit: (File) -> Unit = {},
     onClone: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -152,7 +152,7 @@ fun WorkspaceScreen(
                 onEvent = viewModel::onEvent,
                 onOpenProjectSheet = { showProjectSheet = true },
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
-                onOpenGit = if (isGitRepo) onOpenGit else null,
+                onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },

@@ -201,25 +201,25 @@ private fun GitContent(
         status?.let { st ->
             changeSection(
                 keyPrefix = "staged",
-                title = stringResource(R.string.git_section_staged),
+                titleRes = R.string.git_section_staged,
                 changes = st.staged,
-                headerActionLabel = stringResource(R.string.git_unstage_all),
+                headerActionLabelRes = R.string.git_unstage_all,
                 onHeaderAction = { onEvent(GitEvent.UnstageAll) },
                 onItemClick = { onEvent(GitEvent.Unstage(it.repoRelativePath)) },
             )
             changeSection(
                 keyPrefix = "changes",
-                title = stringResource(R.string.git_section_changes),
+                titleRes = R.string.git_section_changes,
                 changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED },
-                headerActionLabel = stringResource(R.string.git_stage_all),
+                headerActionLabelRes = R.string.git_stage_all,
                 onHeaderAction = { onEvent(GitEvent.StageAll) },
                 onItemClick = { onEvent(GitEvent.Stage(it.repoRelativePath)) },
             )
             changeSection(
                 keyPrefix = "untracked",
-                title = stringResource(R.string.git_section_untracked),
+                titleRes = R.string.git_section_untracked,
                 changes = st.untracked,
-                headerActionLabel = stringResource(R.string.git_stage_all),
+                headerActionLabelRes = R.string.git_stage_all,
                 onHeaderAction = { onEvent(GitEvent.StageAll) },
                 onItemClick = { onEvent(GitEvent.Stage(it.repoRelativePath)) },
             )
@@ -229,9 +229,9 @@ private fun GitContent(
 
 private fun LazyListScope.changeSection(
     keyPrefix: String,
-    title: String,
+    titleRes: Int,
     changes: List<GitPathChange>,
-    headerActionLabel: String,
+    headerActionLabelRes: Int,
     onHeaderAction: () -> Unit,
     onItemClick: (GitPathChange) -> Unit,
 ) {
@@ -241,8 +241,12 @@ private fun LazyListScope.changeSection(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onHeaderAction) { Text(headerActionLabel) }
+            Text(
+                stringResource(titleRes),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onHeaderAction) { Text(stringResource(headerActionLabelRes)) }
         }
     }
     items(changes, key = { "$keyPrefix:${it.repoRelativePath}" }) { change ->

@@ -21,7 +21,6 @@ import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
-import org.eclipse.jgit.revwalk.RevFilter
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileBasedConfig
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
@@ -298,7 +297,6 @@ class GitSession(
     /** Commits reachable from [from] but not from [to]. */
     private fun countRange(walk: RevWalk, from: ObjectId, to: ObjectId): Int {
         walk.reset()
-        walk.setRevFilter(RevFilter.ALL)
         walk.markStart(walk.parseCommit(from))
         walk.markUninteresting(walk.parseCommit(to))
         var count = 0
