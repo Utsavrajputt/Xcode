@@ -885,7 +885,10 @@ class GitSession(
             staged[it] = GitStageState.CONFLICT
             unstaged[it] = GitWorkingState.CONFLICT
         }
-        val all = (staged.keys + unstaged.keys).sorted()
+        // Conflicting paths dono maps me hote hain (staged + unstaged), isliye distinct()
+        // zaroori hai — warna wahi path do baar GitPathChange me aa jaata hai aur
+        // LazyColumn ka "staged:<path>" key duplicate ho kar crash karta hai.
+        val all = (staged.keys + unstaged.keys).distinct().sorted()
         return GitWorkingTreeStatus(
             changes = all.map {
                 GitPathChange(
