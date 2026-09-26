@@ -122,7 +122,13 @@ class FileSearchViewModel(
         /** Root-keyed VM: root badalne par purana state reuse na ho. */
         @Composable
         fun get(root: File, owner: androidx.lifecycle.ViewModelStoreOwner): FileSearchViewModel {
-            val extras = MutableCreationExtras().apply { set(RootKey, root) }
+            // Owner ke default extras (APPLICATION_KEY yahin se aata hai) ko base banao,
+            // warna factory() me `this[APPLICATION_KEY] as XcodeApp` null milta hai aur crash hota hai.
+            val defaultExtras = (owner as? androidx.lifecycle.HasDefaultViewModelProviderFactory)
+                ?.defaultViewModelCreationExtras
+            val extras = MutableCreationExtras(defaultExtras ?: CreationExtras.Empty).apply {
+                set(RootKey, root)
+            }
             return viewModel(owner, key = "file_search_${root.path}", factory = factory(root), extras = extras)
         }
     }
