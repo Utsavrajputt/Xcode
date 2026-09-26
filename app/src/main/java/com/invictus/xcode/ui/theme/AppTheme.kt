@@ -19,8 +19,8 @@ internal fun mix(a: Color, b: Color, fraction: Float): Color {
 
 /**
  * App themes (ported from xmd / Aniyomi-style design).
- * Aurora is the default; Catppuccin, Nord, Rose Pine and Midnight round out
- * the four best extra themes, with Gruvbox as a bonus plus Material You.
+ * Aurora is the default, with Default, Catppuccin, Nord, and Rose Pine
+ * rounding out the set of five.
  */
 enum class AppTheme(
     val title: String,
@@ -36,14 +36,14 @@ enum class AppTheme(
 ) {
     Aurora(
         title = "Aurora",
-        primaryLight = Color(0xFF00696E),
-        primaryDark = Color(0xFF4CDADB),
-        secondaryLight = Color(0xFF4A6364),
-        secondaryDark = Color(0xFFB0CCCD),
-        tertiaryLight = Color(0xFF615B7E),
-        tertiaryDark = Color(0xFFCEC2E6),
-        backgroundLight = Color(0xFFF2FAFA),
-        backgroundDark = Color(0xFF0C1B1C),
+        primaryLight = Color(0xFF0B3FA0),
+        primaryDark = Color(0xFF5B93FF),
+        secondaryLight = Color(0xFF5C6B8C),
+        secondaryDark = Color(0xFF9FAEC9),
+        tertiaryLight = Color(0xFF3648A6),
+        tertiaryDark = Color(0xFF97A8FF),
+        backgroundLight = Color(0xFFF3F6FF),
+        backgroundDark = Color(0xFF04070F),
     ),
     Default(
         title = "Default",
@@ -88,40 +88,6 @@ enum class AppTheme(
         tertiaryDark = Color(0xFF9CCFD8),
         backgroundLight = Color(0xFFFAF4ED),
         backgroundDark = Color(0xFF232136),
-    ),
-    Midnight(
-        title = "Midnight",
-        primaryLight = Color(0xFF0D47A1),
-        primaryDark = Color(0xFF90CAF9),
-        secondaryLight = Color(0xFF455A64),
-        secondaryDark = Color(0xFFB0BEC5),
-        tertiaryLight = Color(0xFF1565C0),
-        tertiaryDark = Color(0xFF64B5F6),
-        backgroundLight = Color(0xFFF5F9FF),
-        backgroundDark = Color(0xFF0D1117),
-    ),
-    Gruvbox(
-        title = "Gruvbox",
-        primaryLight = Color(0xFF9D5B3F),
-        primaryDark = Color(0xFFD89B6A),
-        secondaryLight = Color(0xFF7A7556),
-        secondaryDark = Color(0xFFB0AE8A),
-        tertiaryLight = Color(0xFF4A7B7C),
-        tertiaryDark = Color(0xFF8AAFA8),
-        backgroundLight = Color(0xFFFBF1C7),
-        backgroundDark = Color(0xFF282828),
-    ),
-    Dynamic(
-        title = "Material You",
-        primaryLight = Color(0xFF6750A4),
-        primaryDark = Color(0xFFD0BCFF),
-        secondaryLight = Color(0xFF625B71),
-        secondaryDark = Color(0xFFCCC2DC),
-        tertiaryLight = Color(0xFF7D5260),
-        tertiaryDark = Color(0xFFEFB8C8),
-        backgroundLight = Color(0xFFFDF8FF),
-        backgroundDark = Color(0xFF1D1B20),
-        isDynamic = true,
     ),
     ;
 
