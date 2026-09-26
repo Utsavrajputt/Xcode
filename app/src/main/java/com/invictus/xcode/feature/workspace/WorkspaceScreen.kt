@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -41,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -265,17 +267,28 @@ private fun WorkspaceTopBar(
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
-            Text(
-                text = state.rootName ?: stringResource(R.string.workspace_root_internal),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.expressiveClickable(onClick = onOpenProjectSheet),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.small)
+                    .expressiveClickable(onClick = onOpenProjectSheet)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            ) {
+                Text(
+                    text = state.rootName ?: stringResource(R.string.workspace_root_internal),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                Icon(
+                    XIcons.KeyboardArrowDown,
+                    contentDescription = stringResource(R.string.menu_open_project),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         },
         actions = {
-            IconButton(onClick = onOpenProjectSheet) {
-                Icon(XIcons.FolderOpen, contentDescription = stringResource(R.string.menu_open_project))
-            }
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
             }
