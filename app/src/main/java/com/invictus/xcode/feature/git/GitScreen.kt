@@ -78,6 +78,7 @@ fun GitScreen(
     projectPath: String,
     onBack: () -> Unit,
     onOpenRoute: (String) -> Unit = {},
+    onOpenFile: (java.io.File) -> Unit = {},
     viewModel: GitViewModel = viewModel(
         key = "git:$projectPath",
         factory = GitViewModel.factory(projectPath),
@@ -97,8 +98,7 @@ fun GitScreen(
             when (effect) {
                 is GitViewModel.Effect.Message ->
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
-                is GitViewModel.Effect.OpenFile ->
-                    scope.launch { snackbarHostState.showSnackbar(effect.file.name) }
+                is GitViewModel.Effect.OpenFile -> onOpenFile(effect.file)
             }
         }
     }

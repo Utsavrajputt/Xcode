@@ -169,6 +169,10 @@ fun XcodeNavHost(
                     projectPath = path,
                     onBack = { navController.popBackStack() },
                     onOpenRoute = { route -> navController.navigate(route) },
+                    onOpenFile = { file ->
+                        editorViewModel.onEvent(EditorEvent.Open(file))
+                        navController.navigate(Routes.EDITOR) { launchSingleTop = true }
+                    },
                 )
             }
         }

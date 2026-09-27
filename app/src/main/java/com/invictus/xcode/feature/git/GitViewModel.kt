@@ -23,6 +23,8 @@ import com.invictus.xcode.core.git.model.GitPendingAction
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitResetMode
+import com.invictus.xcode.core.git.model.GitStageState
+import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
 import com.invictus.xcode.core.git.model.RebaseOutcome
 import com.invictus.xcode.core.security.GitCredentialStore
@@ -233,19 +235,19 @@ class GitViewModel(
     private fun refresh() {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(loading = it.snapshot == null) }
-            val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
-            when (val result = session.refresh()) {
+            when (val result = session.refreshFull()) {
                 is GitResult.Ok -> {
-                    val conflicts = result.value.second.conflicts.size
+                    val (snapshot, status, remotes) = result.value
+                    val conflicts = status.conflicts.size
                     _uiState.update {
                         it.copy(
                             loading = false,
-                            snapshot = result.value.first,
-                            status = result.value.second,
+                            snapshot = snapshot,
+                            status = status,
                             remotes = remotes,
                         )
                     }
-                    if ((result.value.first.mergeInProgress || result.value.first.rebaseInProgress) &&
+                    if ((snapshot.mergeInProgress || snapshot.rebaseInProgress) &&
                         lastConflictCount > 0 && conflicts == 0
                     ) {
                         message(R.string.git_msg_all_conflicts_resolved)
@@ -259,11 +261,24 @@ class GitViewModel(
 
     // ---- stage ---------------------------------------------------------------
 
+    /**
+     * Bulk stage/unstage still does a full [refresh] afterward — too many paths change at
+     * once to guess cheaply, and it also needs the fresh ahead/behind + remotes snapshot.
+     * Single-path stage/unstage skips that: JGit's `status().call()` walk is what makes
+     * this feel slow, and for one already-known path we can flip its state locally instead
+     * of re-walking the whole tree just to learn something we already know the answer to.
+     */
     private fun stage(path: String?) {
         viewModelScope.launch(io) {
-            val result = if (path == null) session.stageAll() else session.stage(path)
-            when (result) {
-                is GitResult.Ok -> refresh()
+            if (path == null) {
+                when (val result = session.stageAll()) {
+                    is GitResult.Ok -> refresh()
+                    is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+                }
+                return@launch
+            }
+            when (val result = session.stage(path)) {
+                is GitResult.Ok -> applyLocalStage(path)
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
         }
@@ -271,11 +286,62 @@ class GitViewModel(
 
     private fun unstage(path: String?) {
         viewModelScope.launch(io) {
-            val result = if (path == null) session.unstageAll() else session.unstage(path)
-            when (result) {
-                is GitResult.Ok -> refresh()
+            if (path == null) {
+                when (val result = session.unstageAll()) {
+                    is GitResult.Ok -> refresh()
+                    is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+                }
+                return@launch
+            }
+            when (val result = session.unstage(path)) {
+                is GitResult.Ok -> applyLocalUnstage(path)
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
+        }
+    }
+
+    /** Flips [path]'s staged state locally to mirror what [GitSession.stage] just did. */
+    private fun applyLocalStage(path: String) {
+        _uiState.update { state ->
+            val status = state.status ?: return@update state
+            val changes = status.changes.map { change ->
+                if (change.repoRelativePath != path) return@map change
+                val staged = when (change.unstaged) {
+                    GitWorkingState.UNTRACKED -> GitStageState.ADDED
+                    GitWorkingState.DELETED -> GitStageState.DELETED
+                    GitWorkingState.MODIFIED, GitWorkingState.NONE, GitWorkingState.CONFLICT ->
+                        GitStageState.MODIFIED
+                }
+                // Staging clears the working-tree side too: `git add` snapshots the file
+                // into the index, so there's nothing left un-added about it until it
+                // changes again post-stage.
+                change.copy(staged = staged, unstaged = GitWorkingState.NONE)
+            }
+            state.copy(status = status.copy(changes = changes))
+        }
+    }
+
+    /** Flips [path]'s staged state back to NONE locally to mirror [GitSession.unstage]. */
+    private fun applyLocalUnstage(path: String) {
+        _uiState.update { state ->
+            val status = state.status ?: return@update state
+            val changes = status.changes.mapNotNull { change ->
+                if (change.repoRelativePath != path) return@mapNotNull change
+                // If the file was already showing further un-added changes on top of the
+                // staged snapshot (staged MODIFIED + additionally edited since), that
+                // working-tree state is unaffected by unstaging and must be kept as-is
+                // rather than recomputed from `staged` alone.
+                val unstaged = if (change.unstaged != GitWorkingState.NONE) {
+                    change.unstaged
+                } else when (change.staged) {
+                    GitStageState.ADDED -> GitWorkingState.UNTRACKED
+                    GitStageState.DELETED -> GitWorkingState.DELETED
+                    GitStageState.MODIFIED, GitStageState.NONE, GitStageState.CONFLICT ->
+                        GitWorkingState.MODIFIED
+                }
+                change.copy(staged = GitStageState.NONE, unstaged = unstaged)
+            }
+            state.copy(status = status.copy(changes = changes))
         }
     }
 

@@ -88,6 +88,14 @@ class GitSession(
 
     val isRepo: Boolean get() = runCatching { File(workTree, ".git").isDirectory }.getOrDefault(false)
 
+    /**
+     * Status from the most recent [doStatus] call, kept only so [stageAll] can skip its
+     * second (deletions-only) `AddCommand` walk when nothing was deleted last we checked.
+     * Best-effort: never read under lock for correctness, only as a cheap "probably empty"
+     * hint — a stale/missing value just means we don't skip the walk.
+     */
+    @Volatile private var lastStatus: GitWorkingTreeStatus? = null
+
     private val globalConfig: FileBasedConfig?
         get() = globalIdentityFile?.let { FileBasedConfig(it, FS.DETECTED) }
 
@@ -123,6 +131,18 @@ class GitSession(
     suspend fun refresh(): GitResult<Pair<GitRepoSnapshot, GitWorkingTreeStatus>> =
         ioOp(TITLE_STATUS) { mutex.withLock { doSnapshot() to doStatus() } }
 
+    /**
+     * Snapshot + status + remotes in one [ioOp]/lock/`withContext(io)` hop instead of the
+     * two separate suspend calls (`listRemotes()` then `refresh()`) the initial screen load
+     * and every full refresh used to make sequentially. `listRemotes()` is a couple of
+     * config reads and was never the slow part, but paying for a second dispatcher hop and
+     * a second mutex acquire back-to-back before every screen open added latency for free.
+     */
+    suspend fun refreshFull(): GitResult<Triple<GitRepoSnapshot, GitWorkingTreeStatus, List<GitRemoteInfo>>> =
+        ioOp(TITLE_STATUS) {
+            mutex.withLock { Triple(doSnapshot(), doStatus(), readRemotes()) }
+        }
+
     suspend fun status(): GitResult<GitWorkingTreeStatus> =
         ioOp(TITLE_STATUS) { mutex.withLock { doStatus() } }
 
@@ -138,11 +158,24 @@ class GitSession(
         Unit
     }
 
-    /** Stage everything: new + modified files, then deletions (git add -u). */
+    /**
+     * Stage everything: new + modified files, then deletions (git add -u).
+     *
+     * JGit's `AddCommand` splits this into two calls by design: a plain `add "."` stages
+     * new + modified files but not deletions, and `setUpdate(true)` stages modified +
+     * deleted tracked files but not new ones — each does its own working-tree walk, and
+     * there's no single-call JGit API that covers all three. What we *can* cut is the
+     * second call when it can't possibly do anything: if the last known status has no
+     * tracked deletions, skip straight past it instead of paying for an empty walk.
+     */
     suspend fun stageAll(): GitResult<Unit> = ioOp(TITLE_STAGE) {
         mutex.withLock {
+            val hadDeletions = lastStatus?.changes.orEmpty()
+                .any { it.unstaged == GitWorkingState.DELETED }
             git.add().addFilepattern(".").call()
-            git.add().addFilepattern(".").setUpdate(true).call()
+            if (hadDeletions) {
+                git.add().addFilepattern(".").setUpdate(true).call()
+            }
         }
         Unit
     }
@@ -344,19 +377,20 @@ class GitSession(
     // ---- remotes / branches -------------------------------------------------
 
     suspend fun listRemotes(): GitResult<List<GitRemoteInfo>> = ioOp(TITLE_STATUS) {
-        mutex.withLock {
-            repository.config.getSubsections(ConfigConstants.CONFIG_REMOTE_SECTION).map { name ->
-                GitRemoteInfo(
-                    name = name,
-                    url = repository.config.getString(
-                        ConfigConstants.CONFIG_REMOTE_SECTION,
-                        name,
-                        ConfigConstants.CONFIG_KEY_URL,
-                    ) ?: "",
-                )
-            }
-        }
+        mutex.withLock { readRemotes() }
     }
+
+    private fun readRemotes(): List<GitRemoteInfo> =
+        repository.config.getSubsections(ConfigConstants.CONFIG_REMOTE_SECTION).map { name ->
+            GitRemoteInfo(
+                name = name,
+                url = repository.config.getString(
+                    ConfigConstants.CONFIG_REMOTE_SECTION,
+                    name,
+                    ConfigConstants.CONFIG_KEY_URL,
+                ) ?: "",
+            )
+        }
 
     suspend fun listBranches(): GitResult<List<GitBranchInfo>> = ioOp(TITLE_STATUS) {
         mutex.withLock {
@@ -998,7 +1032,9 @@ class GitSession(
         return count
     }
 
-    private fun doStatus(): GitWorkingTreeStatus {
+    private fun doStatus(): GitWorkingTreeStatus = buildStatus().also { lastStatus = it }
+
+    private fun buildStatus(): GitWorkingTreeStatus {
         val s = git.status().call()
         val staged = HashMap<String, GitStageState>()
         val unstaged = HashMap<String, GitWorkingState>()
