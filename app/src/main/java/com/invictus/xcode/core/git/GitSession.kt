@@ -191,7 +191,7 @@ class GitSession(
                             if (file.canExecute()) FileMode.EXECUTABLE_FILE else FileMode.REGULAR_FILE
                         ent.lastModified = file.lastModified()
                         val length = file.length()
-                        ent.length = length
+                        ent.length = length.toInt()
                         repository.newObjectInserter().use { inserter ->
                             ent.setObjectId(
                                 FileInputStream(file).use { input ->

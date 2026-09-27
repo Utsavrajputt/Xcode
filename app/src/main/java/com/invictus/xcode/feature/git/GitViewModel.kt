@@ -19,11 +19,13 @@ import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitCommitSummary
+import com.invictus.xcode.core.git.model.GitPathChange
 import com.invictus.xcode.core.git.model.GitPendingAction
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitResetMode
 import com.invictus.xcode.core.git.model.GitStageState
+import com.invictus.xcode.core.git.model.GitTrackingInfo
 import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
 import com.invictus.xcode.core.git.model.RebaseOutcome
