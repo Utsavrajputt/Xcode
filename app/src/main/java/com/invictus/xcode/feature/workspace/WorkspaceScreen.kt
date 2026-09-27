@@ -227,6 +227,7 @@ fun WorkspaceScreen(
                         onCopyPath = copyPath,
                         listState = listState,
                         filterQuery = filterQuery,
+                        onSearchResultOpened = { filterQuery = "" },
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -291,6 +292,9 @@ private fun WorkspaceTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onOpenCodeSearch) {
+                Icon(XIcons.Search, contentDescription = stringResource(R.string.search_code_title))
+            }
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
             }
@@ -306,25 +310,14 @@ private fun WorkspaceTopBar(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_show_hidden)) },
+                        leadingIcon = { Icon(XIcons.Visibility, contentDescription = null) },
                         onClick = { onEvent(FileTreeEvent.SetShowHidden(!state.showHidden)) },
                         trailingIcon = { Checkbox(checked = state.showHidden, onCheckedChange = null) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.menu_show_git)) },
-                        onClick = { onEvent(FileTreeEvent.SetShowGitFolder(!state.showGitFolder)) },
-                        trailingIcon = { Checkbox(checked = state.showGitFolder, onCheckedChange = null) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.search_code_title)) },
-                        leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onOpenCodeSearch()
-                        },
                     )
                     if (state.rootName != null) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.menu_backup_project)) },
+                            leadingIcon = { Icon(XIcons.CloudUpload, contentDescription = null) },
                             onClick = {
                                 menuOpen = false
                                 onBackup()
@@ -333,6 +326,7 @@ private fun WorkspaceTopBar(
                     }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_collapse_all)) },
+                        leadingIcon = { Icon(XIcons.UnfoldLess, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onEvent(FileTreeEvent.CollapseAll)

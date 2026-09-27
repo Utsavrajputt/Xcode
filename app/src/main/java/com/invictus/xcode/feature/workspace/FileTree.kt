@@ -3,6 +3,7 @@ package com.invictus.xcode.feature.workspace
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,10 +63,13 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.invictus.xcode.R
 import com.invictus.xcode.core.git.model.GitPathDecoration
+import com.invictus.xcode.core.search.FileSearchEngine
+import com.invictus.xcode.feature.search.highlightedName
 import com.invictus.xcode.ui.components.expressivePressScale
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import java.io.File
+import kotlinx.coroutines.delay
 
 @Composable
 fun UiText.asString(): String = stringResource(resId, *args.toTypedArray())
@@ -79,42 +83,100 @@ fun FileTree(
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
     filterQuery: String = "",
+    onSearchResultOpened: () -> Unit = {},
 ) {
     val rootLabel = state.rootName ?: stringResource(R.string.workspace_root_internal)
-    val visibleRows = remember(state.rows, filterQuery) {
-        val query = filterQuery.trim()
-        if (query.isEmpty()) {
-            state.rows
-        } else {
-            state.rows.filter { row ->
-                row !is TreeRow.Entry || row.file.name.contains(query, ignoreCase = true)
+    val query = filterQuery.trim()
+
+    if (query.isEmpty()) {
+        LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
+            items(items = state.rows, key = { it.key }) { row ->
+                // Expressive: rows spring into place when the tree expands/collapses.
+                Box(modifier = Modifier.animateItem()) {
+                when (row) {
+                    TreeRow.PinnedHeader -> PinnedHeader()
+                    TreeRow.Divider -> HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    is TreeRow.Pinned -> PinnedRow(row = row, onEvent = onEvent, onCopyPath = onCopyPath)
+                    is TreeRow.Entry -> FileRow(
+                        row = row,
+                        displayName = if (row.isRoot) rootLabel else row.file.name,
+                        renaming = state.renaming?.takeIf { it.file.path == row.file.path },
+                        isCutMarked = state.clipboard?.let { it.isCut && it.file.path == row.file.path } == true,
+                        canPaste = state.clipboard != null,
+                        isPinned = row.file.path in state.pinnedPaths,
+                        decoration = state.gitDecorations[
+                            row.file.path.removePrefix(state.root.path).trim('/'),
+                        ],
+                        onEvent = onEvent,
+                        onCopyPath = onCopyPath,
+                    )
+                    is TreeRow.Empty -> EmptyRow(depth = row.depth)
+                }
+                }
+            }
+        }
+    } else {
+        // Andar (collapsed folders) ki files bhi milni chahiye, isliye ab poore project ko
+        // recursively scan karte hain — sirf currently-expanded rows ko filter nahi karte.
+        val engine = remember { FileSearchEngine() }
+        var results by remember { mutableStateOf<List<FileSearchEngine.Result>>(emptyList()) }
+        var searching by remember { mutableStateOf(false) }
+        LaunchedEffect(query, state.root, state.showHidden) {
+            searching = true
+            delay(200) // debounce; naya query aane par purana scan cancel ho jaata hai
+            results = engine.search(root = state.root, query = query, showHidden = state.showHidden)
+            searching = false
+        }
+        Box(modifier = modifier.fillMaxSize()) {
+            if (searching && results.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.search_searching),
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (results.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.search_no_file_matches),
+                    modifier = Modifier.padding(16.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize(), state = listState) {
+                    items(items = results, key = { it.file.path }) { result ->
+                        SearchResultRow(
+                            result = result,
+                            onClick = {
+                                onEvent(FileTreeEvent.RowClicked(result.file, isDirectory = false))
+                                onSearchResultOpened()
+                            },
+                        )
+                    }
+                }
             }
         }
     }
-    LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
-        items(items = visibleRows, key = { it.key }) { row ->
-            // Expressive: rows spring into place when the tree expands/collapses.
-            Box(modifier = Modifier.animateItem()) {
-            when (row) {
-                TreeRow.PinnedHeader -> PinnedHeader()
-                TreeRow.Divider -> HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                is TreeRow.Pinned -> PinnedRow(row = row, onEvent = onEvent, onCopyPath = onCopyPath)
-                is TreeRow.Entry -> FileRow(
-                    row = row,
-                    displayName = if (row.isRoot) rootLabel else row.file.name,
-                    renaming = state.renaming?.takeIf { it.file.path == row.file.path },
-                    isCutMarked = state.clipboard?.let { it.isCut && it.file.path == row.file.path } == true,
-                    canPaste = state.clipboard != null,
-                    isPinned = row.file.path in state.pinnedPaths,
-                    decoration = state.gitDecorations[
-                        row.file.path.removePrefix(state.root.path).trim('/'),
-                    ],
-                    onEvent = onEvent,
-                    onCopyPath = onCopyPath,
-                )
-                is TreeRow.Empty -> EmptyRow(depth = row.depth)
-            }
-            }
+}
+
+/** One recursive filename-search hit: icon + highlighted name + its folder path under the project. */
+@Composable
+private fun SearchResultRow(result: FileSearchEngine.Result, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FileTypeIcon(name = result.name, isDirectory = false)
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(text = highlightedName(result), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = result.relativePath,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

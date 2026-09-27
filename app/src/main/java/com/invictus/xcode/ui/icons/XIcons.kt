@@ -140,6 +140,15 @@ object XIcons {
         )
     }
 
+    /** Collapse-all entry point (Material Symbols "unfold_less" — chevrons closing together). */
+    val UnfoldLess: ImageVector by lazy {
+        icon(
+            "UnfoldLess",
+            "M7.41,18.59L8.83,20 12,16.83 15.17,20l1.41,-1.41L12,14z" +
+                "M16.59,5.41L15.17,4 12,7.17 8.83,4 7.41,5.41 12,10z",
+        )
+    }
+
     /** git reset entry point (Material Symbols "restore" — clock with a back arrow). */
     val Restore: ImageVector by lazy {
         icon(

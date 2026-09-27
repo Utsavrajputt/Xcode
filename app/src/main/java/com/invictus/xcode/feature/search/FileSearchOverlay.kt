@@ -309,9 +309,9 @@ fun FileSearchOverlay(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 }
 
-/** Fuzzy-matched characters ko highlight karta hua file naam. */
+/** Fuzzy-matched characters ko highlight karta hua file naam. Workspace tree ke inline search me bhi reuse hota hai. */
 @Composable
-private fun highlightedName(result: FileSearchEngine.Result): AnnotatedString =
+internal fun highlightedName(result: FileSearchEngine.Result): AnnotatedString =
     buildAnnotatedString {
         val highlight = MaterialTheme.colorScheme.primary
         var cursor = 0
