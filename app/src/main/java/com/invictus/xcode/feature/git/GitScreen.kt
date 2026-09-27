@@ -172,6 +172,7 @@ fun GitScreen(
             onDismiss = { viewModel.onEvent(GitEvent.DismissHardResetConfirm) },
         )
     }
+    GitRebaseDialogs(state = state, onEvent = viewModel::onEvent)
 
     Scaffold(
         topBar = {
@@ -189,8 +190,13 @@ fun GitScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onOpenRoute(Routes.gitBranches(projectPath)) }) {
-                        Icon(XIcons.AccountTree, contentDescription = stringResource(R.string.git_branches_title))
+                    IconButton(
+                        onClick = { viewModel.onEvent(GitEvent.OpenRebasePicker) },
+                        enabled = state.snapshot?.hasCommits == true &&
+                            state.snapshot?.rebaseInProgress != true &&
+                            state.snapshot?.mergeInProgress != true,
+                    ) {
+                        Icon(XIcons.Redo, contentDescription = stringResource(R.string.git_rebase_action))
                     }
                     IconButton(
                         onClick = { viewModel.onEvent(GitEvent.Fetch) },
@@ -296,7 +302,12 @@ fun GitScreen(
                         }
                     }
                 }
-                else -> GitContent(state = state, canSync = canSync, onEvent = viewModel::onEvent)
+                else -> GitContent(
+                    state = state,
+                    canSync = canSync,
+                    onEvent = viewModel::onEvent,
+                    onBranchClick = { onOpenRoute(Routes.gitBranches(projectPath)) },
+                )
             }
         }
     }
@@ -307,11 +318,14 @@ private fun GitContent(
     state: GitViewModel.UiState,
     canSync: Boolean,
     onEvent: (GitEvent) -> Unit,
+    onBranchClick: () -> Unit,
 ) {
     val snapshot = state.snapshot ?: return
     val status = state.status
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item(key = "branch") { BranchCard(snapshot) }
+        item(key = "branch") {
+            BranchCard(snapshot, onClick = onBranchClick)
+        }
         item(key = "commit") { CommitCard(state, onEvent) }
         item(key = "sync") { SyncRow(canSync, snapshot, onEvent) }
         if (status != null && status.isClean) {
@@ -518,10 +532,10 @@ private fun ChangeRow(
 }
 
 @Composable
-private fun BranchCard(snapshot: GitRepoSnapshot) {
+private fun BranchCard(snapshot: GitRepoSnapshot, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
     ) {
         Icon(XIcons.AccountTree, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(12.dp))

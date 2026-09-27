@@ -58,6 +58,10 @@ sealed interface GitEvent {
     data object AbortRebase : GitEvent
     data object ConfirmAbortRebase : GitEvent
     data object DismissAbortRebase : GitEvent
+    // Start a rebase from the Source Control top bar: pick a branch to move onto.
+    data object OpenRebasePicker : GitEvent
+    data object DismissRebasePicker : GitEvent
+    data class RebaseOnto(val branch: String) : GitEvent
 }
 
 sealed interface GitCloneEvent {

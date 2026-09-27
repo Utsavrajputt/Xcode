@@ -115,6 +115,9 @@ class GitViewModel(
         val resetting: Boolean = false,
         // M11: rebase
         val abortRebaseConfirm: Boolean = false,
+        val rebasePicker: Boolean = false,
+        val rebaseCandidates: List<String> = emptyList(),
+        val rebasing: Boolean = false,
     )
 
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
@@ -227,6 +230,10 @@ class GitViewModel(
             GitEvent.AbortRebase -> _uiState.update { it.copy(abortRebaseConfirm = true) }
             GitEvent.ConfirmAbortRebase -> abortRebase()
             GitEvent.DismissAbortRebase -> _uiState.update { it.copy(abortRebaseConfirm = false) }
+            GitEvent.OpenRebasePicker -> openRebasePicker()
+            GitEvent.DismissRebasePicker ->
+                _uiState.update { it.copy(rebasePicker = false, rebaseCandidates = emptyList()) }
+            is GitEvent.RebaseOnto -> rebaseOnto(event.branch)
         }
     }
 
@@ -657,6 +664,33 @@ class GitViewModel(
                 }
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
+        }
+    }
+
+    /** Started from the top bar: pick a branch to move the current branch's commits onto. */
+    private fun openRebasePicker() {
+        val snapshot = _uiState.value.snapshot ?: return
+        if (!snapshot.hasCommits || snapshot.rebaseInProgress || snapshot.mergeInProgress) return
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(rebasePicker = true, rebaseCandidates = emptyList()) }
+            when (val result = session.mergeCandidates()) {
+                is GitResult.Ok -> _uiState.update { it.copy(rebaseCandidates = result.value) }
+                is GitResult.Err -> _uiState.update {
+                    it.copy(rebasePicker = false, error = result.error)
+                }
+            }
+        }
+    }
+
+    private fun rebaseOnto(branch: String) {
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(rebasing = true, rebasePicker = false) }
+            when (val result = session.rebaseOnto(branch)) {
+                is GitResult.Ok -> message(rebaseOutcomeMessage(result.value))
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+            _uiState.update { it.copy(rebasing = false, rebaseCandidates = emptyList()) }
+            refresh()
         }
     }
 

@@ -50,7 +50,6 @@ import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitBranchDetail
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitRemoteInfo
-import com.invictus.xcode.core.git.model.RebaseOutcome
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.CoroutineDispatcher
@@ -83,7 +82,6 @@ class GitBranchesViewModel(
         val renameName: String = "",
         val deleteTarget: String? = null,
         val forcePushConfirm: Boolean = false,
-        val rebaseTarget: String? = null,
         val tokenHost: String? = null,
         val error: GitErrorDetails? = null,
     )
@@ -222,30 +220,6 @@ class GitBranchesViewModel(
         forcePush()
     }
 
-    // ---- M11: rebase ---------------------------------------------------------
-
-    fun askRebase(target: String) = _ui.update { it.copy(rebaseTarget = target) }
-    fun dismissRebase() = _ui.update { it.copy(rebaseTarget = null) }
-
-    fun rebase() {
-        val target = _ui.value.rebaseTarget ?: return
-        _ui.update { it.copy(rebaseTarget = null, busy = true) }
-        viewModelScope.launch(io) {
-            when (val r = session.rebaseOnto(target)) {
-                is GitResult.Ok -> { _messages.value = rebaseOutcomeMessage(r.value, target); load() }
-                is GitResult.Err -> _ui.update { it.copy(error = r.error) }
-            }
-            _ui.update { it.copy(busy = false) }
-        }
-    }
-
-    private fun rebaseOutcomeMessage(outcome: RebaseOutcome, target: String): String = when (outcome) {
-        RebaseOutcome.FAST_FORWARD -> "Fast-forwarded onto '$target'"
-        RebaseOutcome.OK -> "Rebased onto '$target'"
-        RebaseOutcome.ALREADY_UP_TO_DATE -> "Already up to date with '$target'"
-        RebaseOutcome.CONFLICTS -> "Rebase paused — resolve conflicts in the Git panel"
-    }
-
     fun dismissToken() = _ui.update { it.copy(tokenHost = null) }
     fun dismissError() = _ui.update { it.copy(error = null) }
 
@@ -355,12 +329,6 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                                         text = { Text(stringResource(R.string.git_branch_rename)) },
                                         onClick = { menuOpen = false; vm.openRename(b.name) },
                                     )
-                                    if (!b.isCurrent) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.git_branch_rebase)) },
-                                            onClick = { menuOpen = false; vm.askRebase(b.name) },
-                                        )
-                                    }
                                     DropdownMenuItem(
                                         text = {
                                             Text(
@@ -422,16 +390,6 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
             danger = true,
             onConfirm = vm::forcePush,
             onDismiss = vm::dismissForcePush,
-        )
-    }
-    ui.rebaseTarget?.let { target ->
-        GitConfirmDialog(
-            title = stringResource(R.string.git_branch_rebase_confirm_title, target),
-            text = stringResource(R.string.git_branch_rebase_confirm_text, target),
-            confirmLabel = stringResource(R.string.git_branch_rebase),
-            danger = true,
-            onConfirm = vm::rebase,
-            onDismiss = vm::dismissRebase,
         )
     }
     ui.tokenHost?.let { host ->

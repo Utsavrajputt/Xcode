@@ -204,6 +204,68 @@ internal fun ConflictActionsRow(change: GitPathChange, onEvent: (GitEvent) -> Un
 /** M11 rebase dialogs; rides along wherever the drawer sheet is composed. */
 @Composable
 internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    if (state.rebasePicker) {
+        AlertDialog(
+            onDismissRequest = { onEvent(GitEvent.DismissRebasePicker) },
+            title = { Text(stringResource(R.string.git_rebase_picker_title)) },
+            text = {
+                Column(
+                    Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
+                ) {
+                    Text(
+                        stringResource(R.string.git_rebase_picker_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    if (state.rebasing) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.width(18.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                stringResource(R.string.git_rebasing),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    } else if (state.rebaseCandidates.isEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        ) {
+                            CircularProgressIndicator(Modifier.width(18.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                stringResource(R.string.git_loading),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    } else {
+                        state.rebaseCandidates.forEach { branch ->
+                            Text(
+                                branch,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onEvent(GitEvent.RebaseOnto(branch)) }
+                                    .padding(vertical = 10.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { onEvent(GitEvent.DismissRebasePicker) }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     if (state.abortRebaseConfirm) {
         AlertDialog(
             onDismissRequest = { onEvent(GitEvent.DismissAbortRebase) },

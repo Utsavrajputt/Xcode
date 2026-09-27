@@ -434,6 +434,10 @@
 <string name="git_abort_rebase_title">Abort rebase?</string>
 <string name="git_abort_rebase_message">All conflict resolutions will be lost and the branch reset to where the rebase started.</string>
 <string name="git_abort_rebase_confirm">Abort</string>
+<string name="git_rebase_action">Rebase</string>
+<string name="git_rebase_picker_title">Rebase</string>
+<string name="git_rebase_picker_desc">Pick a branch below to move your commits on top of its latest changes. Commit or stash your changes first.</string>
+<string name="git_rebasing">Rebasing…</string>
 <string name="conflict_accept_ours">Accept ours</string>
 <string name="conflict_accept_theirs">Accept theirs</string>
 <string name="conflict_accept_both">Accept both</string>
