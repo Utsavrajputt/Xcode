@@ -1,6 +1,5 @@
 package com.invictus.xcode.feature.settings
 
-import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -18,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -139,7 +136,7 @@ fun SettingsAppearanceScreen(
     }
 
     if (showThemePicker) {
-        ThemePickerDialog(
+        EditorThemePickerSheet(
             selected = themeId,
             onSelect = { viewModel.setTheme(it) },
             onDismiss = { showThemePicker = false },
@@ -181,51 +178,5 @@ private fun FontSizeRow(label: String, valuePx: Float, onValueChange: (Float) ->
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-    }
-}
-
-@Composable
-private fun ThemePickerDialog(
-    selected: String,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.editor_theme_picker_title)) },
-        text = {
-            Column {
-                ThemeRow(
-                    name = stringResource(R.string.editor_theme_system_default),
-                    isSelected = selected == EditorThemes.SYSTEM_DEFAULT,
-                    onClick = { onSelect(EditorThemes.SYSTEM_DEFAULT) },
-                )
-                EditorThemes.ALL.forEach { theme ->
-                    ThemeRow(
-                        name = theme.displayName,
-                        isSelected = selected == theme.id,
-                        onClick = { onSelect(theme.id) },
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_close_dialog)) }
-        },
-    )
-}
-
-@Composable
-private fun ThemeRow(name: String, isSelected: Boolean, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-            .expressiveClickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-    ) {
-        Box(modifier = Modifier.size(24.dp)) {
-            if (isSelected) Icon(XIcons.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        }
-        Text(text = name, modifier = Modifier.padding(start = 12.dp))
     }
 }
