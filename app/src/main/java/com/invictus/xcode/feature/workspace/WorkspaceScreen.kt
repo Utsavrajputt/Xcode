@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -315,9 +314,13 @@ private fun WorkspaceTopBar(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_show_hidden)) },
-                        leadingIcon = { Icon(XIcons.Visibility, contentDescription = null) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = if (state.showHidden) XIcons.Visibility else XIcons.VisibilityOff,
+                                contentDescription = null,
+                            )
+                        },
                         onClick = { onEvent(FileTreeEvent.SetShowHidden(!state.showHidden)) },
-                        trailingIcon = { Checkbox(checked = state.showHidden, onCheckedChange = null) },
                     )
                     if (state.rootName != null) {
                         DropdownMenuItem(
