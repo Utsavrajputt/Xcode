@@ -34,11 +34,13 @@ import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.RebaseCommand
 import org.eclipse.jgit.api.RebaseResult
 import org.eclipse.jgit.api.ResetCommand
+import org.eclipse.jgit.dircache.DirCacheEditor
 import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.errors.LockFailedException
 import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.Constants
+import org.eclipse.jgit.lib.FileMode
 import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.revwalk.RevWalk
@@ -53,6 +55,7 @@ import org.eclipse.jgit.transport.CredentialsProvider
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.util.FS
 import java.io.File
+import java.io.FileInputStream
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
@@ -149,13 +152,112 @@ class GitSession(
     // ---- stage / unstage ---------------------------------------------------
 
     suspend fun stage(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { git.add().addFilepattern(path.normalized()).call() }
+        mutex.withLock { fastAddSingle(path.normalized()) }
         Unit
     }
 
+    /**
+     * Stages exactly one path without going through JGit's [org.eclipse.jgit.api.AddCommand].
+     * `AddCommand` always does a recursive [TreeWalk] over the *entire* DirCache + working
+     * tree (the path pattern only prunes which subtrees get walked, it doesn't avoid the
+     * walk itself) — for one file that costs about as much as a full `status()`, which is
+     * exactly the "staging one file feels as slow as opening Source Control" complaint.
+     * A [org.eclipse.jgit.dircache.DirCacheEditor.PathEdit] instead touches only this one
+     * DirCache entry directly: no treewalk, no stat'ing the rest of the working tree.
+     */
+    private fun fastAddSingle(path: String) {
+        val file = File(workTree, path)
+        if (file.isDirectory || java.nio.file.Files.isSymbolicLink(file.toPath())) {
+            // Submodule (gitlink) or symlink: a gitlink needs the submodule's own HEAD
+            // commit id, not a blob of file bytes, and a symlink's blob content is the
+            // link *target string*, not — as a plain FileInputStream read would give us
+            // — the bytes of whatever the link resolves to. Both need JGit's own
+            // tree-aware handling. Rare in practice, so falling back to the slower but
+            // correct AddCommand here doesn't cost much.
+            git.add().addFilepattern(path).call()
+            return
+        }
+        val dc = repository.lockDirCache()
+        var success = false
+        try {
+            val editor = dc.editor()
+            if (!file.exists()) {
+                // "git add" on a path that's gone stages the deletion.
+                editor.add(DirCacheEditor.DeletePath(path))
+            } else {
+                editor.add(object : DirCacheEditor.PathEdit(path) {
+                    override fun apply(ent: DirCacheEntry) {
+                        ent.fileMode =
+                            if (file.canExecute()) FileMode.EXECUTABLE_FILE else FileMode.REGULAR_FILE
+                        ent.lastModified = file.lastModified()
+                        val length = file.length()
+                        ent.length = length
+                        repository.newObjectInserter().use { inserter ->
+                            ent.setObjectId(
+                                FileInputStream(file).use { input ->
+                                    inserter.insert(Constants.OBJ_BLOB, length, input)
+                                }
+                            )
+                            inserter.flush()
+                        }
+                    }
+                })
+            }
+            editor.commit()
+            success = true
+        } finally {
+            if (!success) dc.unlock()
+        }
+    }
+
     suspend fun unstage(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { git.reset().addPath(path.normalized()).call() }
+        mutex.withLock { fastResetSingle(path.normalized()) }
         Unit
+    }
+
+    /**
+     * Unstages exactly one path without JGit's `ResetCommand`, which — same story as
+     * `AddCommand` — walks the whole index + HEAD tree even for one path.
+     * [TreeWalk.forPath] does a targeted descent through just this path's tree entries
+     * (no full recursive walk) to find what HEAD has there, then a
+     * [DirCacheEditor.PathEdit] rewrites only this one DirCache entry to match it.
+     */
+    private fun fastResetSingle(path: String) {
+        val headCommitId = repository.resolve(Constants.HEAD)
+        val headTreeId = headCommitId?.let { id ->
+            RevWalk(repository).use { it.parseCommit(id).tree }
+        }
+        val dc = repository.lockDirCache()
+        var success = false
+        try {
+            val editor = dc.editor()
+            val headWalk = headTreeId?.let { TreeWalk.forPath(repository, path, it) }
+            if (headWalk == null) {
+                // Not in HEAD (new file staged pre-first-commit, or added-but-never-
+                // committed): unstaging drops it from the index, leaving it untracked.
+                editor.add(DirCacheEditor.DeletePath(path))
+            } else {
+                headWalk.use { tw ->
+                    val mode = tw.getFileMode(0)
+                    val objectId = tw.getObjectId(0)
+                    editor.add(object : DirCacheEditor.PathEdit(path) {
+                        override fun apply(ent: DirCacheEntry) {
+                            ent.fileMode = mode
+                            ent.setObjectId(objectId)
+                            // Smudge the stat info like `git reset --mixed` does on real
+                            // git, so a later status always re-hashes this path instead of
+                            // trusting size/mtime that may no longer match reality.
+                            ent.length = 0
+                            ent.lastModified = 0
+                        }
+                    })
+                }
+            }
+            editor.commit()
+            success = true
+        } finally {
+            if (!success) dc.unlock()
+        }
     }
 
     /**
@@ -233,6 +335,12 @@ class GitSession(
                 val commit = git.commit()
                     .setMessage(message)
                     .setAmend(amend)
+                    // JGit allows empty commits by default (unlike the git CLI), so with
+                    // nothing staged this would otherwise silently create an empty commit
+                    // instead of throwing EmptyCommitException like GitViewModel expects.
+                    // Amend is exempt: a message-only reword has no tree change either and
+                    // must still go through.
+                    .setAllowEmpty(amend)
                     .setAuthor(identity.name, identity.email)
                     .setCommitter(identity.name, identity.email)
                     .call()

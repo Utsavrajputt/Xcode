@@ -144,9 +144,34 @@ class GitViewModel(
         if (!session.isRepo) {
             _uiState.update { it.copy(loading = false, notARepo = true) }
         } else {
+            val memCached = statusCache[projectPath]
+            if (memCached != null) {
+                applyCached(memCached)
+            } else {
+                // No in-process cache (first visit this run, or process was killed) —
+                // fall back to the small on-disk snapshot from the last successful
+                // refresh, if any, so a cold start also shows something instantly.
+                viewModelScope.launch(io) {
+                    loadDiskCache(projectPath)?.let { disk ->
+                        statusCache[projectPath] = disk
+                        if (_uiState.value.snapshot == null) applyCached(disk)
+                    }
+                }
+            }
             refresh()
             repoWatcher.start(File(projectPath, ".git"))
             viewModelScope.launch { debounceExternalChanges() }
+        }
+    }
+
+    private fun applyCached(cached: CachedStatus) {
+        _uiState.update {
+            it.copy(
+                loading = false,
+                snapshot = cached.snapshot,
+                status = cached.status,
+                remotes = cached.remotes,
+            )
         }
     }
 
@@ -245,6 +270,9 @@ class GitViewModel(
             when (val result = session.refreshFull()) {
                 is GitResult.Ok -> {
                     val (snapshot, status, remotes) = result.value
+                    val cached = CachedStatus(snapshot, status, remotes)
+                    statusCache[projectPath] = cached
+                    saveDiskCache(projectPath, cached)
                     val conflicts = status.conflicts.size
                     _uiState.update {
                         it.copy(
@@ -813,6 +841,130 @@ class GitViewModel(
         const val SECTION_STAGED = "staged"
         const val SECTION_CHANGES = "changes"
         const val SECTION_UNTRACKED = "untracked"
+
+        /**
+         * In-memory, per-process cache of each project's last known Source Control state.
+         * [GitViewModel] gets a fresh instance every time its owning back-stack entry is
+         * torn down — i.e. leaving the project and coming back — and building that state
+         * from scratch (`refresh()`'s `session.refreshFull()`) costs exactly as much as
+         * the very first load. Caching it here means a revisit shows the last-known state
+         * immediately while a real [refresh] quietly catches up underneath.
+         */
+        private val statusCache =
+            java.util.concurrent.ConcurrentHashMap<String, CachedStatus>()
+
+        private data class CachedStatus(
+            val snapshot: GitRepoSnapshot,
+            val status: GitWorkingTreeStatus,
+            val remotes: List<GitRemoteInfo>,
+        )
+
+        /** Where the on-disk snapshot for [projectPath] lives — next to git's own metadata. */
+        private fun diskCacheFile(projectPath: String): File =
+            File(projectPath, ".git/xcode-sc-cache.json")
+
+        /**
+         * Best-effort disk snapshot of the last known status, read on a cold start (fresh
+         * app process, so [statusCache] is empty) before the real [GitSession.refreshFull]
+         * lands. Any read/parse failure — missing file, corrupt JSON, schema mismatch after
+         * an app update — is swallowed and just means no seed, never a crash.
+         */
+        private fun loadDiskCache(projectPath: String): CachedStatus? = runCatching {
+            val file = diskCacheFile(projectPath)
+            if (!file.isFile) return null
+            val root = org.json.JSONObject(file.readText())
+
+            val snapJson = root.getJSONObject("snapshot")
+            val trackingJson = snapJson.optJSONObject("tracking")
+            val snapshot = GitRepoSnapshot(
+                gitRoot = File(projectPath),
+                hasCommits = snapJson.getBoolean("hasCommits"),
+                headId = snapJson.optString("headId", null),
+                headName = snapJson.optString("headName", null),
+                trackingInfo = trackingJson?.let {
+                    GitTrackingInfo(
+                        remote = it.getString("remote"),
+                        branch = it.getString("branch"),
+                        ahead = it.getInt("ahead"),
+                        behind = it.getInt("behind"),
+                    )
+                },
+                mergeInProgress = snapJson.getBoolean("mergeInProgress"),
+                rebaseInProgress = snapJson.getBoolean("rebaseInProgress"),
+            )
+
+            val statusJson = root.getJSONObject("status")
+            val changesJson = statusJson.getJSONArray("changes")
+            val changes = (0 until changesJson.length()).map { i ->
+                val c = changesJson.getJSONObject(i)
+                GitPathChange(
+                    repoRelativePath = c.getString("path"),
+                    staged = GitStageState.valueOf(c.getString("staged")),
+                    unstaged = GitWorkingState.valueOf(c.getString("unstaged")),
+                )
+            }
+            val status = GitWorkingTreeStatus(
+                changes = changes,
+                hasUnmerged = statusJson.getBoolean("hasUnmerged"),
+            )
+
+            val remotesJson = root.getJSONArray("remotes")
+            val remotes = (0 until remotesJson.length()).map { i ->
+                val r = remotesJson.getJSONObject(i)
+                GitRemoteInfo(name = r.getString("name"), url = r.getString("url"))
+            }
+
+            CachedStatus(snapshot, status, remotes)
+        }.getOrNull()
+
+        /** Mirror of [loadDiskCache]; failures are swallowed — losing the cache is fine. */
+        private fun saveDiskCache(projectPath: String, cached: CachedStatus) {
+            runCatching {
+                val snapJson = org.json.JSONObject().apply {
+                    put("hasCommits", cached.snapshot.hasCommits)
+                    put("headId", cached.snapshot.headId)
+                    put("headName", cached.snapshot.headName)
+                    cached.snapshot.trackingInfo?.let {
+                        put("tracking", org.json.JSONObject().apply {
+                            put("remote", it.remote)
+                            put("branch", it.branch)
+                            put("ahead", it.ahead)
+                            put("behind", it.behind)
+                        })
+                    }
+                    put("mergeInProgress", cached.snapshot.mergeInProgress)
+                    put("rebaseInProgress", cached.snapshot.rebaseInProgress)
+                }
+
+                val changesJson = org.json.JSONArray()
+                cached.status.changes.forEach { c ->
+                    changesJson.put(org.json.JSONObject().apply {
+                        put("path", c.repoRelativePath)
+                        put("staged", c.staged.name)
+                        put("unstaged", c.unstaged.name)
+                    })
+                }
+                val statusJson = org.json.JSONObject().apply {
+                    put("changes", changesJson)
+                    put("hasUnmerged", cached.status.hasUnmerged)
+                }
+
+                val remotesJson = org.json.JSONArray()
+                cached.remotes.forEach { r ->
+                    remotesJson.put(org.json.JSONObject().apply {
+                        put("name", r.name)
+                        put("url", r.url)
+                    })
+                }
+
+                val root = org.json.JSONObject().apply {
+                    put("snapshot", snapJson)
+                    put("status", statusJson)
+                    put("remotes", remotesJson)
+                }
+                diskCacheFile(projectPath).writeText(root.toString())
+            }
+        }
 
         fun factory(projectPath: String) = viewModelFactory {
             initializer {
