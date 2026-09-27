@@ -17,9 +17,11 @@ import com.invictus.xcode.core.git.model.GitConflictSide
 import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitFileDiffResult
+import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitPendingAction
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
+import com.invictus.xcode.core.git.model.GitResetMode
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.workspace.UiText
@@ -68,6 +70,9 @@ class GitViewModel(
         val content: String,
     )
 
+    /** A reset (mode + target) waiting on the "this discards changes" confirmation. */
+    data class PendingReset(val ref: String, val label: String, val mode: GitResetMode)
+
     data class UiState(
         val loading: Boolean = true,
         val notARepo: Boolean = false,
@@ -97,6 +102,12 @@ class GitViewModel(
         val conflictPreview: ConflictPreviewState? = null,
         /** Long-press "Discard changes" confirmation, pending [GitEvent.ConfirmDiscard]. */
         val discardConfirm: DiscardConfirmState? = null,
+        // Reset (soft/mixed/hard)
+        val resetSheetOpen: Boolean = false,
+        val resetCommits: List<GitCommitSummary> = emptyList(),
+        val resetCommitsLoading: Boolean = false,
+        val resetHardConfirm: PendingReset? = null,
+        val resetting: Boolean = false,
     )
 
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
@@ -175,6 +186,14 @@ class GitViewModel(
                 _uiState.update { it.copy(completeMergeMessage = event.text) }
             GitEvent.DismissCompleteMerge ->
                 _uiState.update { it.copy(completeMergeDialog = false) }
+            // ---- reset ----
+            GitEvent.OpenReset -> _uiState.update { it.copy(resetSheetOpen = true) }
+            GitEvent.DismissReset -> _uiState.update { it.copy(resetSheetOpen = false) }
+            GitEvent.LoadResetCommits -> loadResetCommits()
+            is GitEvent.ResetTo -> requestReset(event.ref, event.label, event.mode)
+            GitEvent.ConfirmHardReset -> confirmHardReset()
+            GitEvent.DismissHardResetConfirm ->
+                _uiState.update { it.copy(resetHardConfirm = null) }
         }
     }
 
@@ -497,6 +516,61 @@ class GitViewModel(
             }
             _uiState.update { it.copy(completingMerge = false) }
         }
+    }
+
+    // ---- reset -------------------------------------------------------------
+
+    private fun loadResetCommits() {
+        if (_uiState.value.resetCommits.isNotEmpty() || _uiState.value.resetCommitsLoading) return
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(resetCommitsLoading = true) }
+            when (val result = session.log(max = 100)) {
+                is GitResult.Ok -> _uiState.update {
+                    it.copy(resetCommits = result.value, resetCommitsLoading = false)
+                }
+                is GitResult.Err -> _uiState.update {
+                    it.copy(resetCommitsLoading = false, error = result.error)
+                }
+            }
+        }
+    }
+
+    /** Hard needs an explicit "this discards changes" confirm first; soft/mixed run right away. */
+    private fun requestReset(ref: String, label: String, mode: GitResetMode) {
+        if (mode == GitResetMode.HARD) {
+            _uiState.update { it.copy(resetHardConfirm = PendingReset(ref, label, mode)) }
+        } else {
+            performReset(ref, label, mode)
+        }
+    }
+
+    private fun confirmHardReset() {
+        val pending = _uiState.value.resetHardConfirm ?: return
+        _uiState.update { it.copy(resetHardConfirm = null) }
+        performReset(pending.ref, pending.label, pending.mode)
+    }
+
+    private fun performReset(ref: String, label: String, mode: GitResetMode) {
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(resetting = true) }
+            when (val result = session.resetTo(ref, mode)) {
+                is GitResult.Ok -> {
+                    _uiState.update {
+                        it.copy(resetSheetOpen = false, resetCommits = emptyList())
+                    }
+                    message(R.string.git_reset_success, mode.label(), label)
+                    refresh()
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+            _uiState.update { it.copy(resetting = false) }
+        }
+    }
+
+    private fun GitResetMode.label(): String = when (this) {
+        GitResetMode.SOFT -> "soft"
+        GitResetMode.MIXED -> "mixed"
+        GitResetMode.HARD -> "hard"
     }
 
     // ---- identity / token dialogs ----------------------------------------------

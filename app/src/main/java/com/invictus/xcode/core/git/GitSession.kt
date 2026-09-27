@@ -11,6 +11,7 @@ import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitLogSearchMode
 import com.invictus.xcode.core.git.model.GitPathChange
 import com.invictus.xcode.core.git.model.GitRemoteInfo
+import com.invictus.xcode.core.git.model.GitResetMode
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitStageState
 import com.invictus.xcode.core.git.model.GitStashInfo
@@ -149,6 +150,30 @@ class GitSession(
             }
         }
         Unit
+    }
+
+    // ---- reset ---------------------------------------------------------------
+
+    /**
+     * Move HEAD (and, per [mode], the index/working tree) to [ref] — "HEAD",
+     * "origin/main", "upstream/main" or a bare/short commit id all resolve fine.
+     */
+    suspend fun resetTo(ref: String, mode: GitResetMode): GitResult<Unit> = ioOp(TITLE_RESET) {
+        val target = ref.trim()
+        require(target.isNotEmpty()) { "Reset target is empty." }
+        mutex.withLock {
+            if (repository.resolve(target) == null) {
+                throw IllegalArgumentException("Can't resolve '$target'.")
+            }
+            git.reset().setRef(target).setMode(mode.toJgit()).call()
+        }
+        Unit
+    }
+
+    private fun GitResetMode.toJgit(): ResetCommand.ResetType = when (this) {
+        GitResetMode.SOFT -> ResetCommand.ResetType.SOFT
+        GitResetMode.MIXED -> ResetCommand.ResetType.MIXED
+        GitResetMode.HARD -> ResetCommand.ResetType.HARD
     }
 
     // ---- commit ------------------------------------------------------------
@@ -954,6 +979,7 @@ class GitSession(
         private const val TITLE_REMOTE = "Git remote"
         private const val TITLE_INIT = "Initialize repository"
         private const val TITLE_MERGE = "Git merge"
+        private const val TITLE_RESET = "Git reset"
     }
 }
 

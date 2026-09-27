@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import com.invictus.xcode.core.git.model.GitConflictSide
+import com.invictus.xcode.core.git.model.GitResetMode
 
 sealed interface GitEvent {
     data object Refresh : GitEvent
@@ -44,6 +45,13 @@ sealed interface GitEvent {
     data object CompleteMerge : GitEvent
     data class CompleteMergeMessageChange(val text: String) : GitEvent
     data object DismissCompleteMerge : GitEvent
+    // Reset (soft/mixed/hard) — HEAD, a remote-tracking ref, or any picked commit.
+    data object OpenReset : GitEvent
+    data object DismissReset : GitEvent
+    data object LoadResetCommits : GitEvent
+    data class ResetTo(val ref: String, val label: String, val mode: GitResetMode) : GitEvent
+    data object ConfirmHardReset : GitEvent
+    data object DismissHardResetConfirm : GitEvent
 }
 
 sealed interface GitCloneEvent {

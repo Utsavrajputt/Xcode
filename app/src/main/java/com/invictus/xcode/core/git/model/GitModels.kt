@@ -168,6 +168,9 @@ data class GitStashInfo(
     val timeMs: Long,
 )
 
+/** git reset mode: how far back the index/working tree follow HEAD. */
+enum class GitResetMode { SOFT, MIXED, HARD }
+
 enum class GitLogSearchMode { MESSAGE, AUTHOR, HASH }
 
 // ---- M10: merge + conflict models -------------------------------------------

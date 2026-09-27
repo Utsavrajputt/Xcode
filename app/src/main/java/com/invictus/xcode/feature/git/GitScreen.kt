@@ -155,6 +155,23 @@ fun GitScreen(
             },
         )
     }
+    if (state.resetSheetOpen) {
+        GitResetSheet(
+            state = state,
+            onEvent = viewModel::onEvent,
+            onDismiss = { viewModel.onEvent(GitEvent.DismissReset) },
+        )
+    }
+    state.resetHardConfirm?.let { pending ->
+        GitConfirmDialog(
+            title = stringResource(R.string.git_reset_hard_confirm_title),
+            text = stringResource(R.string.git_reset_hard_confirm_text, pending.label),
+            confirmLabel = stringResource(R.string.git_reset_confirm),
+            danger = true,
+            onConfirm = { viewModel.onEvent(GitEvent.ConfirmHardReset) },
+            onDismiss = { viewModel.onEvent(GitEvent.DismissHardResetConfirm) },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -172,6 +189,9 @@ fun GitScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { onOpenRoute(Routes.gitBranches(projectPath)) }) {
+                        Icon(XIcons.AccountTree, contentDescription = stringResource(R.string.git_branches_title))
+                    }
                     IconButton(
                         onClick = { viewModel.onEvent(GitEvent.Fetch) },
                         enabled = canSync && state.networkOp == null,
@@ -181,18 +201,17 @@ fun GitScreen(
                     IconButton(onClick = { viewModel.onEvent(GitEvent.OpenIdentity) }) {
                         Icon(XIcons.Person, contentDescription = stringResource(R.string.git_identity))
                     }
+                    IconButton(
+                        onClick = { viewModel.onEvent(GitEvent.OpenReset) },
+                        enabled = state.snapshot?.hasCommits == true,
+                    ) {
+                        Icon(XIcons.Restore, contentDescription = stringResource(R.string.git_reset_title))
+                    }
                     Box {
                         IconButton(onClick = { overflowOpen = true }) {
                             Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_title))
                         }
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.git_branches_title)) },
-                                onClick = {
-                                    overflowOpen = false
-                                    onOpenRoute(Routes.gitBranches(projectPath))
-                                },
-                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_history_title)) },
                                 onClick = {

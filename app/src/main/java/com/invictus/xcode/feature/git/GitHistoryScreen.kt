@@ -1,17 +1,21 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -29,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.invictus.xcode.ui.icons.XIcons
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -42,6 +47,7 @@ import com.invictus.xcode.core.git.GitSession
 import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitLogSearchMode
+import com.invictus.xcode.core.git.model.GitResetMode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -73,6 +79,10 @@ class GitHistoryViewModel(
         val detail: GitCommitSummary? = null,
         val picking: Boolean = false,
         val error: GitErrorDetails? = null,
+        // "Reset here"
+        val resetTarget: GitCommitSummary? = null,
+        val resetHardPending: Boolean = false,
+        val resetting: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(UiState())
@@ -131,6 +141,38 @@ class GitHistoryViewModel(
     }
 
     fun dismissError() = _ui.update { it.copy(error = null) }
+
+    // ---- reset here ---------------------------------------------------------
+
+    fun openReset(c: GitCommitSummary) = _ui.update { it.copy(resetTarget = c, detail = null) }
+    fun dismissReset() = _ui.update { it.copy(resetTarget = null, resetHardPending = false) }
+
+    /** Mixed/soft run right away; hard needs the extra confirm below first. */
+    fun resetHere(mode: GitResetMode) {
+        if (mode == GitResetMode.HARD) {
+            _ui.update { it.copy(resetHardPending = true) }
+        } else {
+            performReset(mode)
+        }
+    }
+
+    fun confirmHardReset() = performReset(GitResetMode.HARD)
+
+    private fun performReset(mode: GitResetMode) {
+        val target = _ui.value.resetTarget ?: return
+        viewModelScope.launch(io) {
+            _ui.update { it.copy(resetting = true) }
+            when (val r = session.resetTo(target.id, mode)) {
+                is GitResult.Ok -> {
+                    _ui.update { it.copy(resetTarget = null, resetHardPending = false) }
+                    _messages.value = "Reset to ${target.shortId}"
+                    reload()
+                }
+                is GitResult.Err -> _ui.update { it.copy(error = r.error, resetHardPending = false) }
+            }
+            _ui.update { it.copy(resetting = false) }
+        }
+    }
 
     companion object {
         fun factory(projectPath: String, filePath: String?) = viewModelFactory {
@@ -269,6 +311,13 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { vm.openReset(c) }) {
+                            Icon(XIcons.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.git_reset_here))
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -281,6 +330,27 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
                     Text(stringResource(R.string.action_cancel))
                 }
             },
+        )
+    }
+    ui.resetTarget?.let { target ->
+        GitResetModeDialog(
+            commit = target,
+            resetting = ui.resetting,
+            onConfirm = { mode -> vm.resetHere(mode) },
+            onDismiss = vm::dismissReset,
+        )
+    }
+    if (ui.resetHardPending) {
+        GitConfirmDialog(
+            title = stringResource(R.string.git_reset_hard_confirm_title),
+            text = stringResource(
+                R.string.git_reset_hard_confirm_text,
+                ui.resetTarget?.shortId.orEmpty(),
+            ),
+            confirmLabel = stringResource(R.string.git_reset_confirm),
+            danger = true,
+            onConfirm = vm::confirmHardReset,
+            onDismiss = vm::dismissReset,
         )
     }
     ui.error?.let { GitErrorDialog(details = it, onDismiss = vm::dismissError) }
