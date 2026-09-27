@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.git.GitCloneLogLine
 import com.invictus.xcode.core.git.GitCloner
 import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitResult
@@ -41,7 +42,9 @@ class GitCloneViewModel(
         val folderName: String = "",
         val branch: String = "",
         val cloning: Boolean = false,
-        val progressTask: String = "",
+        val logLines: List<GitCloneLogLine> = emptyList(),
+        /** True once a clone has finished successfully; the person confirms with Done. */
+        val completed: Boolean = false,
         val error: GitErrorDetails? = null,
         /** Host that just rejected an unauthenticated clone — drives the private-repo dialog. */
         val privateRepoHost: String? = null,
@@ -72,6 +75,7 @@ class GitCloneViewModel(
             is GitCloneEvent.BranchChange -> _uiState.update { it.copy(branch = event.value) }
             GitCloneEvent.Start -> startClone()
             GitCloneEvent.DismissError -> _uiState.update { it.copy(error = null) }
+            GitCloneEvent.Done -> _effects.trySend(Effect.NavigateBack)
             is GitCloneEvent.ConfirmPrivateToken -> confirmPrivateToken(event.username, event.token)
             GitCloneEvent.DismissPrivateRepoDialog -> _uiState.update { it.copy(privateRepoHost = null) }
             GitCloneEvent.ConfigureCredentials -> {
@@ -111,21 +115,22 @@ class GitCloneViewModel(
 
     private fun performClone(url: String, target: File, username: String, token: String) {
         viewModelScope.launch(io) {
-            _uiState.update { it.copy(cloning = true, progressTask = "") }
+            _uiState.update { it.copy(cloning = true, completed = false, logLines = emptyList()) }
             val result = GitCloner.clone(
                 url = url,
                 username = username,
                 token = token,
                 directory = target,
                 branch = _uiState.value.branch.trim().ifBlank { null },
-            ) { p -> _uiState.update { it.copy(progressTask = p.task) } }
+            ) { progress -> _uiState.update { it.copy(logLines = progress.lines) } }
             when (result) {
                 is GitResult.Ok -> {
                     if (token.isNotBlank()) {
                         credentialStore.put(GitCredential(normalizeHost(url), username, token))
                     }
                     message(R.string.clone_done, target.absolutePath)
-                    _effects.send(Effect.NavigateBack)
+                    // Stay on screen with the full transcript; the person taps Done to leave.
+                    _uiState.update { it.copy(completed = true) }
                 }
                 is GitResult.Err -> {
                     // Don't leave a half-downloaded repo behind.
@@ -138,7 +143,7 @@ class GitCloneViewModel(
                     }
                 }
             }
-            _uiState.update { it.copy(cloning = false, progressTask = "") }
+            _uiState.update { it.copy(cloning = false) }
         }
     }
 

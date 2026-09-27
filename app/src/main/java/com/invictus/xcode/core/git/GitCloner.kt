@@ -15,17 +15,19 @@ object GitCloner {
         token: String,
         directory: File,
         branch: String?,
-        onProgress: (GitProgress) -> Unit,
+        onProgress: (GitCloneProgress) -> Unit,
     ): GitResult<File> = withContext(Dispatchers.IO) {
         try {
+            val tracker = GitCloneProgressTracker(onProgress)
             val cmd = Git.cloneRepository()
                 .setURI(url)
                 .setDirectory(directory)
                 .setCredentialsProvider(GitTokenCredentialsProvider(username, token))
-                .setProgressMonitor(gitProgressMonitor(onProgress))
+                .setProgressMonitor(tracker.monitor)
             if (!branch.isNullOrBlank()) cmd.setBranch(branch.trim())
-            val git = cmd.call()
+            val git = GitByteTracker.track(tracker::onBytesRead) { cmd.call() }
             git.close()
+            tracker.finish()
             GitResult.Ok(directory)
         } catch (e: CancellationException) {
             throw e

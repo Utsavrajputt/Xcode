@@ -271,6 +271,7 @@
     <string name="clone_empty_folder">Enter a folder name for the clone.</string>
     <string name="clone_folder_exists">A folder named "%1$s" already exists.</string>
     <string name="clone_done">Cloned to %1$s</string>
+    <string name="clone_finish_button">Done</string>
     <string name="git_section_conflicts">Conflicts</string>
     <string name="git_sync">Sync</string>
     <string name="git_diff_inline">Inline</string>

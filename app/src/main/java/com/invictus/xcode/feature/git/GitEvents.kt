@@ -71,6 +71,8 @@ sealed interface GitCloneEvent {
     data class BranchChange(val value: String) : GitCloneEvent
     data object Start : GitCloneEvent
     data object DismissError : GitCloneEvent
+    /** The person tapped Done on the finished clone transcript. */
+    data object Done : GitCloneEvent
     // Private-repo auth prompt, shown only when an unauthenticated clone attempt fails.
     data class ConfirmPrivateToken(val username: String, val token: String) : GitCloneEvent
     data object DismissPrivateRepoDialog : GitCloneEvent
