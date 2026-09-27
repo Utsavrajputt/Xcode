@@ -871,8 +871,8 @@ class GitViewModel(
         _uiState.update { it.copy(tokenDialog = null) }
         message(R.string.git_msg_token_saved, host)
         when (pending) {
-            GitPendingAction.PUSH -> push()
-            GitPendingAction.PULL -> pull()
+            GitPendingAction.PUSH -> push(force = false)
+            GitPendingAction.PULL -> pull(rebase = false)
             GitPendingAction.FETCH -> fetch()
             else -> Unit
         }
