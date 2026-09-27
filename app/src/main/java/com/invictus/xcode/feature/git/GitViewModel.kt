@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitCredential
+import com.invictus.xcode.core.git.GitRepoWatcher
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSession
 import com.invictus.xcode.core.git.GitTokenCredentialsProvider
@@ -28,6 +29,7 @@ import com.invictus.xcode.feature.workspace.UiText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -126,12 +128,32 @@ class GitViewModel(
     private val _effects = Channel<Effect>(Channel.BUFFERED)
     val effects = _effects.receiveAsFlow()
 
+    /** External changes (Termux, another app) picked up by [repoWatcher]; refreshed debounced. */
+    private val externalChangeEvents = Channel<Unit>(Channel.UNLIMITED)
+    private val repoWatcher = GitRepoWatcher { externalChangeEvents.trySend(Unit) }
+
     init {
         if (!session.isRepo) {
             _uiState.update { it.copy(loading = false, notARepo = true) }
         } else {
             refresh()
+            repoWatcher.start(File(projectPath, ".git"))
+            viewModelScope.launch { debounceExternalChanges() }
         }
+    }
+
+    /** Mirrors FileTreeViewModel's debounceWatcherEvents: coalesce a burst into one refresh. */
+    private suspend fun debounceExternalChanges() {
+        while (true) {
+            externalChangeEvents.receive()
+            delay(EXTERNAL_CHANGE_DEBOUNCE_MS)
+            while (externalChangeEvents.tryReceive().isSuccess) { /* drain the rest of the burst */ }
+            refresh()
+        }
+    }
+
+    override fun onCleared() {
+        repoWatcher.stop()
     }
 
     fun onEvent(event: GitEvent) {
@@ -624,6 +646,7 @@ class GitViewModel(
 
     companion object {
         private const val DEFAULT_USERNAME = "x-access-token"
+        private const val EXTERNAL_CHANGE_DEBOUNCE_MS = 400L
 
         const val SECTION_CONFLICTS = "conflicts"
         const val SECTION_STAGED = "staged"

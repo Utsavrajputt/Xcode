@@ -15,6 +15,7 @@ import com.invictus.xcode.core.fs.FsEntry
 import com.invictus.xcode.core.fs.FsError
 import com.invictus.xcode.core.fs.FsResult
 import com.invictus.xcode.core.fs.OpenDecision
+import com.invictus.xcode.core.git.GitRepoWatcher
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSession
 import com.invictus.xcode.core.git.model.GitPathDecoration
@@ -78,6 +79,10 @@ class FileTreeViewModel(
     private val watchEvents = Channel<String>(Channel.UNLIMITED)
     private val watcher = DirectoryWatcher { dir -> watchEvents.trySend(dir.path) }
 
+    /** Git-internal changes (Termux, another app) — refs/HEAD/index moving outside the app. */
+    private val gitChangeEvents = Channel<Unit>(Channel.UNLIMITED)
+    private val gitRepoWatcher = GitRepoWatcher { gitChangeEvents.trySend(Unit) }
+
     /** False until the last project is restored, so the tree never flashes the wrong root. */
     private var ready = false
 
@@ -87,6 +92,7 @@ class FileTreeViewModel(
 
     init {
         viewModelScope.launch { debounceWatcherEvents() }
+        viewModelScope.launch { debounceGitEvents() }
         viewModelScope.launch { observePins() }
         viewModelScope.launch { restoreLastProject() }
     }
@@ -175,6 +181,8 @@ class FileTreeViewModel(
         }
         loadDir(newRoot)
         syncWatcher()
+        gitSession = null
+        gitRepoWatcher.start(File(newRoot, ".git"))
         refreshGitDecorations()
         if (record) viewModelScope.launch { projects.recordOpened(newRoot) }
     }
@@ -378,6 +386,16 @@ class FileTreeViewModel(
         }
     }
 
+    /** A `git` op run outside the app (Termux, etc.) — refresh the tree + decorations once. */
+    private suspend fun debounceGitEvents() {
+        while (true) {
+            gitChangeEvents.receive()
+            delay(WATCH_DEBOUNCE_MS)
+            while (gitChangeEvents.tryReceive().isSuccess) { /* drain the rest of the burst */ }
+            refreshAll()
+        }
+    }
+
     // endregion
 
     // region create / rename / delete
@@ -569,6 +587,7 @@ class FileTreeViewModel(
 
     override fun onCleared() {
         watcher.stop()
+        gitRepoWatcher.stop()
     }
 
     companion object {
