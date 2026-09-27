@@ -10,7 +10,7 @@ import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitRepoWatcher
 import com.invictus.xcode.core.git.GitResult
-import com.invictus.xcode.core.git.GitSession
+import com.invictus.xcode.core.git.GitSessionRegistry
 import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitAuthFailureType
@@ -56,7 +56,7 @@ class GitViewModel(
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private val session = GitSession(File(projectPath), globalIdentityFile, io)
+    private val session = GitSessionRegistry.acquire(File(projectPath), globalIdentityFile, io)
 
     data class IdentityDialogState(
         val name: String,
@@ -189,6 +189,7 @@ class GitViewModel(
 
     override fun onCleared() {
         repoWatcher.stop()
+        GitSessionRegistry.release(File(projectPath))
     }
 
     fun onEvent(event: GitEvent) {
@@ -299,17 +300,20 @@ class GitViewModel(
     // ---- stage ---------------------------------------------------------------
 
     /**
-     * Bulk stage/unstage still does a full [refresh] afterward — too many paths change at
-     * once to guess cheaply, and it also needs the fresh ahead/behind + remotes snapshot.
-     * Single-path stage/unstage skips that: JGit's `status().call()` walk is what makes
-     * this feel slow, and for one already-known path we can flip its state locally instead
-     * of re-walking the whole tree just to learn something we already know the answer to.
+     * Stage/unstage never triggers a full [refresh] anymore, "all" included:
+     * [GitSession.stageAll] / [GitSession.unstageAll] only ever touch the index (never HEAD,
+     * upstream tracking, or remotes config), so there's nothing in [refresh]'s
+     * snapshot/remotes half that either could possibly change. JGit's `status().call()` walk
+     * is what makes this feel slow, and since every path's before/after state is something
+     * we already know from the status we're already showing, "all" can flip every currently
+     * changed path locally in one pass — same idea as the single-path case below, just
+     * applied to the whole list instead of one entry.
      */
     private fun stage(path: String?) {
         viewModelScope.launch(io) {
             if (path == null) {
                 when (val result = session.stageAll()) {
-                    is GitResult.Ok -> refresh()
+                    is GitResult.Ok -> applyLocalStageAll()
                     is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
                 }
                 return@launch
@@ -325,7 +329,7 @@ class GitViewModel(
         viewModelScope.launch(io) {
             if (path == null) {
                 when (val result = session.unstageAll()) {
-                    is GitResult.Ok -> refresh()
+                    is GitResult.Ok -> applyLocalUnstageAll()
                     is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
                 }
                 return@launch
@@ -368,6 +372,44 @@ class GitViewModel(
                 // staged snapshot (staged MODIFIED + additionally edited since), that
                 // working-tree state is unaffected by unstaging and must be kept as-is
                 // rather than recomputed from `staged` alone.
+                val unstaged = if (change.unstaged != GitWorkingState.NONE) {
+                    change.unstaged
+                } else when (change.staged) {
+                    GitStageState.ADDED -> GitWorkingState.UNTRACKED
+                    GitStageState.DELETED -> GitWorkingState.DELETED
+                    GitStageState.MODIFIED, GitStageState.NONE, GitStageState.CONFLICT ->
+                        GitWorkingState.MODIFIED
+                }
+                change.copy(staged = GitStageState.NONE, unstaged = unstaged)
+            }
+            state.copy(status = status.copy(changes = changes))
+        }
+    }
+
+    /** [applyLocalStage] for every currently-unstaged path at once, to mirror [GitSession.stageAll]. */
+    private fun applyLocalStageAll() {
+        _uiState.update { state ->
+            val status = state.status ?: return@update state
+            val changes = status.changes.map { change ->
+                if (change.unstaged == GitWorkingState.NONE) return@map change
+                val staged = when (change.unstaged) {
+                    GitWorkingState.UNTRACKED -> GitStageState.ADDED
+                    GitWorkingState.DELETED -> GitStageState.DELETED
+                    GitWorkingState.MODIFIED, GitWorkingState.NONE, GitWorkingState.CONFLICT ->
+                        GitStageState.MODIFIED
+                }
+                change.copy(staged = staged, unstaged = GitWorkingState.NONE)
+            }
+            state.copy(status = status.copy(changes = changes))
+        }
+    }
+
+    /** [applyLocalUnstage] for every currently-staged path at once, to mirror [GitSession.unstageAll]. */
+    private fun applyLocalUnstageAll() {
+        _uiState.update { state ->
+            val status = state.status ?: return@update state
+            val changes = status.changes.map { change ->
+                if (change.staged == GitStageState.NONE) return@map change
                 val unstaged = if (change.unstaged != GitWorkingState.NONE) {
                     change.unstaged
                 } else when (change.staged) {

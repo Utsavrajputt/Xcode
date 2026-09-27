@@ -44,7 +44,7 @@ import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitResult
-import com.invictus.xcode.core.git.GitSession
+import com.invictus.xcode.core.git.GitSessionRegistry
 import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitBranchDetail
@@ -62,13 +62,17 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 class GitBranchesViewModel(
-    projectPath: String,
+    private val projectPath: String,
     private val credentialStore: GitCredentialStore,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private val session = GitSession(File(projectPath), globalIdentityFile, io)
+    private val session = GitSessionRegistry.acquire(File(projectPath), globalIdentityFile, io)
+
+    override fun onCleared() {
+        GitSessionRegistry.release(File(projectPath))
+    }
 
     data class UiState(
         val loading: Boolean = true,

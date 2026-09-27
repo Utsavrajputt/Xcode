@@ -43,7 +43,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitResult
-import com.invictus.xcode.core.git.GitSession
+import com.invictus.xcode.core.git.GitSessionRegistry
 import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitLogSearchMode
@@ -63,13 +63,17 @@ import java.util.Date
 import java.util.Locale
 
 class GitHistoryViewModel(
-    projectPath: String,
+    private val projectPath: String,
     private val filePath: String?,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private val session = GitSession(File(projectPath), globalIdentityFile, io)
+    private val session = GitSessionRegistry.acquire(File(projectPath), globalIdentityFile, io)
+
+    override fun onCleared() {
+        GitSessionRegistry.release(File(projectPath))
+    }
 
     data class UiState(
         val loading: Boolean = true,

@@ -63,12 +63,20 @@ import java.util.concurrent.ConcurrentHashMap
 class GitIdentityMissingException : Exception("Git author name/email not configured")
 
 /**
- * One repo = one session, but several [GitSession] instances can exist for the same
- * [workTree] at once (each git screen builds its own). Every JGit call funnels through
- * [ioOp] on [Dispatchers.IO], and every mutation/refresh is serialized through [mutex] -
- * which is keyed by the repo's canonical path in [mutexRegistry] and shared across every
- * instance pointed at that path, so snapshot+status never interleave with a write op or
- * with another screen's op on the same repo (plan section 3.4).
+ * One repo = one session. Every Git-feature screen (Source Control, Branches, History,
+ * Tags, Stash, Remotes, Credentials, Onboarding) now shares the same [GitSession] instance
+ * for a given [workTree] via [GitSessionRegistry] instead of each building its own - so the
+ * underlying JGit [Repository], with its parsed pack indexes and object caches, only gets
+ * opened once per repo instead of once per screen visit. (The file tree's status decorations
+ * and the GitHub-identity settings screen still hold their own private instances outside
+ * that sharing - the former polls independently of any one screen being open, the latter
+ * usually isn't pointed at a real repo at all.)
+ *
+ * Every JGit call funnels through [ioOp] on [Dispatchers.IO], and every mutation/refresh is
+ * serialized through [mutex] - which is keyed by the repo's canonical path in [mutexRegistry]
+ * and shared across every instance pointed at that path (relevant for the two private-instance
+ * exceptions above), so snapshot+status never interleave with a write op or with another
+ * screen's op on the same repo (plan section 3.4).
  *
  * [ioOp] also recovers from a stale `index.lock` left behind by a killed process: since
  * [mutex] guarantees no other in-process op is running when the lock file is found, it's
@@ -84,12 +92,24 @@ class GitSession(
     }
     private val mutex: Mutex get() = mutexRegistry.getOrPut(repoKey) { Mutex() }
 
-    val repository: Repository by lazy {
+    private val repositoryLazy: Lazy<Repository> = lazy {
         FileRepositoryBuilder().setWorkTree(workTree).setMustExist(true).build()
     }
+    val repository: Repository by repositoryLazy
     private val git: Git get() = Git(repository)
 
     val isRepo: Boolean get() = runCatching { File(workTree, ".git").isDirectory }.getOrDefault(false)
+
+    /**
+     * Releases the JGit [Repository] this session opened - closes its pack file handles and
+     * drops its object/ref caches. No-op if [repository] was never touched (nothing to
+     * release). Only [GitSessionRegistry] should call this: it's the only thing that tracks
+     * whether another screen still shares this exact [GitSession] instance, and closing a
+     * [Repository] out from under a screen still using it would break that screen.
+     */
+    fun close() {
+        if (repositoryLazy.isInitialized()) repository.close()
+    }
 
     /**
      * Status from the most recent [doStatus] call, kept only so [stageAll] can skip its
