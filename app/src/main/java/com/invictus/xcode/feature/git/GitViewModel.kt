@@ -69,7 +69,23 @@ class GitViewModel(
         val username: String,
         /** Which op to re-run once a token is saved; null = just store it. */
         val pending: GitPendingAction?,
+        /**
+         * The exact push/pull variant the person had asked for before the auth
+         * prompt interrupted them — force push, rebase pull, or the pull-then-push
+         * retry from the push-rejected dialog — so saving the token replays that,
+         * not a plain push/pull. Ignored when [pending] isn't PUSH or PULL.
+         */
+        val mode: PendingNetworkMode = PendingNetworkMode.Plain,
     )
+
+    /** Carries push/pull's force/rebase/continuation intent through a token-save detour. */
+    sealed interface PendingNetworkMode {
+        data object Plain : PendingNetworkMode
+        data object Force : PendingNetworkMode
+        data object Rebase : PendingNetworkMode
+        /** The "Pull" choice on the push-rejected dialog: pull, then retry the push. */
+        data object PullThenPush : PendingNetworkMode
+    }
 
     data class ConflictPreviewState(
         val path: String,
@@ -481,8 +497,9 @@ class GitViewModel(
             message(R.string.git_err_no_remote)
             return
         }
+        val mode = if (force) PendingNetworkMode.Force else PendingNetworkMode.Plain
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.PUSH, remote) { cp ->
+            runNetwork(GitPendingAction.PUSH, remote, mode) { cp ->
                 session.push(remote, cp, force = force) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
         }
@@ -491,7 +508,9 @@ class GitViewModel(
     /**
      * [thenPush] re-runs a plain push right after a successful pull — used by the
      * "Pull then push" choice on the push-rejected dialog, so the person doesn't
-     * have to tap Push again themselves.
+     * have to tap Push again themselves. If a token prompt interrupts this pull,
+     * [PendingNetworkMode.PullThenPush] carries that intent through so saving the
+     * token still chains into the push instead of stopping at a plain pull.
      */
     private fun pull(rebase: Boolean, thenPush: Boolean = false) {
         val snapshot = _uiState.value.snapshot ?: return
@@ -503,8 +522,13 @@ class GitViewModel(
             return
         }
         val branch = tracking?.branch ?: snapshot.headName
+        val mode = when {
+            thenPush -> PendingNetworkMode.PullThenPush
+            rebase -> PendingNetworkMode.Rebase
+            else -> PendingNetworkMode.Plain
+        }
         viewModelScope.launch(io) {
-            val pulled = runNetwork(GitPendingAction.PULL, remote) { cp ->
+            val pulled = runNetwork(GitPendingAction.PULL, remote, mode) { cp ->
                 session.pull(remote, branch, cp, rebase = rebase) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
             if (thenPush && pulled) push(force = false)
@@ -520,7 +544,7 @@ class GitViewModel(
             return
         }
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.FETCH, remote) { cp ->
+            runNetwork(GitPendingAction.FETCH, remote, PendingNetworkMode.Plain) { cp ->
                 session.fetch(remote, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
         }
@@ -530,13 +554,14 @@ class GitViewModel(
     private suspend fun runNetwork(
         action: GitPendingAction,
         remote: String,
+        mode: PendingNetworkMode,
         call: suspend (CredentialsProvider?) -> GitResult<Unit>,
     ): Boolean {
         val url = session.remoteUrl(remote)
         val host = url?.let(::normalizeHost)
         val credential = host?.let { credentialStore.get(it) }
         if (host != null && credential == null) {
-            _uiState.update { it.copy(tokenDialog = TokenDialogState(host, DEFAULT_USERNAME, action)) }
+            _uiState.update { it.copy(tokenDialog = TokenDialogState(host, DEFAULT_USERNAME, action, mode)) }
             return false
         }
         val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
@@ -561,6 +586,7 @@ class GitViewModel(
                                 host,
                                 credential?.username ?: DEFAULT_USERNAME,
                                 action,
+                                mode,
                             ),
                         )
                     }
@@ -867,12 +893,16 @@ class GitViewModel(
 
     private fun saveToken(host: String, username: String, token: String) {
         credentialStore.put(GitCredential(host, username.ifBlank { DEFAULT_USERNAME }, token))
-        val pending = _uiState.value.tokenDialog?.pending
+        val dialog = _uiState.value.tokenDialog
         _uiState.update { it.copy(tokenDialog = null) }
         message(R.string.git_msg_token_saved, host)
-        when (pending) {
-            GitPendingAction.PUSH -> push(force = false)
-            GitPendingAction.PULL -> pull(rebase = false)
+        when (dialog?.pending) {
+            GitPendingAction.PUSH -> push(force = dialog.mode == PendingNetworkMode.Force)
+            GitPendingAction.PULL -> when (dialog.mode) {
+                PendingNetworkMode.Rebase -> pull(rebase = true)
+                PendingNetworkMode.PullThenPush -> pull(rebase = false, thenPush = true)
+                else -> pull(rebase = false)
+            }
             GitPendingAction.FETCH -> fetch()
             else -> Unit
         }
