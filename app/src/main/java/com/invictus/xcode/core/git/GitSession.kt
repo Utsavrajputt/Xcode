@@ -429,6 +429,12 @@ class GitSession(
         Unit
     }
 
+    /**
+     * `PullCommand` has no prune option of its own (unlike `FetchCommand`), so a
+     * deleted-on-remote branch's stale tracking ref would otherwise survive every
+     * pull. A pruning fetch runs first; PullCommand's own internal fetch afterward
+     * is then a no-op for anything already up to date.
+     */
     suspend fun pull(
         remote: String,
         branch: String?,
@@ -437,6 +443,12 @@ class GitSession(
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_PULL) {
         mutex.withLock {
+            git.fetch()
+                .setRemote(remote)
+                .setCredentialsProvider(credentials)
+                .setRemoveDeletedRefs(true)
+                .setProgressMonitor(gitProgressMonitor(onProgress))
+                .call()
             val cmd = git.pull()
                 .setRemote(remote)
                 .setCredentialsProvider(credentials)
@@ -448,6 +460,7 @@ class GitSession(
         Unit
     }
 
+    /** Prunes stale remote-tracking refs (deleted-on-remote branches) on every fetch. */
     suspend fun fetch(
         remote: String,
         credentials: CredentialsProvider?,
@@ -457,6 +470,7 @@ class GitSession(
             git.fetch()
                 .setRemote(remote)
                 .setCredentialsProvider(credentials)
+                .setRemoveDeletedRefs(true)
                 .setProgressMonitor(gitProgressMonitor(onProgress))
                 .call()
         }

@@ -617,6 +617,7 @@ class GitViewModel(
         if (!snapshot.hasCommits || snapshot.mergeInProgress) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(mergeDialog = true, mergeCandidates = emptyList()) }
+            backgroundPruneFetch()
             when (val result = session.mergeCandidates()) {
                 is GitResult.Ok -> _uiState.update { it.copy(mergeCandidates = result.value) }
                 is GitResult.Err -> _uiState.update {
@@ -776,6 +777,7 @@ class GitViewModel(
         if (!snapshot.hasCommits || snapshot.rebaseInProgress || snapshot.mergeInProgress) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(rebasePicker = true, rebaseCandidates = emptyList()) }
+            backgroundPruneFetch()
             when (val result = session.mergeCandidates()) {
                 is GitResult.Ok -> _uiState.update { it.copy(rebaseCandidates = result.value) }
                 is GitResult.Err -> _uiState.update {
@@ -783,6 +785,24 @@ class GitViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Best-effort, silent fetch (with prune) so the merge/rebase branch picker
+     * isn't showing a stale list — a deleted remote branch lingering, or one
+     * created since the last real fetch, missing. Never surfaces an auth prompt
+     * or error: an expired token or offline device just means the picker falls
+     * back to whatever was already fetched, same as before this existed.
+     */
+    private suspend fun backgroundPruneFetch() {
+        val remote = _uiState.value.snapshot?.trackingInfo?.remote
+            ?: _uiState.value.remotes.firstOrNull()?.name
+            ?: return
+        val host = session.remoteUrl(remote)?.let(::normalizeHost)
+        val credential = host?.let { credentialStore.get(it) }
+        if (host != null && credential == null) return
+        val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
+        session.fetch(remote, provider)
     }
 
     private fun rebaseOnto(branch: String) {
