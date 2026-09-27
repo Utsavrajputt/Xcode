@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.project
 
+import android.os.Environment
 import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -58,10 +59,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.invictus.xcode.R
+import com.invictus.xcode.core.search.FolderSearchEngine
 import com.invictus.xcode.feature.workspace.asString
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -99,6 +102,25 @@ fun OpenProjectSheet(
     val recents = state.recents.filter { matches(it.file, needle) }
     val shortcuts = state.shortcuts.filter { matches(it.file, needle) }
     val entries = state.browseEntries.filter { matches(it, needle) }
+
+    // Query ke saath, jo bhi shortcut/subfolder khula ho, hamesha poore Internal Storage root se
+    // recursively folders dhoondte hain — sirf currently-browsed folder ke direct children tak
+    // limited nahi rehte (M2 Part 2 ka wahi "andar ki files nahi milti" bug, yahan folders ke liye).
+    val folderSearchEngine = remember { FolderSearchEngine() }
+    val storageRoot = remember { Environment.getExternalStorageDirectory() }
+    var folderResults by remember { mutableStateOf<List<FolderSearchEngine.Result>>(emptyList()) }
+    var folderSearching by remember { mutableStateOf(false) }
+    LaunchedEffect(needle, state.showHidden) {
+        if (needle.isEmpty()) {
+            folderResults = emptyList()
+            folderSearching = false
+            return@LaunchedEffect
+        }
+        folderSearching = true
+        delay(200) // debounce; naya query aane par purana scan cancel ho jaata hai
+        folderResults = folderSearchEngine.search(root = storageRoot, query = needle, showHidden = state.showHidden)
+        folderSearching = false
+    }
 
     // Fixed 90% height makes sense once there's enough content to scroll through (browsing into
     // a folder, an active search, or a real recents list); otherwise it just leaves blank space
@@ -161,35 +183,54 @@ fun OpenProjectSheet(
                     }
                 }
                 item(key = "h-browse") { SectionLabel(R.string.sheet_browse) }
-                val browseDir = state.browseDir
-                if (browseDir == null) {
-                    items(items = shortcuts, key = { "s:" + it.file.path }) { shortcut ->
-                        FolderRow(
-                            name = shortcut.label?.asString() ?: shortcut.file.name,
-                            onEnter = { onEvent(ProjectsEvent.Browse(shortcut.file)) },
-                            onOpen = { onOpen(shortcut.file) },
+                if (needle.isNotEmpty()) {
+                    // Search active: poore storage se recursive results, browseDir/shortcuts ignore.
+                    if (folderSearching && folderResults.isEmpty()) {
+                        item(key = "folder-search-loading") { HintText(stringResource(R.string.search_searching)) }
+                    } else if (folderResults.isEmpty()) {
+                        item(key = "folder-search-empty") { HintText(stringResource(R.string.search_no_folder_matches)) }
+                    }
+                    items(items = folderResults, key = { "fs:" + it.file.path }) { result ->
+                        FolderSearchResultRow(
+                            result = result,
+                            onEnter = {
+                                onEvent(ProjectsEvent.Browse(result.file))
+                                query = ""
+                            },
+                            onOpen = { onOpen(result.file) },
                         )
                     }
                 } else {
-                    item(key = "browse-head") {
-                        BrowseHeader(
-                            dir = browseDir,
-                            onUp = { onEvent(ProjectsEvent.BrowseUp) },
-                            onOpen = { onOpen(browseDir) },
-                        )
-                    }
-                    val error = state.browseError
-                    if (error != null) {
-                        item(key = "browse-error") { HintText(error.asString(), isError = true) }
-                    } else if (entries.isEmpty()) {
-                        item(key = "browse-empty") { HintText(stringResource(R.string.sheet_no_subfolders)) }
-                    }
-                    items(items = entries, key = { "b:" + it.path }) { dir ->
-                        FolderRow(
-                            name = dir.name,
-                            onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
-                            onOpen = { onOpen(dir) },
-                        )
+                    val browseDir = state.browseDir
+                    if (browseDir == null) {
+                        items(items = shortcuts, key = { "s:" + it.file.path }) { shortcut ->
+                            FolderRow(
+                                name = shortcut.label?.asString() ?: shortcut.file.name,
+                                onEnter = { onEvent(ProjectsEvent.Browse(shortcut.file)) },
+                                onOpen = { onOpen(shortcut.file) },
+                            )
+                        }
+                    } else {
+                        item(key = "browse-head") {
+                            BrowseHeader(
+                                dir = browseDir,
+                                onUp = { onEvent(ProjectsEvent.BrowseUp) },
+                                onOpen = { onOpen(browseDir) },
+                            )
+                        }
+                        val error = state.browseError
+                        if (error != null) {
+                            item(key = "browse-error") { HintText(error.asString(), isError = true) }
+                        } else if (entries.isEmpty()) {
+                            item(key = "browse-empty") { HintText(stringResource(R.string.sheet_no_subfolders)) }
+                        }
+                        items(items = entries, key = { "b:" + it.path }) { dir ->
+                            FolderRow(
+                                name = dir.name,
+                                onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
+                                onOpen = { onOpen(dir) },
+                            )
+                        }
                     }
                 }
             }
@@ -296,6 +337,42 @@ private fun BrowseHeader(dir: File, onUp: () -> Unit, onOpen: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_folder)) }
+    }
+}
+
+/** Recursive folder-search hit: name (bold match) + its path under storage; tap enters, button opens. */
+@Composable
+private fun FolderSearchResultRow(
+    result: FolderSearchEngine.Result,
+    onEnter: () -> Unit,
+    onOpen: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .expressiveClickable(onClick = onEnter)
+            .padding(start = 24.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FileTypeIcon(name = result.name, isDirectory = true)
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = result.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = result.relativePath,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_folder)) }
     }
 }
