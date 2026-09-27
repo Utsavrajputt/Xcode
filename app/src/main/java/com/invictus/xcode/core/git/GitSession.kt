@@ -972,19 +972,41 @@ class GitSession(
         }
 
     /**
-     * Runs [block] once; if it fails on a leftover `index.lock` (e.g. the app was killed
+     * Runs [block] once; if it fails on a leftover `.lock` file (e.g. the app was killed
      * mid-write on a previous run), removes the stale file and retries exactly once. Safe
      * because [mutex] already rules out a live, in-process writer holding that lock.
+     *
+     * JGit's higher-level commands (CommitCommand, AddCommand, PushCommand, ...) catch the
+     * [LockFailedException] thrown by the low-level lock/write code and rethrow it wrapped in a
+     * [org.eclipse.jgit.api.errors.JGitInternalException] ("Exception caught during execution of
+     * ... command"), with the original preserved only as [Throwable.cause]. So this must search
+     * the whole cause chain, not just check the outermost exception's type, or recovery silently
+     * never triggers for any command that wraps its failures this way.
      */
     private suspend fun <T> runWithLockRecovery(block: suspend () -> T): T =
         try {
             block()
-        } catch (e: LockFailedException) {
-            if (clearStaleIndexLock()) block() else throw e
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            val lockFailure = e.findLockFailedException()
+            if (lockFailure != null && clearStaleLock(lockFailure)) block() else throw e
         }
 
-    private fun clearStaleIndexLock(): Boolean {
-        val lockFile = runCatching { File(repository.directory, "index.lock") }.getOrNull() ?: return false
+    /** Walks [this]'s cause chain looking for a [LockFailedException]. */
+    private tailrec fun Throwable.findLockFailedException(): LockFailedException? = when {
+        this is LockFailedException -> this
+        cause != null && cause !== this -> cause!!.findLockFailedException()
+        else -> null
+    }
+
+    /**
+     * Deletes the stale `.lock` sidecar for the file JGit failed to lock. [LockFailedException]
+     * reports the file it was locking (e.g. `.git/index`, `.git/HEAD`, a packed-refs file, a ref
+     * under `.git/refs/...`), not the lock file itself — the lock file is always that path plus
+     * a literal `.lock` suffix, regardless of which git operation created it.
+     */
+    private fun clearStaleLock(e: LockFailedException): Boolean {
+        val lockFile = runCatching { File(e.file.path + ".lock") }.getOrNull() ?: return false
         return lockFile.exists() && lockFile.delete()
     }
 
