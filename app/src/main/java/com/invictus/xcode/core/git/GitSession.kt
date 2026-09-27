@@ -19,6 +19,7 @@ import com.invictus.xcode.core.git.model.GitTagInfo
 import com.invictus.xcode.core.git.model.GitTrackingInfo
 import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
+import com.invictus.xcode.core.git.model.RebaseOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +31,8 @@ import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand
 import org.eclipse.jgit.api.MergeCommand
 import org.eclipse.jgit.api.MergeResult
+import org.eclipse.jgit.api.RebaseCommand
+import org.eclipse.jgit.api.RebaseResult
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.errors.LockFailedException
@@ -713,25 +716,7 @@ class GitSession(
         val name = branch.trim()
         require(name.isNotEmpty()) { "Branch name is empty." }
         mutex.withLock {
-            val commitId = repository.resolve("refs/heads/$name")
-                ?: if (name.contains('/')) repository.resolve("refs/remotes/$name") else null
-                ?: run {
-                    // Tracked branch: fall back to its configured remote ref.
-                    val remote = repository.config.getString(
-                        ConfigConstants.CONFIG_BRANCH_SECTION, name,
-                        ConfigConstants.CONFIG_KEY_REMOTE,
-                    )
-                    val merge = repository.config.getString(
-                        ConfigConstants.CONFIG_BRANCH_SECTION, name,
-                        ConfigConstants.CONFIG_KEY_MERGE,
-                    )
-                    if (remote != null && merge != null) {
-                        repository.resolve(
-                            "refs/remotes/$remote/${merge.removePrefix("refs/heads/")}",
-                        )
-                    } else null
-                }
-                ?: throw IllegalStateException("Cannot resolve branch '$name'.")
+            val commitId = resolveBranchRef(name)
             if (currentBranchName() == name) {
                 throw IllegalStateException("Already on '$name'.")
             }
@@ -751,6 +736,32 @@ class GitSession(
             }
         }
     }
+
+    /**
+     * Resolves [name] the same way for merge and rebase targets: a local short name
+     * ("feature"), a remote-tracking path ("origin/feature"), or a tracked branch's
+     * short name (falls back to its configured remote ref). Call only under [mutex].
+     */
+    private fun resolveBranchRef(name: String): ObjectId =
+        repository.resolve("refs/heads/$name")
+            ?: if (name.contains('/')) repository.resolve("refs/remotes/$name") else null
+            ?: run {
+                // Tracked branch: fall back to its configured remote ref.
+                val remote = repository.config.getString(
+                    ConfigConstants.CONFIG_BRANCH_SECTION, name,
+                    ConfigConstants.CONFIG_KEY_REMOTE,
+                )
+                val merge = repository.config.getString(
+                    ConfigConstants.CONFIG_BRANCH_SECTION, name,
+                    ConfigConstants.CONFIG_KEY_MERGE,
+                )
+                if (remote != null && merge != null) {
+                    repository.resolve(
+                        "refs/remotes/$remote/${merge.removePrefix("refs/heads/")}",
+                    )
+                } else null
+            }
+            ?: throw IllegalStateException("Cannot resolve branch '$name'.")
 
     /** Local + remote short names minus the current branch, for the merge picker. */
     suspend fun mergeCandidates(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
@@ -857,6 +868,66 @@ class GitSession(
         }
     }
 
+    // ---- M11: rebase ----------------------------------------------------------
+
+    /**
+     * Rebase the current branch onto [branch] (same name resolution as [mergeBranch]).
+     * Stops with [RebaseOutcome.CONFLICTS] (REBASE_MERGE state written) when a patch
+     * fails to apply; resolve conflicted paths the same way as a merge conflict, then
+     * call [continueRebase] (or [skipRebaseCommit] / [abortRebase]).
+     */
+    suspend fun rebaseOnto(branch: String): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
+        val name = branch.trim()
+        require(name.isNotEmpty()) { "Rebase target is empty." }
+        mutex.withLock {
+            val onto = resolveBranchRef(name)
+            if (currentBranchName() == name) {
+                throw IllegalStateException("Already on '$name'.")
+            }
+            git.rebase().setUpstream(onto).call().status.toOutcome()
+        }
+    }
+
+    /** Resumes a stopped rebase once every conflicted path is resolved and staged. */
+    suspend fun continueRebase(): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
+        mutex.withLock {
+            if (!repository.repositoryState.isRebasing) {
+                throw IllegalStateException("No rebase is in progress.")
+            }
+            git.rebase().setOperation(RebaseCommand.Operation.CONTINUE).call().status.toOutcome()
+        }
+    }
+
+    /** Drops the commit currently being replayed and moves on to the next one. */
+    suspend fun skipRebaseCommit(): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
+        mutex.withLock {
+            if (!repository.repositoryState.isRebasing) {
+                throw IllegalStateException("No rebase is in progress.")
+            }
+            git.rebase().setOperation(RebaseCommand.Operation.SKIP).call().status.toOutcome()
+        }
+    }
+
+    /** Restores the branch to where the rebase started; conflict resolutions are lost. */
+    suspend fun abortRebase(): GitResult<Unit> = ioOp(TITLE_REBASE) {
+        mutex.withLock {
+            if (!repository.repositoryState.isRebasing) return@ioOp Unit
+            git.rebase().setOperation(RebaseCommand.Operation.ABORT).call()
+        }
+        Unit
+    }
+
+    private fun RebaseResult.Status.toOutcome(): RebaseOutcome = when (this) {
+        RebaseResult.Status.FAST_FORWARD -> RebaseOutcome.FAST_FORWARD
+        RebaseResult.Status.OK -> RebaseOutcome.OK
+        RebaseResult.Status.UP_TO_DATE -> RebaseOutcome.ALREADY_UP_TO_DATE
+        RebaseResult.Status.STOPPED, RebaseResult.Status.CONFLICTS -> RebaseOutcome.CONFLICTS
+        RebaseResult.Status.NOTHING_TO_COMMIT -> throw IllegalStateException(
+            "Nothing left to commit for this step — try Skip instead.",
+        )
+        else -> throw IllegalStateException("Rebase finished with status $this.")
+    }
+
     // ---- internals ----------------------------------------------------------
 
     private fun resolveIdentity(): Identity? {
@@ -887,6 +958,8 @@ class GitSession(
             headName = branch,
             trackingInfo = tracking,
             mergeInProgress = runCatching { repository.readMergeHeads() != null }
+                .getOrDefault(false),
+            rebaseInProgress = runCatching { repository.repositoryState.isRebasing }
                 .getOrDefault(false),
         )
     }
@@ -1035,6 +1108,7 @@ class GitSession(
         private const val TITLE_REMOTE = "Git remote"
         private const val TITLE_INIT = "Initialize repository"
         private const val TITLE_MERGE = "Git merge"
+        private const val TITLE_REBASE = "Git rebase"
         private const val TITLE_RESET = "Git reset"
     }
 }

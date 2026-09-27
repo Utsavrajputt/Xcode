@@ -52,6 +52,12 @@ sealed interface GitEvent {
     data class ResetTo(val ref: String, val label: String, val mode: GitResetMode) : GitEvent
     data object ConfirmHardReset : GitEvent
     data object DismissHardResetConfirm : GitEvent
+    // M11: rebase (continue/skip/abort — started from the Branches screen)
+    data object ContinueRebase : GitEvent
+    data object SkipRebaseCommit : GitEvent
+    data object AbortRebase : GitEvent
+    data object ConfirmAbortRebase : GitEvent
+    data object DismissAbortRebase : GitEvent
 }
 
 sealed interface GitCloneEvent {

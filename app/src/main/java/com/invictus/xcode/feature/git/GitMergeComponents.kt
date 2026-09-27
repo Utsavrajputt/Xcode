@@ -200,3 +200,28 @@ internal fun ConflictActionsRow(change: GitPathChange, onEvent: (GitEvent) -> Un
         }
     }
 }
+
+/** M11 rebase dialogs; rides along wherever the drawer sheet is composed. */
+@Composable
+internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    if (state.abortRebaseConfirm) {
+        AlertDialog(
+            onDismissRequest = { onEvent(GitEvent.DismissAbortRebase) },
+            title = { Text(stringResource(R.string.git_abort_rebase_title)) },
+            text = { Text(stringResource(R.string.git_abort_rebase_message)) },
+            confirmButton = {
+                TextButton(onClick = { onEvent(GitEvent.ConfirmAbortRebase) }) {
+                    Text(
+                        stringResource(R.string.git_abort_rebase_confirm),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { onEvent(GitEvent.DismissAbortRebase) }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+}

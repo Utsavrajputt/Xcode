@@ -198,9 +198,6 @@ fun GitScreen(
                     ) {
                         Icon(XIcons.Sync, contentDescription = stringResource(R.string.git_fetch))
                     }
-                    IconButton(onClick = { viewModel.onEvent(GitEvent.OpenIdentity) }) {
-                        Icon(XIcons.Person, contentDescription = stringResource(R.string.git_identity))
-                    }
                     IconButton(
                         onClick = { viewModel.onEvent(GitEvent.OpenReset) },
                         enabled = state.snapshot?.hasCommits == true,
@@ -212,6 +209,13 @@ fun GitScreen(
                             Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_title))
                         }
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_identity)) },
+                                onClick = {
+                                    overflowOpen = false
+                                    viewModel.onEvent(GitEvent.OpenIdentity)
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_history_title)) },
                                 onClick = {

@@ -128,4 +128,23 @@
 <string name="conflict_accept_ours">Accept ours</string>
 <string name="conflict_accept_theirs">Accept theirs</string>
 <string name="conflict_accept_both">Accept both</string>
+
+<!-- M11: rebase -->
+<string name="git_branch_more">More</string>
+<string name="git_branch_rebase">Rebase onto</string>
+<string name="git_branch_rebase_confirm_title">Rebase onto \'%1$s\'?</string>
+<string name="git_branch_rebase_confirm_text">This rewrites your current branch\'s commit history onto \'%1$s\'. Commit or stash uncommitted changes first.</string>
+<string name="git_msg_rebase_ff">Fast-forwarded.</string>
+<string name="git_msg_rebase_ok">Rebase finished.</string>
+<string name="git_msg_rebase_uptodate">Already up to date.</string>
+<string name="git_msg_rebase_conflicts">Rebase has conflicts — resolve them in the Git panel.</string>
+<string name="git_msg_rebase_aborted">Rebase aborted.</string>
+<string name="git_rebase_in_progress">Rebase in progress</string>
+<string name="git_rebase_in_progress_conflicts">Rebase in progress — %1$d conflict(s) remaining</string>
+<string name="git_continue_rebase">Continue</string>
+<string name="git_skip_rebase">Skip commit</string>
+<string name="git_abort_rebase">Abort rebase</string>
+<string name="git_abort_rebase_title">Abort rebase?</string>
+<string name="git_abort_rebase_message">All conflict resolutions will be lost and the branch reset to where the rebase started.</string>
+<string name="git_abort_rebase_confirm">Abort</string>
 </resources>

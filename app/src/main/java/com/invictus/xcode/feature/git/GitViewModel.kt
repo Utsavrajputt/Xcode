@@ -24,6 +24,7 @@ import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitResetMode
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
+import com.invictus.xcode.core.git.model.RebaseOutcome
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.workspace.UiText
 import kotlinx.coroutines.CoroutineDispatcher
@@ -110,6 +111,8 @@ class GitViewModel(
         val resetCommitsLoading: Boolean = false,
         val resetHardConfirm: PendingReset? = null,
         val resetting: Boolean = false,
+        // M11: rebase
+        val abortRebaseConfirm: Boolean = false,
     )
 
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
@@ -216,6 +219,12 @@ class GitViewModel(
             GitEvent.ConfirmHardReset -> confirmHardReset()
             GitEvent.DismissHardResetConfirm ->
                 _uiState.update { it.copy(resetHardConfirm = null) }
+            // ---- rebase (continue/skip/abort) ----
+            GitEvent.ContinueRebase -> continueRebase()
+            GitEvent.SkipRebaseCommit -> skipRebaseCommit()
+            GitEvent.AbortRebase -> _uiState.update { it.copy(abortRebaseConfirm = true) }
+            GitEvent.ConfirmAbortRebase -> abortRebase()
+            GitEvent.DismissAbortRebase -> _uiState.update { it.copy(abortRebaseConfirm = false) }
         }
     }
 
@@ -236,7 +245,7 @@ class GitViewModel(
                             remotes = remotes,
                         )
                     }
-                    if (result.value.first.mergeInProgress &&
+                    if ((result.value.first.mergeInProgress || result.value.first.rebaseInProgress) &&
                         lastConflictCount > 0 && conflicts == 0
                     ) {
                         message(R.string.git_msg_all_conflicts_resolved)
@@ -538,6 +547,58 @@ class GitViewModel(
             }
             _uiState.update { it.copy(completingMerge = false) }
         }
+    }
+
+    // ---- M11: rebase (continue/skip/abort) --------------------------------------
+
+    private fun continueRebase() {
+        viewModelScope.launch(io) {
+            when (val result = session.continueRebase()) {
+                is GitResult.Ok -> {
+                    message(rebaseOutcomeMessage(result.value))
+                    refresh()
+                }
+                is GitResult.Err -> {
+                    if (result.error.exceptionClass.endsWith("GitIdentityMissingException")) {
+                        openIdentity()
+                    } else {
+                        _uiState.update { it.copy(error = result.error) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun skipRebaseCommit() {
+        viewModelScope.launch(io) {
+            when (val result = session.skipRebaseCommit()) {
+                is GitResult.Ok -> {
+                    message(rebaseOutcomeMessage(result.value))
+                    refresh()
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun abortRebase() {
+        viewModelScope.launch(io) {
+            _uiState.update { it.copy(abortRebaseConfirm = false) }
+            when (val result = session.abortRebase()) {
+                is GitResult.Ok -> {
+                    message(R.string.git_msg_rebase_aborted)
+                    refresh()
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
+        }
+    }
+
+    private fun rebaseOutcomeMessage(outcome: RebaseOutcome): Int = when (outcome) {
+        RebaseOutcome.FAST_FORWARD -> R.string.git_msg_rebase_ff
+        RebaseOutcome.OK -> R.string.git_msg_rebase_ok
+        RebaseOutcome.ALREADY_UP_TO_DATE -> R.string.git_msg_rebase_uptodate
+        RebaseOutcome.CONFLICTS -> R.string.git_msg_rebase_conflicts
     }
 
     // ---- reset -------------------------------------------------------------

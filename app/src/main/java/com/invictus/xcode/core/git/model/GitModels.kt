@@ -10,6 +10,7 @@ data class GitRepoSnapshot(
     val headName: String?,
     val trackingInfo: GitTrackingInfo?,
     val mergeInProgress: Boolean = false,
+    val rebaseInProgress: Boolean = false,
 )
 
 /** Upstream tracking: which remote/branch HEAD follows, and how far it has diverged. */
@@ -185,3 +186,7 @@ enum class GitLogSearchMode { MESSAGE, AUTHOR, HASH }
 enum class GitConflictSide { OURS, THEIRS }
 
 enum class MergeOutcome { FAST_FORWARD, MERGED, ALREADY_UP_TO_DATE, CONFLICTS }
+
+// ---- M11: rebase -------------------------------------------------------------
+
+enum class RebaseOutcome { FAST_FORWARD, OK, ALREADY_UP_TO_DATE, CONFLICTS }

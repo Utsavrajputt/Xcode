@@ -73,6 +73,9 @@ fun SourceControlDrawerSheet(
                 if (state.snapshot?.mergeInProgress == true) {
                     item("merge-banner") { MergeInProgressBanner(state, onEvent) }
                 }
+                if (state.snapshot?.rebaseInProgress == true) {
+                    item("rebase-banner") { RebaseInProgressBanner(state, onEvent) }
+                }
                 if (status.isClean) {
                     item("clean") {
                         Text(
@@ -137,6 +140,7 @@ fun SourceControlDrawerSheet(
         GitErrorDialog(details = it, onDismiss = { onEvent(GitEvent.DismissError) })
     }
     GitMergeDialogs(state, onEvent)
+    GitRebaseDialogs(state, onEvent)
 }
 
 @Composable
@@ -159,6 +163,40 @@ private fun MergeInProgressBanner(state: GitViewModel.UiState, onEvent: (GitEven
             TextButton(onClick = { onEvent(GitEvent.AbortMerge) }) {
                 Text(
                     stringResource(R.string.git_abort_merge),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun RebaseInProgressBanner(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    val conflicts = state.status?.conflicts?.size ?: 0
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = if (conflicts > 0)
+                stringResource(R.string.git_rebase_in_progress_conflicts, conflicts)
+            else stringResource(R.string.git_rebase_in_progress),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            TextButton(
+                onClick = { onEvent(GitEvent.ContinueRebase) },
+                enabled = conflicts == 0,
+            ) {
+                Text(stringResource(R.string.git_continue_rebase))
+            }
+            TextButton(onClick = { onEvent(GitEvent.SkipRebaseCommit) }) {
+                Text(stringResource(R.string.git_skip_rebase))
+            }
+            TextButton(onClick = { onEvent(GitEvent.AbortRebase) }) {
+                Text(
+                    stringResource(R.string.git_abort_rebase),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
