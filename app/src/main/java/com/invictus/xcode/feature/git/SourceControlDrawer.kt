@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,9 +30,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -141,6 +148,16 @@ fun SourceControlDrawerSheet(
     }
     GitMergeDialogs(state, onEvent)
     GitRebaseDialogs(state, onEvent)
+    if (state.pushRejected) {
+        GitConfirmDialog(
+            title = stringResource(R.string.git_push_rejected_title),
+            text = stringResource(R.string.git_push_rejected_body),
+            confirmLabel = stringResource(R.string.git_push_rejected_pull),
+            danger = false,
+            onConfirm = { onEvent(GitEvent.PullThenRetryPush) },
+            onDismiss = { onEvent(GitEvent.DismissPushRejected) },
+        )
+    }
 }
 
 @Composable
@@ -264,7 +281,7 @@ private fun DrawerCommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) ->
             Spacer(Modifier.weight(1f))
             Button(
                 onClick = { onEvent(GitEvent.Commit) },
-                enabled = state.commitMessage.isNotBlank() && !state.committing,
+                enabled = (state.commitMessage.isNotBlank() || state.amend) && !state.committing,
             ) { Text(stringResource(R.string.git_commit)) }
         }
     }
@@ -277,21 +294,64 @@ private fun DrawerQuickActions(state: GitViewModel.UiState, onEvent: (GitEvent) 
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        OutlinedButton(onClick = { onEvent(GitEvent.Push) }, enabled = canSync) {
-            Icon(XIcons.CloudUpload, null, Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.git_push))
-        }
-        OutlinedButton(onClick = { onEvent(GitEvent.Pull) }, enabled = canSync) {
-            Icon(XIcons.CloudDownload, null, Modifier.size(16.dp))
-            Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.git_pull))
-        }
+        DrawerSplitSyncButton(
+            label = stringResource(R.string.git_push),
+            icon = XIcons.CloudUpload,
+            enabled = canSync,
+            menuContentDescription = stringResource(R.string.git_push_more),
+            menuItemLabel = stringResource(R.string.git_force_push_lease),
+            onClick = { onEvent(GitEvent.Push) },
+            onMenuItemClick = { onEvent(GitEvent.ForcePushWithLease) },
+        )
+        DrawerSplitSyncButton(
+            label = stringResource(R.string.git_pull),
+            icon = XIcons.CloudDownload,
+            enabled = canSync,
+            menuContentDescription = stringResource(R.string.git_pull_more),
+            menuItemLabel = stringResource(R.string.git_pull_rebase),
+            onClick = { onEvent(GitEvent.Pull) },
+            onMenuItemClick = { onEvent(GitEvent.PullRebase) },
+        )
         OutlinedButton(
             onClick = { onEvent(GitEvent.OpenMerge) },
             enabled = state.snapshot?.hasCommits == true &&
                 state.snapshot?.mergeInProgress != true && !state.merging,
         ) { Text(stringResource(R.string.git_merge)) }
+    }
+}
+
+/** Drawer-sized variant of the split push/pull button (smaller icon/spacing). */
+@Composable
+private fun DrawerSplitSyncButton(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    menuContentDescription: String,
+    menuItemLabel: String,
+    onClick: () -> Unit,
+    onMenuItemClick: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = onClick, enabled = enabled) {
+            Icon(icon, null, Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label)
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, enabled = enabled) {
+                Icon(XIcons.KeyboardArrowDown, contentDescription = menuContentDescription)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(menuItemLabel) },
+                    onClick = {
+                        menuOpen = false
+                        onMenuItemClick()
+                    },
+                )
+            }
+        }
     }
 }
 

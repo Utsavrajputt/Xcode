@@ -250,8 +250,15 @@
     <string name="git_amend">Amend</string>
     <string name="git_commit">Commit</string>
     <string name="git_push">Push</string>
+    <string name="git_push_more">More push options</string>
+    <string name="git_force_push_lease">Force Push (with lease)</string>
     <string name="git_pull">Pull</string>
+    <string name="git_pull_more">More pull options</string>
+    <string name="git_pull_rebase">Pull (rebase)</string>
     <string name="git_fetch">Fetch</string>
+    <string name="git_push_rejected_title">Push rejected</string>
+    <string name="git_push_rejected_body">The remote has commits you don\'t have yet. Pull first, then try pushing again.</string>
+    <string name="git_push_rejected_pull">Pull</string>
     <string name="git_identity">Git identity</string>
     <string name="git_identity_desc">Used as the author of your commits.</string>
     <string name="git_identity_name">Name</string>

@@ -17,8 +17,13 @@ sealed interface GitEvent {
     data object ToggleAmend : GitEvent
     data object Commit : GitEvent
     data object Push : GitEvent
+    data object ForcePushWithLease : GitEvent
     data object Pull : GitEvent
+    data object PullRebase : GitEvent
     data object Fetch : GitEvent
+    /** "Remote has commits you don't have" dialog shown after a rejected push. */
+    data object DismissPushRejected : GitEvent
+    data object PullThenRetryPush : GitEvent
     // M7 drawer
     data class ToggleSection(val name: String) : GitEvent
     data class LoadDiff(val path: String) : GitEvent

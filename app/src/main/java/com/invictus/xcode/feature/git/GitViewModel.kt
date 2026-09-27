@@ -69,7 +69,23 @@ class GitViewModel(
         val username: String,
         /** Which op to re-run once a token is saved; null = just store it. */
         val pending: GitPendingAction?,
+        /**
+         * The exact push/pull variant the person had asked for before the auth
+         * prompt interrupted them — force push, rebase pull, or the pull-then-push
+         * retry from the push-rejected dialog — so saving the token replays that,
+         * not a plain push/pull. Ignored when [pending] isn't PUSH or PULL.
+         */
+        val mode: PendingNetworkMode = PendingNetworkMode.Plain,
     )
+
+    /** Carries push/pull's force/rebase/continuation intent through a token-save detour. */
+    sealed interface PendingNetworkMode {
+        data object Plain : PendingNetworkMode
+        data object Force : PendingNetworkMode
+        data object Rebase : PendingNetworkMode
+        /** The "Pull" choice on the push-rejected dialog: pull, then retry the push. */
+        data object PullThenPush : PendingNetworkMode
+    }
 
     data class ConflictPreviewState(
         val path: String,
@@ -120,6 +136,8 @@ class GitViewModel(
         val rebasePicker: Boolean = false,
         val rebaseCandidates: List<String> = emptyList(),
         val rebasing: Boolean = false,
+        /** Shown when a plain (non-force) push is rejected — remote has commits we don't. */
+        val pushRejected: Boolean = false,
     )
 
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
@@ -204,11 +222,18 @@ class GitViewModel(
             GitEvent.DismissDiscard -> _uiState.update { it.copy(discardConfirm = null) }
             is GitEvent.CommitMessageChange ->
                 _uiState.update { it.copy(commitMessage = event.text) }
-            GitEvent.ToggleAmend -> _uiState.update { it.copy(amend = !it.amend) }
+            GitEvent.ToggleAmend -> toggleAmend()
             GitEvent.Commit -> commit()
-            GitEvent.Push -> push()
-            GitEvent.Pull -> pull()
+            GitEvent.Push -> push(force = false)
+            GitEvent.ForcePushWithLease -> push(force = true)
+            GitEvent.Pull -> pull(rebase = false)
+            GitEvent.PullRebase -> pull(rebase = true)
             GitEvent.Fetch -> fetch()
+            GitEvent.DismissPushRejected -> _uiState.update { it.copy(pushRejected = false) }
+            GitEvent.PullThenRetryPush -> {
+                _uiState.update { it.copy(pushRejected = false) }
+                pull(rebase = false, thenPush = true)
+            }
             is GitEvent.ToggleSection -> _uiState.update {
                 it.copy(
                     expandedSections = if (event.name in it.expandedSections)
@@ -395,12 +420,36 @@ class GitViewModel(
 
     // ---- commit ---------------------------------------------------------------
 
+    /** Amend ON pre-fills HEAD's message (editable, message-only reword stays possible). */
+    private fun toggleAmend() {
+        val turningOn = !_uiState.value.amend
+        _uiState.update { it.copy(amend = turningOn) }
+        if (!turningOn) return
+        viewModelScope.launch(io) {
+            when (val result = session.headCommitMessage()) {
+                is GitResult.Ok -> result.value?.let { headMessage ->
+                    _uiState.update {
+                        // Only prefill if the box is still empty/untouched — don't clobber
+                        // something the user already started typing before the toggle.
+                        if (it.amend && it.commitMessage.isBlank()) {
+                            it.copy(commitMessage = headMessage.trimEnd('\n'))
+                        } else it
+                    }
+                }
+                is GitResult.Err -> Unit
+            }
+        }
+    }
+
     private fun commit() {
         val message = _uiState.value.commitMessage.trim()
-        if (message.isEmpty()) return
+        val amend = _uiState.value.amend
+        // Amend allows an empty box through as a message-only reword of HEAD's own
+        // message; a fresh (non-amend) commit still needs real text.
+        if (message.isEmpty() && !amend) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(committing = true) }
-            when (val result = session.commit(message, _uiState.value.amend)) {
+            when (val result = session.commit(message, amend)) {
                 is GitResult.Ok -> {
                     _uiState.update { it.copy(commitMessage = "", amend = false) }
                     message(R.string.git_msg_committed)
@@ -440,7 +489,7 @@ class GitViewModel(
 
     // ---- network ---------------------------------------------------------------
 
-    private fun push() {
+    private fun push(force: Boolean) {
         val snapshot = _uiState.value.snapshot ?: return
         if (!snapshot.hasCommits) return
         val remote = snapshot.trackingInfo?.remote ?: _uiState.value.remotes.firstOrNull()?.name
@@ -448,14 +497,22 @@ class GitViewModel(
             message(R.string.git_err_no_remote)
             return
         }
+        val mode = if (force) PendingNetworkMode.Force else PendingNetworkMode.Plain
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.PUSH, remote) { cp ->
-                session.push(remote, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
+            runNetwork(GitPendingAction.PUSH, remote, mode) { cp ->
+                session.push(remote, cp, force = force) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
         }
     }
 
-    private fun pull() {
+    /**
+     * [thenPush] re-runs a plain push right after a successful pull — used by the
+     * "Pull then push" choice on the push-rejected dialog, so the person doesn't
+     * have to tap Push again themselves. If a token prompt interrupts this pull,
+     * [PendingNetworkMode.PullThenPush] carries that intent through so saving the
+     * token still chains into the push instead of stopping at a plain pull.
+     */
+    private fun pull(rebase: Boolean, thenPush: Boolean = false) {
         val snapshot = _uiState.value.snapshot ?: return
         if (!snapshot.hasCommits) return
         val tracking = snapshot.trackingInfo
@@ -465,10 +522,16 @@ class GitViewModel(
             return
         }
         val branch = tracking?.branch ?: snapshot.headName
+        val mode = when {
+            thenPush -> PendingNetworkMode.PullThenPush
+            rebase -> PendingNetworkMode.Rebase
+            else -> PendingNetworkMode.Plain
+        }
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.PULL, remote) { cp ->
-                session.pull(remote, branch, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
+            val pulled = runNetwork(GitPendingAction.PULL, remote, mode) { cp ->
+                session.pull(remote, branch, cp, rebase = rebase) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
+            if (thenPush && pulled) push(force = false)
         }
     }
 
@@ -481,27 +544,29 @@ class GitViewModel(
             return
         }
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.FETCH, remote) { cp ->
+            runNetwork(GitPendingAction.FETCH, remote, PendingNetworkMode.Plain) { cp ->
                 session.fetch(remote, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             }
         }
     }
 
+    /** Returns true when the op succeeded — used by [pull]'s thenPush chaining. */
     private suspend fun runNetwork(
         action: GitPendingAction,
         remote: String,
+        mode: PendingNetworkMode,
         call: suspend (CredentialsProvider?) -> GitResult<Unit>,
-    ) {
+    ): Boolean {
         val url = session.remoteUrl(remote)
         val host = url?.let(::normalizeHost)
         val credential = host?.let { credentialStore.get(it) }
         if (host != null && credential == null) {
-            _uiState.update { it.copy(tokenDialog = TokenDialogState(host, DEFAULT_USERNAME, action)) }
-            return
+            _uiState.update { it.copy(tokenDialog = TokenDialogState(host, DEFAULT_USERNAME, action, mode)) }
+            return false
         }
         val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
         _uiState.update { it.copy(networkOp = action, progressTask = "") }
-        when (val result = call(provider)) {
+        val ok = when (val result = call(provider)) {
             is GitResult.Ok -> {
                 message(
                     when (action) {
@@ -511,6 +576,7 @@ class GitViewModel(
                     },
                 )
                 refresh()
+                true
             }
             is GitResult.Err -> {
                 if (host != null && result.error.authFailure.isAuthError()) {
@@ -520,15 +586,22 @@ class GitViewModel(
                                 host,
                                 credential?.username ?: DEFAULT_USERNAME,
                                 action,
+                                mode,
                             ),
                         )
                     }
+                } else if (action == GitPendingAction.PUSH &&
+                    result.error.exceptionClass.endsWith("GitPushRejectedException")
+                ) {
+                    _uiState.update { it.copy(pushRejected = true) }
                 } else {
                     _uiState.update { it.copy(error = result.error) }
                 }
+                false
             }
         }
         _uiState.update { it.copy(networkOp = null, progressTask = "") }
+        return ok
     }
 
     private fun GitAuthFailureType.isAuthError(): Boolean =
@@ -820,12 +893,16 @@ class GitViewModel(
 
     private fun saveToken(host: String, username: String, token: String) {
         credentialStore.put(GitCredential(host, username.ifBlank { DEFAULT_USERNAME }, token))
-        val pending = _uiState.value.tokenDialog?.pending
+        val dialog = _uiState.value.tokenDialog
         _uiState.update { it.copy(tokenDialog = null) }
         message(R.string.git_msg_token_saved, host)
-        when (pending) {
-            GitPendingAction.PUSH -> push()
-            GitPendingAction.PULL -> pull()
+        when (dialog?.pending) {
+            GitPendingAction.PUSH -> push(force = dialog.mode == PendingNetworkMode.Force)
+            GitPendingAction.PULL -> when (dialog.mode) {
+                PendingNetworkMode.Rebase -> pull(rebase = true)
+                PendingNetworkMode.PullThenPush -> pull(rebase = false, thenPush = true)
+                else -> pull(rebase = false)
+            }
             GitPendingAction.FETCH -> fetch()
             else -> Unit
         }
