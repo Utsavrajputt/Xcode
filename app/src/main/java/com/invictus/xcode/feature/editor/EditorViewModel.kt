@@ -117,6 +117,14 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setAutoReloadExternalChanges(enabled) }
     }
 
+    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; on by default. */
+    val gitStatusPollingEnabled: StateFlow<Boolean> = settingsStore.gitStatusPollingEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setGitStatusPollingEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setGitStatusPollingEnabled(enabled) }
+    }
+
     /** Last font size the user zoomed to anywhere, in px; 0f = editor's own built-in default. */
     private var defaultFontSizePx: Float = 0f
 

@@ -22,9 +22,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
 class GitCloneViewModel(
@@ -150,9 +152,12 @@ class GitCloneViewModel(
         val Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as XcodeApp
+                val savedParent = runBlocking { app.container.editorSettingsStore.cloneDefaultParent.first() }
+                val defaultParent = savedParent.takeIf { it.isNotBlank() }?.let(::File)
+                    ?: Environment.getExternalStorageDirectory()
                 GitCloneViewModel(
                     credentialStore = app.container.gitCredentialStore,
-                    defaultParent = Environment.getExternalStorageDirectory(),
+                    defaultParent = defaultParent,
                 )
             }
         }

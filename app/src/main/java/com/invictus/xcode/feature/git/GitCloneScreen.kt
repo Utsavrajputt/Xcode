@@ -2,6 +2,7 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
+import com.invictus.xcode.ui.components.rememberFolderPickerLauncher
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.launch
 
@@ -111,14 +114,26 @@ fun GitCloneScreen(
                 singleLine = true,
                 enabled = !state.cloning,
             )
-            OutlinedTextField(
-                value = state.parentPath,
-                onValueChange = { viewModel.onEvent(GitCloneEvent.ParentChange(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.clone_parent_hint)) },
-                singleLine = true,
-                enabled = !state.cloning,
+            val pickParentFolder = rememberFolderPickerLauncher(
+                onPicked = { path -> viewModel.onEvent(GitCloneEvent.ParentChange(path)) },
             )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = state.parentPath,
+                    onValueChange = { viewModel.onEvent(GitCloneEvent.ParentChange(it)) },
+                    modifier = Modifier.weight(1f),
+                    label = { Text(stringResource(R.string.clone_parent_hint)) },
+                    singleLine = true,
+                    enabled = !state.cloning,
+                )
+                IconButton(onClick = pickParentFolder, enabled = !state.cloning) {
+                    Icon(XIcons.Folder, contentDescription = stringResource(R.string.clone_browse_folder))
+                }
+            }
             OutlinedTextField(
                 value = state.branch,
                 onValueChange = { viewModel.onEvent(GitCloneEvent.BranchChange(it)) },

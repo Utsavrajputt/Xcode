@@ -31,6 +31,8 @@ class EditorSettingsStore(private val context: Context) {
         val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
         val AUTO_PREVIEW_ENABLED = booleanPreferencesKey("editor_auto_preview_enabled")
         val PROJECT_SHEET_SHOW_HIDDEN = booleanPreferencesKey("project_sheet_show_hidden")
+        val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
+        val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -68,6 +70,22 @@ class EditorSettingsStore(private val context: Context) {
      * sheet's ViewModel was recreated (e.g. Home vs Workspace each own one); now persisted. */
     val projectSheetShowHidden: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.PROJECT_SHEET_SHOW_HIDDEN] ?: false }
+
+    /** Clone screen "Parent folder" default -- empty means fall back to external storage root. */
+    val cloneDefaultParent: Flow<String> = context.editorSettingsDataStore.data
+        .map { it[Keys.CLONE_DEFAULT_PARENT].orEmpty() }
+
+    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; on by default. */
+    val gitStatusPollingEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.GIT_STATUS_POLLING_ENABLED] ?: true }
+
+    suspend fun setCloneDefaultParent(path: String) {
+        context.editorSettingsDataStore.edit { it[Keys.CLONE_DEFAULT_PARENT] = path }
+    }
+
+    suspend fun setGitStatusPollingEnabled(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.GIT_STATUS_POLLING_ENABLED] = enabled }
+    }
 
     suspend fun setThemeId(id: String) {
         context.editorSettingsDataStore.edit { it[Keys.THEME_ID] = id }

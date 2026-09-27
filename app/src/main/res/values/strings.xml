@@ -161,6 +161,8 @@
     <string name="settings_category_appearance_desc">Theme, editor theme, font size, symbol bar</string>
     <string name="settings_category_editing_desc">Autocomplete and pair cursor</string>
     <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
+    <string name="settings_git_status_polling">Git status detection</string>
+    <string name="settings_git_status_polling_desc">Track file changes against the last commit in the background. Turn off to save battery and CPU on large repos.</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
     <string name="settings_category_diagnostics_desc">Crash logs you can copy or share</string>
     <string name="settings_section_github">GitHub</string>
@@ -261,6 +263,7 @@
     <string name="clone_private_repo_body">%1$s needs an access token to clone this repository.</string>
     <string name="clone_private_repo_configure">Configure</string>
     <string name="clone_parent_hint">Parent folder</string>
+    <string name="clone_browse_folder">Browse for folder</string>
     <string name="clone_branch_hint">Branch (optional)</string>
     <string name="clone_start">Clone</string>
     <string name="clone_cloning">Cloning…</string>
@@ -350,9 +353,13 @@
     <string name="git_cred_edit">Edit</string>
     <string name="git_cred_delete">Delete</string>
     <string name="git_cred_delete_confirm">Delete the stored token for \'%1$s\'?</string>
-    <string name="git_cred_host_hint">Host (e.g. github.com)</string>
+    <string name="git_cred_host_hint">Host</string>
     <string name="git_cred_user_hint">Username</string>
+    <string name="git_cred_user_placeholder">Enter your username</string>
     <string name="git_cred_token_hint">Token</string>
+    <string name="settings_github_default_parent_title">Default parent folder</string>
+    <string name="settings_github_default_parent_desc">Where new clones go by default</string>
+    <string name="settings_github_default_parent_placeholder">/storage/emulated/0</string>
     <string name="git_credentials_empty">No tokens stored. Tokens live in Android Keystore.</string>
 
     <!-- M9: guided Git onboarding -->

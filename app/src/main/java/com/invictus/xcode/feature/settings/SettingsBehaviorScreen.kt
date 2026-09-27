@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,7 @@ fun SettingsBehaviorScreen(
     modifier: Modifier = Modifier,
 ) {
     val autoReloadExternal by viewModel.autoReloadExternalChanges.collectAsStateWithLifecycle()
+    val gitStatusPollingEnabled by viewModel.gitStatusPollingEnabled.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -64,6 +66,17 @@ fun SettingsBehaviorScreen(
                     subtitle = stringResource(R.string.settings_external_changes_auto_desc),
                     selected = autoReloadExternal,
                     onClick = { viewModel.setAutoReloadExternalChanges(true) },
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            SettingsSectionCard {
+                SwitchSettingRow(
+                    title = stringResource(R.string.settings_git_status_polling),
+                    subtitle = stringResource(R.string.settings_git_status_polling_desc),
+                    checked = gitStatusPollingEnabled,
+                    onCheckedChange = viewModel::setGitStatusPollingEnabled,
                 )
             }
         }

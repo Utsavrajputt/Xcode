@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,6 +40,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSession
@@ -48,7 +50,8 @@ import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.git.CredentialEntry
 import com.invictus.xcode.feature.git.GitConfirmDialog
 import com.invictus.xcode.feature.git.GitErrorDialog
-import com.invictus.xcode.feature.git.GitFieldsDialog
+import com.invictus.xcode.feature.git.GitHostTokenDialog
+import com.invictus.xcode.ui.components.rememberFolderPickerLauncher
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +69,7 @@ import java.io.File
  */
 class SettingsGitHubViewModel(
     private val credentialStore: GitCredentialStore,
+    private val settingsStore: EditorSettingsStore,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -86,6 +90,7 @@ class SettingsGitHubViewModel(
         val editorUser: String = "",
         val editorToken: String = "",
         val deleteTarget: String? = null,
+        val defaultParent: String = "",
         val error: GitErrorDetails? = null,
     )
 
@@ -95,7 +100,14 @@ class SettingsGitHubViewModel(
     private val _messages = MutableStateFlow<String?>(null)
     val messages: StateFlow<String?> = _messages.asStateFlow()
 
-    init { load() }
+    init {
+        load()
+        viewModelScope.launch { settingsStore.cloneDefaultParent.collect { path -> _ui.update { it.copy(defaultParent = path) } } }
+    }
+
+    fun setDefaultParent(path: String) {
+        viewModelScope.launch(io) { settingsStore.setCloneDefaultParent(path) }
+    }
 
     fun messageHandled() { _messages.value = null }
 
@@ -143,7 +155,7 @@ class SettingsGitHubViewModel(
     }
 
     fun openAddToken() = _ui.update {
-        it.copy(showTokenEditor = true, editHost = null, editorHost = "", editorUser = "x-access-token", editorToken = "")
+        it.copy(showTokenEditor = true, editHost = null, editorHost = "github.com", editorUser = "", editorToken = "")
     }
 
     fun openEditToken(entry: CredentialEntry) = _ui.update {
@@ -185,6 +197,7 @@ class SettingsGitHubViewModel(
                 val app = this[APPLICATION_KEY] as XcodeApp
                 SettingsGitHubViewModel(
                     credentialStore = app.container.gitCredentialStore,
+                    settingsStore = app.container.editorSettingsStore,
                     globalIdentityFile = app.container.gitGlobalIdentityFile,
                 )
             }
@@ -257,6 +270,34 @@ fun SettingsGitHubScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.settings_github_default_parent_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_github_default_parent_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val pickDefaultParent = rememberFolderPickerLauncher(
+                    onPicked = { path -> viewModel.setDefaultParent(path) },
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    OutlinedTextField(
+                        value = ui.defaultParent,
+                        onValueChange = viewModel::setDefaultParent,
+                        placeholder = { Text(stringResource(R.string.settings_github_default_parent_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = pickDefaultParent) {
+                        Icon(XIcons.Folder, contentDescription = stringResource(R.string.clone_browse_folder))
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -315,15 +356,12 @@ fun SettingsGitHubScreen(
     }
 
     if (ui.showTokenEditor) {
-        GitFieldsDialog(
+        GitHostTokenDialog(
             title = stringResource(if (ui.editHost == null) R.string.git_cred_add else R.string.git_cred_edit),
-            fields = listOf(
-                stringResource(R.string.git_cred_host_hint) to ui.editorHost,
-                stringResource(R.string.git_cred_user_hint) to ui.editorUser,
-                stringResource(R.string.git_cred_token_hint) to ui.editorToken,
-            ),
+            initialHost = ui.editorHost,
+            initialUsername = ui.editorUser,
             confirmLabel = stringResource(R.string.action_save),
-            onConfirm = { v, _ -> viewModel.saveToken(v[0], v[1], v[2]) },
+            onConfirm = { host, username, token -> viewModel.saveToken(host, username, token) },
             onDismiss = viewModel::dismissTokenEditor,
         )
     }

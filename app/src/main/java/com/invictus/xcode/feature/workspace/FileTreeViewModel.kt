@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.fs.DirectoryWatcher
 import com.invictus.xcode.core.fs.FileOpenPolicy
 import com.invictus.xcode.core.fs.FileOps
@@ -54,6 +55,7 @@ class FileTreeViewModel(
     private val openPolicy: FileOpenPolicy,
     private val projects: ProjectRepository,
     private val storageRoot: File,
+    private val settingsStore: EditorSettingsStore,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -90,11 +92,31 @@ class FileTreeViewModel(
     private val pinTick = MutableStateFlow(0)
     private var gitSession: GitSession? = null
 
+    /** Mirrors the Settings "Git status detection" toggle for use in non-suspend call sites. */
+    private var gitStatusPollingEnabled: Boolean = true
+
     init {
         viewModelScope.launch { debounceWatcherEvents() }
         viewModelScope.launch { debounceGitEvents() }
         viewModelScope.launch { observePins() }
         viewModelScope.launch { restoreLastProject() }
+        viewModelScope.launch {
+            settingsStore.gitStatusPollingEnabled.collect { enabled ->
+                val turnedOn = enabled && !gitStatusPollingEnabled
+                val turnedOff = !enabled && gitStatusPollingEnabled
+                gitStatusPollingEnabled = enabled
+                when {
+                    turnedOff -> {
+                        gitRepoWatcher.stop()
+                        if (_uiState.value.gitDecorations.isNotEmpty()) publish { copy(gitDecorations = emptyMap()) }
+                    }
+                    turnedOn -> {
+                        gitRepoWatcher.start(File(root, GIT_DIR))
+                        refreshGitDecorations()
+                    }
+                }
+            }
+        }
     }
 
     fun onEvent(event: FileTreeEvent) {
@@ -182,8 +204,12 @@ class FileTreeViewModel(
         loadDir(newRoot)
         syncWatcher()
         gitSession = null
-        gitRepoWatcher.start(File(newRoot, ".git"))
-        refreshGitDecorations()
+        if (gitStatusPollingEnabled) {
+            gitRepoWatcher.start(File(newRoot, GIT_DIR))
+            refreshGitDecorations()
+        } else {
+            gitRepoWatcher.stop()
+        }
         if (record) viewModelScope.launch { projects.recordOpened(newRoot) }
     }
 
@@ -259,8 +285,9 @@ class FileTreeViewModel(
         refreshGitDecorations()
     }
 
-    /** M7: refresh the git status stripe map for the open project (no-op outside a repo). */
+    /** M7: refresh the git status stripe map for the open project (no-op outside a repo, or when disabled). */
     private fun refreshGitDecorations() {
+        if (!gitStatusPollingEnabled) return
         val root = this.root
         viewModelScope.launch(io) {
             if (!File(root, ".git").isDirectory) {
@@ -602,6 +629,7 @@ class FileTreeViewModel(
                     openPolicy = app.container.fileOpenPolicy,
                     projects = app.container.projectRepository,
                     storageRoot = Environment.getExternalStorageDirectory(),
+                    settingsStore = app.container.editorSettingsStore,
                 )
             }
         }
