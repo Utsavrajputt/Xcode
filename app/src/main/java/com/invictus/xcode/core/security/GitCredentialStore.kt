@@ -7,7 +7,6 @@ import com.invictus.xcode.core.git.GitCredential
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyStore
-import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -72,9 +71,11 @@ class GitCredentialStore(context: Context) {
         all.forEach { (host, cred) ->
             json.put(host, JSONObject().put("username", cred.first).put("token", cred.second))
         }
-        val iv = ByteArray(GCM_IV_BYTES).also(SecureRandom()::nextBytes)
         val cipher = Cipher.getInstance(AES_GCM)
-        cipher.init(Cipher.ENCRYPT_MODE, masterKey(), GCMParameterSpec(GCM_TAG_BITS, iv))
+        // AndroidKeyStore-backed keys must generate their own IV on ENCRYPT_MODE — supplying
+        // one (as before) throws "Caller-provided IV not permitted" on stock AOSP/most OEMs.
+        cipher.init(Cipher.ENCRYPT_MODE, masterKey())
+        val iv = cipher.iv
         val encrypted = cipher.doFinal(json.toString().toByteArray(Charsets.UTF_8))
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeBytes(iv + encrypted)
