@@ -34,6 +34,7 @@ import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.RebaseCommand
 import org.eclipse.jgit.api.RebaseResult
 import org.eclipse.jgit.api.ResetCommand
+import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.dircache.DirCacheEditor
 import org.eclipse.jgit.dircache.DirCacheEntry
 import org.eclipse.jgit.errors.LockFailedException
@@ -61,6 +62,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Thrown by [GitSession.commit] when no author identity is configured anywhere. */
 class GitIdentityMissingException : Exception("Git author name/email not configured")
+
+/** Non-force push rejected because the remote moved since our last fetch. */
+class GitPushRejectedException : Exception(
+    "Updates were rejected because the remote contains work you don't have. Pull first, then push.",
+)
 
 /**
  * One repo = one session, but several [GitSession] instances can exist for the same
@@ -328,12 +334,26 @@ class GitSession(
 
     // ---- commit ------------------------------------------------------------
 
+    /** HEAD's full commit message, for pre-filling the commit box when Amend is toggled on. */
+    suspend fun headCommitMessage(): GitResult<String?> = ioOp(TITLE_COMMIT) {
+        mutex.withLock {
+            val headId = repository.resolve("HEAD") ?: return@withLock null
+            RevWalk(repository).use { it.parseCommit(headId).fullMessage }
+        }
+    }
+
     suspend fun commit(message: String, amend: Boolean): GitResult<GitCommitSummary> =
         ioOp(TITLE_COMMIT) {
             mutex.withLock {
                 val identity = resolveIdentity() ?: throw GitIdentityMissingException()
+                // Amend with a blank box keeps HEAD's own message instead of wiping it —
+                // the UI pre-fills this box already, but stay safe if it got cleared.
+                val effectiveMessage = if (amend && message.isBlank()) {
+                    val headId = repository.resolve("HEAD")
+                    headId?.let { id -> RevWalk(repository).use { it.parseCommit(id).fullMessage } } ?: message
+                } else message
                 val commit = git.commit()
-                    .setMessage(message)
+                    .setMessage(effectiveMessage)
                     .setAmend(amend)
                     // JGit allows empty commits by default (unlike the git CLI), so with
                     // nothing staged this would otherwise silently create an empty commit
@@ -360,6 +380,13 @@ class GitSession(
      * M8: [force] pushes with a force-with-lease style check: the remote tip is
      * compared against our stored remote-tracking ref first; if the remote has
      * commits we never fetched, we refuse instead of clobbering.
+     *
+     * A non-force push that the remote rejects (someone else pushed since our
+     * last fetch — the classic case after an amend/rebase/hard-reset too) used
+     * to be swallowed silently by JGit, which returns per-ref statuses instead
+     * of throwing. That's checked here now: any REJECTED_* status throws
+     * [GitPushRejectedException] so the caller can offer "pull first" or a
+     * force-with-lease retry instead of reporting a push that never happened.
      */
     suspend fun push(
         remote: String,
@@ -391,7 +418,13 @@ class GitSession(
                 .setCredentialsProvider(credentials)
                 .setProgressMonitor(gitProgressMonitor(onProgress))
             if (force) cmd.setForce(true)
-            cmd.call()
+            val results = cmd.call()
+            if (!force) {
+                val rejected = results.flatMap { it.remoteUpdates }
+                    .any { it.status == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD ||
+                        it.status == RemoteRefUpdate.Status.REJECTED_REMOTE_CHANGED }
+                if (rejected) throw GitPushRejectedException()
+            }
         }
         Unit
     }
@@ -400,6 +433,7 @@ class GitSession(
         remote: String,
         branch: String?,
         credentials: CredentialsProvider?,
+        rebase: Boolean = false,
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_PULL) {
         mutex.withLock {
@@ -408,6 +442,7 @@ class GitSession(
                 .setCredentialsProvider(credentials)
                 .setProgressMonitor(gitProgressMonitor(onProgress))
             if (!branch.isNullOrBlank()) cmd.setRemoteBranchName(branch.trim())
+            if (rebase) cmd.setRebase(true)
             cmd.call()
         }
         Unit

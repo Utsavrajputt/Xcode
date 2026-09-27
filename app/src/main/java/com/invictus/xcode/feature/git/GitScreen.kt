@@ -48,6 +48,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -173,6 +174,16 @@ fun GitScreen(
         )
     }
     GitRebaseDialogs(state = state, onEvent = viewModel::onEvent)
+    if (state.pushRejected) {
+        GitConfirmDialog(
+            title = stringResource(R.string.git_push_rejected_title),
+            text = stringResource(R.string.git_push_rejected_body),
+            confirmLabel = stringResource(R.string.git_push_rejected_pull),
+            danger = false,
+            onConfirm = { viewModel.onEvent(GitEvent.PullThenRetryPush) },
+            onDismiss = { viewModel.onEvent(GitEvent.DismissPushRejected) },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -585,7 +596,8 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
             Spacer(Modifier.weight(1f))
             Button(
                 onClick = { onEvent(GitEvent.Commit) },
-                enabled = state.commitMessage.isNotBlank() && state.snapshot != null && !state.committing,
+                enabled = (state.commitMessage.isNotBlank() || state.amend) &&
+                    state.snapshot != null && !state.committing,
             ) {
                 Text(stringResource(R.string.git_commit))
             }
@@ -603,18 +615,69 @@ private fun SyncRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        OutlinedButton(onClick = { onEvent(GitEvent.Push) }, enabled = canSync) {
-            Icon(XIcons.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.git_push))
-        }
-        OutlinedButton(
-            onClick = { onEvent(GitEvent.Pull) },
+        SplitSyncButton(
+            label = stringResource(R.string.git_push),
+            icon = XIcons.CloudUpload,
+            enabled = canSync,
+            menuContentDescription = stringResource(R.string.git_push_more),
+            menuItemLabel = stringResource(R.string.git_force_push_lease),
+            onClick = { onEvent(GitEvent.Push) },
+            onMenuItemClick = { onEvent(GitEvent.ForcePushWithLease) },
+            modifier = Modifier.weight(1f),
+        )
+        SplitSyncButton(
+            label = stringResource(R.string.git_pull),
+            icon = XIcons.CloudDownload,
             enabled = canSync && snapshot.trackingInfo != null,
+            menuContentDescription = stringResource(R.string.git_pull_more),
+            menuItemLabel = stringResource(R.string.git_pull_rebase),
+            onClick = { onEvent(GitEvent.Pull) },
+            onMenuItemClick = { onEvent(GitEvent.PullRebase) },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * Push/Pull as a split button: tapping the main area runs [onClick] directly (plain
+ * push/pull), the chevron opens a single-item menu whose entry executes [onMenuItemClick]
+ * immediately on tap — no further confirm step.
+ */
+@Composable
+private fun SplitSyncButton(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    menuContentDescription: String,
+    menuItemLabel: String,
+    onClick: () -> Unit,
+    onMenuItemClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
         ) {
-            Icon(XIcons.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.git_pull))
+            Text(label)
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, enabled = enabled) {
+                Icon(XIcons.KeyboardArrowDown, contentDescription = menuContentDescription)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(menuItemLabel) },
+                    onClick = {
+                        menuOpen = false
+                        onMenuItemClick()
+                    },
+                )
+            }
         }
     }
 }
