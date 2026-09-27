@@ -32,6 +32,7 @@ import org.eclipse.jgit.api.MergeCommand
 import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.ResetCommand
 import org.eclipse.jgit.dircache.DirCacheEntry
+import org.eclipse.jgit.errors.LockFailedException
 import org.eclipse.jgit.errors.RepositoryNotFoundException
 import org.eclipse.jgit.lib.ConfigConstants
 import org.eclipse.jgit.lib.Constants
@@ -50,21 +51,32 @@ import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.util.FS
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.ConcurrentHashMap
 
 /** Thrown by [GitSession.commit] when no author identity is configured anywhere. */
 class GitIdentityMissingException : Exception("Git author name/email not configured")
 
 /**
- * One repo = one session. Every JGit call funnels through [ioOp] on [Dispatchers.IO]
- * and every mutation/refresh is serialized through [mutex], so snapshot+status never
- * interleave with a write op (plan section 3.4).
+ * One repo = one session, but several [GitSession] instances can exist for the same
+ * [workTree] at once (each git screen builds its own). Every JGit call funnels through
+ * [ioOp] on [Dispatchers.IO], and every mutation/refresh is serialized through [mutex] -
+ * which is keyed by the repo's canonical path in [mutexRegistry] and shared across every
+ * instance pointed at that path, so snapshot+status never interleave with a write op or
+ * with another screen's op on the same repo (plan section 3.4).
+ *
+ * [ioOp] also recovers from a stale `index.lock` left behind by a killed process: since
+ * [mutex] guarantees no other in-process op is running when the lock file is found, it's
+ * safe to delete and retry once.
  */
 class GitSession(
     private val workTree: File,
     private val globalIdentityFile: File? = null,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    private val mutex = Mutex()
+    private val repoKey: String by lazy {
+        runCatching { workTree.canonicalPath }.getOrDefault(workTree.absolutePath)
+    }
+    private val mutex: Mutex get() = mutexRegistry.getOrPut(repoKey) { Mutex() }
 
     val repository: Repository by lazy {
         FileRepositoryBuilder().setWorkTree(workTree).setMustExist(true).build()
@@ -949,7 +961,7 @@ class GitSession(
     private suspend fun <T> ioOp(title: String, block: suspend () -> T): GitResult<T> =
         withContext(io) {
             try {
-                GitResult.Ok(block())
+                GitResult.Ok(runWithLockRecovery(block))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RepositoryNotFoundException) {
@@ -959,10 +971,30 @@ class GitSession(
             }
         }
 
+    /**
+     * Runs [block] once; if it fails on a leftover `index.lock` (e.g. the app was killed
+     * mid-write on a previous run), removes the stale file and retries exactly once. Safe
+     * because [mutex] already rules out a live, in-process writer holding that lock.
+     */
+    private suspend fun <T> runWithLockRecovery(block: suspend () -> T): T =
+        try {
+            block()
+        } catch (e: LockFailedException) {
+            if (clearStaleIndexLock()) block() else throw e
+        }
+
+    private fun clearStaleIndexLock(): Boolean {
+        val lockFile = runCatching { File(repository.directory, "index.lock") }.getOrNull() ?: return false
+        return lockFile.exists() && lockFile.delete()
+    }
+
     /** Windows-style separators must never reach addFilepattern/addPath (plan section 3.4). */
     private fun String.normalized(): String = replace(File.separatorChar, '/')
 
     companion object {
+        /** Shares one [Mutex] per canonical repo path across every [GitSession] instance pointed at it. */
+        private val mutexRegistry = ConcurrentHashMap<String, Mutex>()
+
         private const val TITLE_STATUS = "Git status"
         private const val TITLE_STAGE = "Git stage"
         private const val TITLE_COMMIT = "Git commit"
