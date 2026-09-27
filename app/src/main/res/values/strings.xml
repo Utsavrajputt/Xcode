@@ -163,6 +163,13 @@
     <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
     <string name="settings_category_diagnostics_desc">Crash logs you can copy or share</string>
+    <string name="settings_section_github">GitHub</string>
+    <string name="settings_category_github_desc">Identity and access tokens for all repositories</string>
+    <string name="settings_github_title">GitHub</string>
+    <string name="settings_github_identity_title">Identity</string>
+    <string name="settings_github_identity_desc">Default author name and email used across all repositories.</string>
+    <string name="settings_github_tokens_title">Access tokens</string>
+    <string name="settings_github_tokens_desc">Used to clone and sync private repositories.</string>
     <string name="diagnostics_title">Crash logs</string>
     <string name="diagnostics_empty">No crashes recorded yet.</string>
     <string name="diagnostics_copied">Copied to clipboard</string>
@@ -250,6 +257,9 @@
     <string name="clone_token_hint">Access token (for private repos)</string>
     <string name="clone_username_hint">Username (default works for most hosts)</string>
     <string name="clone_folder_hint">Folder name</string>
+    <string name="clone_private_repo_title">Private repository</string>
+    <string name="clone_private_repo_body">%1$s needs an access token to clone this repository.</string>
+    <string name="clone_private_repo_configure">Configure</string>
     <string name="clone_parent_hint">Parent folder</string>
     <string name="clone_branch_hint">Branch (optional)</string>
     <string name="clone_start">Clone</string>

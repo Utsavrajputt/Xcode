@@ -56,11 +56,13 @@ sealed interface GitEvent {
 
 sealed interface GitCloneEvent {
     data class UrlChange(val value: String) : GitCloneEvent
-    data class UsernameChange(val value: String) : GitCloneEvent
-    data class TokenChange(val value: String) : GitCloneEvent
     data class ParentChange(val value: String) : GitCloneEvent
     data class FolderChange(val value: String) : GitCloneEvent
     data class BranchChange(val value: String) : GitCloneEvent
     data object Start : GitCloneEvent
     data object DismissError : GitCloneEvent
+    // Private-repo auth prompt, shown only when an unauthenticated clone attempt fails.
+    data class ConfirmPrivateToken(val username: String, val token: String) : GitCloneEvent
+    data object DismissPrivateRepoDialog : GitCloneEvent
+    data object ConfigureCredentials : GitCloneEvent
 }

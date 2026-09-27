@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,8 +28,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +40,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun GitCloneScreen(
     onBack: () -> Unit,
+    onOpenGitHubSettings: () -> Unit = {},
     viewModel: GitCloneViewModel = viewModel(factory = GitCloneViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -56,12 +54,23 @@ fun GitCloneScreen(
                 is GitCloneViewModel.Effect.Message ->
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
                 GitCloneViewModel.Effect.NavigateBack -> onBack()
+                GitCloneViewModel.Effect.OpenGitHubSettings -> onOpenGitHubSettings()
             }
         }
     }
 
     state.error?.let { details ->
         GitErrorDialog(details = details, onDismiss = { viewModel.onEvent(GitCloneEvent.DismissError) })
+    }
+    state.privateRepoHost?.let { host ->
+        PrivateRepoDialog(
+            host = host,
+            onConfirm = { username, token ->
+                viewModel.onEvent(GitCloneEvent.ConfirmPrivateToken(username, token))
+            },
+            onCancel = { viewModel.onEvent(GitCloneEvent.DismissPrivateRepoDialog) },
+            onConfigure = { viewModel.onEvent(GitCloneEvent.ConfigureCredentials) },
+        )
     }
 
     Scaffold(
@@ -91,24 +100,6 @@ fun GitCloneScreen(
                 onValueChange = { viewModel.onEvent(GitCloneEvent.UrlChange(it)) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.clone_url_hint)) },
-                singleLine = true,
-                enabled = !state.cloning,
-            )
-            OutlinedTextField(
-                value = state.token,
-                onValueChange = { viewModel.onEvent(GitCloneEvent.TokenChange(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.clone_token_hint)) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                enabled = !state.cloning,
-            )
-            OutlinedTextField(
-                value = state.username,
-                onValueChange = { viewModel.onEvent(GitCloneEvent.UsernameChange(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.clone_username_hint)) },
                 singleLine = true,
                 enabled = !state.cloning,
             )

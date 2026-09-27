@@ -35,6 +35,7 @@ import com.invictus.xcode.feature.diagnostics.CrashLogsScreen
 import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
 import com.invictus.xcode.feature.settings.SettingsBehaviorScreen
 import com.invictus.xcode.feature.settings.SettingsEditingScreen
+import com.invictus.xcode.feature.settings.SettingsGitHubScreen
 import com.invictus.xcode.feature.search.CodeSearchScreen
 import com.invictus.xcode.feature.search.SearchBus
 import com.invictus.xcode.feature.settings.SettingsRootScreen
@@ -121,7 +122,11 @@ fun XcodeNavHost(
                 onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },
                 onOpenBehavior = { navController.navigate(Routes.SETTINGS_BEHAVIOR) },
                 onOpenDiagnostics = { navController.navigate(Routes.SETTINGS_DIAGNOSTICS) },
+                onOpenGitHub = { navController.navigate(Routes.SETTINGS_GITHUB) },
             )
+        }
+        composable(Routes.SETTINGS_GITHUB) {
+            SettingsGitHubScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS_DIAGNOSTICS) {
             CrashLogsScreen(onBack = { navController.popBackStack() })
@@ -168,7 +173,10 @@ fun XcodeNavHost(
             }
         }
         composable(Routes.GIT_CLONE) {
-            GitCloneScreen(onBack = { navController.popBackStack() })
+            GitCloneScreen(
+                onBack = { navController.popBackStack() },
+                onOpenGitHubSettings = { navController.navigate(Routes.SETTINGS_GITHUB) },
+            )
         }
         composable(Routes.GIT_BRANCHES) { entry ->
             val path = entry.arguments?.getString("projectPath")

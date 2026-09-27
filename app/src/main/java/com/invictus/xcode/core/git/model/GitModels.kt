@@ -85,6 +85,13 @@ enum class GitAuthMethod { TOKEN }
 
 enum class GitAuthFailureType { NONE, AUTH_REQUIRED, INVALID_CREDENTIALS, EXPIRED_TOKEN, PERMISSION_DENIED, NETWORK_ERROR, UNKNOWN }
 
+/** True for any failure a fresh token could fix — the trigger for an auth-retry dialog. */
+fun GitAuthFailureType.isAuthError(): Boolean =
+    this == GitAuthFailureType.AUTH_REQUIRED ||
+        this == GitAuthFailureType.INVALID_CREDENTIALS ||
+        this == GitAuthFailureType.EXPIRED_TOKEN ||
+        this == GitAuthFailureType.PERMISSION_DENIED
+
 /** Which network operation to retry once the user supplies a fresh token. */
 enum class GitPendingAction { PUSH, PULL, FETCH, CLONE }
 

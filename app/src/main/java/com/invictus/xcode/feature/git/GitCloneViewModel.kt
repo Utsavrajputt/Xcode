@@ -13,6 +13,7 @@ import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.git.model.isAuthError
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.workspace.UiText
 import kotlinx.coroutines.CoroutineDispatcher
@@ -34,19 +35,20 @@ class GitCloneViewModel(
 
     data class UiState(
         val url: String = "",
-        val username: String = DEFAULT_USERNAME,
-        val token: String = "",
         val parentPath: String = "",
         val folderName: String = "",
         val branch: String = "",
         val cloning: Boolean = false,
         val progressTask: String = "",
         val error: GitErrorDetails? = null,
+        /** Host that just rejected an unauthenticated clone — drives the private-repo dialog. */
+        val privateRepoHost: String? = null,
     )
 
     sealed interface Effect {
         data class Message(val text: UiText) : Effect
         data object NavigateBack : Effect
+        data object OpenGitHubSettings : Effect
     }
 
     private val _uiState = MutableStateFlow(UiState(parentPath = defaultParent.absolutePath))
@@ -63,13 +65,17 @@ class GitCloneViewModel(
                     folderName = if (it.folderName.isBlank()) deriveFolder(event.value) else it.folderName,
                 )
             }
-            is GitCloneEvent.UsernameChange -> _uiState.update { it.copy(username = event.value) }
-            is GitCloneEvent.TokenChange -> _uiState.update { it.copy(token = event.value) }
             is GitCloneEvent.ParentChange -> _uiState.update { it.copy(parentPath = event.value) }
             is GitCloneEvent.FolderChange -> _uiState.update { it.copy(folderName = event.value) }
             is GitCloneEvent.BranchChange -> _uiState.update { it.copy(branch = event.value) }
             GitCloneEvent.Start -> startClone()
             GitCloneEvent.DismissError -> _uiState.update { it.copy(error = null) }
+            is GitCloneEvent.ConfirmPrivateToken -> confirmPrivateToken(event.username, event.token)
+            GitCloneEvent.DismissPrivateRepoDialog -> _uiState.update { it.copy(privateRepoHost = null) }
+            GitCloneEvent.ConfigureCredentials -> {
+                _uiState.update { it.copy(privateRepoHost = null) }
+                _effects.trySend(Effect.OpenGitHubSettings)
+            }
         }
     }
 
@@ -87,25 +93,34 @@ class GitCloneViewModel(
         }
         val target = File(s.parentPath.trim(), folder)
         if (target.exists()) return message(R.string.clone_folder_exists, folder)
+        // Try with whatever's already saved for this host (often nothing, for a public repo).
+        val host = runCatching { normalizeHost(url) }.getOrNull()
+        val credential = host?.let { credentialStore.get(it) }
+        performClone(url, target, credential?.username ?: DEFAULT_USERNAME, credential?.token.orEmpty())
+    }
+
+    private fun confirmPrivateToken(username: String, token: String) {
+        val s = _uiState.value
+        val folder = s.folderName.trim()
+        val target = File(s.parentPath.trim(), folder)
+        _uiState.update { it.copy(privateRepoHost = null) }
+        performClone(s.url.trim(), target, username.ifBlank { DEFAULT_USERNAME }, token)
+    }
+
+    private fun performClone(url: String, target: File, username: String, token: String) {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(cloning = true, progressTask = "") }
             val result = GitCloner.clone(
                 url = url,
-                username = s.username.trim().ifBlank { DEFAULT_USERNAME },
-                token = s.token.trim(),
+                username = username,
+                token = token,
                 directory = target,
-                branch = s.branch.trim().ifBlank { null },
+                branch = _uiState.value.branch.trim().ifBlank { null },
             ) { p -> _uiState.update { it.copy(progressTask = p.task) } }
             when (result) {
                 is GitResult.Ok -> {
-                    if (s.token.isNotBlank()) {
-                        credentialStore.put(
-                            GitCredential(
-                                normalizeHost(url),
-                                s.username.trim().ifBlank { DEFAULT_USERNAME },
-                                s.token.trim(),
-                            ),
-                        )
+                    if (token.isNotBlank()) {
+                        credentialStore.put(GitCredential(normalizeHost(url), username, token))
                     }
                     message(R.string.clone_done, target.absolutePath)
                     _effects.send(Effect.NavigateBack)
@@ -113,7 +128,12 @@ class GitCloneViewModel(
                 is GitResult.Err -> {
                     // Don't leave a half-downloaded repo behind.
                     if (target.exists()) target.deleteRecursively()
-                    _uiState.update { it.copy(error = result.error) }
+                    val host = runCatching { normalizeHost(url) }.getOrNull()
+                    if (host != null && result.error.authFailure.isAuthError()) {
+                        _uiState.update { it.copy(privateRepoHost = host) }
+                    } else {
+                        _uiState.update { it.copy(error = result.error) }
+                    }
                 }
             }
             _uiState.update { it.copy(cloning = false, progressTask = "") }

@@ -139,6 +139,64 @@ fun TokenDialog(
 }
 
 @Composable
+fun PrivateRepoDialog(
+    host: String,
+    onConfirm: (username: String, token: String) -> Unit,
+    onCancel: () -> Unit,
+    onConfigure: () -> Unit,
+) {
+    var username by remember(host) { mutableStateOf(DEFAULT_CLONE_USERNAME) }
+    var token by remember(host) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.clone_private_repo_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.clone_private_repo_body, host),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text(stringResource(R.string.git_username_hint)) },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text(stringResource(R.string.git_token_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(username.trim(), token) },
+                enabled = token.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.git_token_save))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onConfigure) {
+                    Text(stringResource(R.string.clone_private_repo_configure))
+                }
+                TextButton(onClick = onCancel) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        },
+    )
+}
+
+private const val DEFAULT_CLONE_USERNAME = "x-access-token"
+
+@Composable
 fun GitErrorDialog(details: GitErrorDetails, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     AlertDialog(
