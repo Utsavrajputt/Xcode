@@ -198,6 +198,7 @@ class GitSession(
                     .setMessage(message)
                     .setAmend(amend)
                     .setAuthor(identity.name, identity.email)
+                    .setCommitter(identity.name, identity.email)
                     .call()
                 GitCommitSummary(
                     id = commit.name,
@@ -796,6 +797,7 @@ class GitSession(
                 git.commit()
                     .setMessage(msg)
                     .setAuthor(identity.name, identity.email)
+                    .setCommitter(identity.name, identity.email)
                     .call()
                     .toSummary()
             }
