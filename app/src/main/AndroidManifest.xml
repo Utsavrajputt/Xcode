@@ -8,6 +8,10 @@
         tools:ignore="ScopedStorage" />
     <!-- Git clone/push/pull over HTTPS. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Foreground/status notifications (clone & sync progress, future background work). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the app show the direct "ignore battery optimizations" system dialog. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".XcodeApp"

@@ -13,6 +13,37 @@
     <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
     <string name="workspace_title">Workspace</string>
 
+    <!-- Startup onboarding: storage / notifications / battery stepper -->
+    <string name="startup_onboarding_back">Back</string>
+    <string name="startup_onboarding_next">Next</string>
+    <string name="startup_onboarding_skip">Skip</string>
+    <string name="startup_onboarding_get_started">Get started</string>
+    <string name="startup_onboarding_permission_required_hint">All files access is required to continue</string>
+
+    <string name="startup_onboarding_title_storage">All files access</string>
+    <string name="startup_onboarding_desc_storage">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access.</string>
+    <string name="startup_onboarding_grant_storage">Grant access</string>
+    <string name="startup_onboarding_storage_granted">Access granted</string>
+
+    <string name="startup_onboarding_title_notification">Notifications</string>
+    <string name="startup_onboarding_desc_notification">Get notified about clone, push and pull progress once they run in the background.</string>
+    <string name="startup_onboarding_grant_notification">Allow notifications</string>
+    <string name="startup_onboarding_notification_granted">Notifications allowed</string>
+    <string name="startup_onboarding_notification_hint">You can change this anytime in system settings.</string>
+
+    <string name="startup_onboarding_title_battery">Battery optimization</string>
+    <string name="startup_onboarding_desc_battery">Disabling battery optimization keeps background Git operations from being killed mid-way.</string>
+    <string name="startup_onboarding_disable_battery">Disable battery optimization</string>
+    <string name="startup_onboarding_battery_disabled">Battery optimization disabled</string>
+
+    <!-- Settings root: battery-optimization warning card (mirrors xmd) -->
+    <string name="settings_battery_optimization">Battery optimization</string>
+    <string name="settings_battery_optimization_hint">Disabling this keeps background Git operations from being killed mid-way.</string>
+    <string name="settings_battery_warning_title">Battery optimization is on</string>
+    <string name="settings_battery_warning_desc">Long-running Git operations may get killed in the background. Disable battery optimization for Xcode to prevent this.</string>
+    <string name="settings_battery_warning_fix">Fix now</string>
+    <string name="settings_battery_optimization_settings_unavailable">Couldn\'t open battery settings on this device</string>
+
     <!-- strings_m2.xml -->
     <string name="workspace_root_internal">Internal storage</string>
     <string name="workspace_open_placeholder">Editor arrives in M3 (%1$s)</string>
@@ -24,6 +55,7 @@
     <string name="action_open_anyway">Open anyway</string>
     <string name="action_clear">Clear</string>
     <string name="action_back">Back</string>
+    <string name="action_dismiss">Dismiss</string>
     <string name="action_open_folder">Open</string>
     <string name="menu_show_hidden">Show hidden files</string>
     <string name="menu_show_git">Show .git folder</string>

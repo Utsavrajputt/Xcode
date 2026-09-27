@@ -159,6 +159,43 @@ object XIcons {
         )
     }
 
+    // Onboarding (startup permission stepper): storage/notification/battery steps.
+    /** Notification step (Material Symbols "notifications" — a bell). */
+    val Notifications: ImageVector by lazy {
+        icon(
+            "Notifications",
+            "M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2z" +
+                "M18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68" +
+                "C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z",
+        )
+    }
+
+    /** Battery step (Material Symbols "shield" — used the same way xmd's onboarding does). */
+    val Shield: ImageVector by lazy {
+        icon(
+            "Shield",
+            "M12,1L3,5v6c0,5.55 3.84,10.74 9,12 5.16,-1.26 9,-6.45 9,-12V5l-9,-4z" +
+                "M12,11.99h7c-0.53,4.12 -3.28,7.79 -7,8.94V12H5V6.3l7,-3.11v8.8z",
+        )
+    }
+
+    /** Info step marker (Material Symbols "info"). */
+    val Info: ImageVector by lazy {
+        icon(
+            "Info",
+            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
+                "M13,17h-2v-6h2v6zM13,9h-2V7h2v2z",
+        )
+    }
+
+    /** Forward step navigation (Material Symbols "arrow_forward"). */
+    val ArrowForward: ImageVector by lazy {
+        icon(
+            "ArrowForward",
+            "M12,4l-1.41,1.41L16.17,11H4v2h12.17l-5.58,5.59L12,20l8,-8z",
+        )
+    }
+
     private fun icon(name: String, pathData: String): ImageVector =
         ImageVector.Builder(
             name = name,

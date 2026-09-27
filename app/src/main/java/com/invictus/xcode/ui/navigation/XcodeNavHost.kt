@@ -29,7 +29,7 @@ import com.invictus.xcode.feature.git.GitScreen
 import com.invictus.xcode.feature.git.GitStashScreen
 import com.invictus.xcode.feature.git.GitTagsScreen
 import com.invictus.xcode.feature.home.HomeScreen
-import com.invictus.xcode.feature.permission.PermissionScreen
+import com.invictus.xcode.feature.permission.OnboardingScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
 import com.invictus.xcode.feature.diagnostics.CrashLogsScreen
 import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
@@ -47,19 +47,28 @@ private const val NavFadeDurationMs = 180
 private const val NavSlideFraction = 4
 
 /**
- * Permission gate + app screens. Starts on the permission screen when All files
- * access is missing, and moves between the two as the permission is granted/revoked.
+ * Permission gate + app screens. Starts on the onboarding stepper (storage /
+ * notifications / battery) when All files access is missing or onboarding hasn't
+ * been finished yet, and moves between the two as storage access is granted/revoked.
  */
 @Composable
 fun XcodeNavHost(
     storageGranted: Boolean,
-    onGrantClick: () -> Unit,
+    notificationGranted: Boolean,
+    batteryOptimizationDisabled: Boolean,
+    onboardingCompleted: Boolean,
+    onGrantStorage: () -> Unit,
+    onRequestNotification: () -> Unit,
+    onDisableBattery: () -> Unit,
+    onFinishOnboarding: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
     // Activity-scoped on purpose: open tabs outlive the trip back to the file tree.
     val editorViewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory)
-    val startDestination = remember { if (storageGranted) Routes.HOME else Routes.PERMISSION }
+    val startDestination = remember {
+        if (storageGranted && onboardingCompleted) Routes.HOME else Routes.PERMISSION
+    }
 
     NavHost(
         navController = navController,
@@ -82,7 +91,17 @@ fun XcodeNavHost(
                 fadeOut(tween(NavFadeDurationMs))
         },
     ) {
-        composable(Routes.PERMISSION) { PermissionScreen(onGrantClick = onGrantClick) }
+        composable(Routes.PERMISSION) {
+            OnboardingScreen(
+                hasStoragePermission = storageGranted,
+                hasNotificationPermission = notificationGranted,
+                batteryOptimizationDisabled = batteryOptimizationDisabled,
+                onGrantStoragePermission = onGrantStorage,
+                onRequestNotificationPermission = onRequestNotification,
+                onDisableBatteryOptimization = onDisableBattery,
+                onFinishOnboarding = onFinishOnboarding,
+            )
+        }
         composable(Routes.HOME) {
             HomeScreen(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
@@ -117,6 +136,8 @@ fun XcodeNavHost(
         }
         composable(Routes.SETTINGS) {
             SettingsRootScreen(
+                batteryOptimizationDisabled = batteryOptimizationDisabled,
+                onFixBatteryOptimization = onDisableBattery,
                 onBack = { navController.popBackStack() },
                 onOpenAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                 onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },
@@ -273,10 +294,10 @@ fun XcodeNavHost(
         }
     }
 
-    LaunchedEffect(storageGranted) {
+    LaunchedEffect(storageGranted, onboardingCompleted) {
         val route = navController.currentBackStackEntry?.destination?.route
         when {
-            storageGranted && route == Routes.PERMISSION ->
+            storageGranted && onboardingCompleted && route == Routes.PERMISSION ->
                 navController.navigate(Routes.HOME) {
                     popUpTo(Routes.PERMISSION) { inclusive = true }
                 }
