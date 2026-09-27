@@ -252,6 +252,11 @@ fun WorkspaceScreen(
             onDismiss = { showProjectSheet = false },
             // Inside a project there's no Home recents list visible, so keep it here.
             showRecent = true,
+            // Change-project sheet inside the workspace: just Recents -- no search, no
+            // folder browser, no clone (Home's Open Project sheet keeps all of that).
+            showSearch = false,
+            showBrowse = false,
+            showClone = false,
         )
     }
 }

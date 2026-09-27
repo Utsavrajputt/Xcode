@@ -85,6 +85,11 @@ fun OpenProjectSheet(
     onClone: () -> Unit = {},
     onDismiss: () -> Unit,
     showRecent: Boolean = true,
+    // Workspace's in-project "change project" sheet trims this down to just Recents --
+    // Home's pre-workspace "Open Project" sheet keeps the full search/browse/clone flow.
+    showSearch: Boolean = true,
+    showBrowse: Boolean = true,
+    showClone: Boolean = true,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by rememberSaveable { mutableStateOf("") }
@@ -135,32 +140,38 @@ fun OpenProjectSheet(
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
-            SearchField(
-                query = query,
-                onQueryChange = { query = it },
-                onGo = { if (typedPath != null && pathIsFolder == true) onOpen(File(typedPath)) },
-            )
-            TextButton(onClick = onClone, modifier = Modifier.padding(horizontal = 24.dp)) {
-                Icon(XIcons.Commit, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.home_clone))
+            if (showSearch) {
+                SearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    onGo = { if (typedPath != null && pathIsFolder == true) onOpen(File(typedPath)) },
+                )
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .expressiveClickable { onEvent(ProjectsEvent.ToggleShowHidden) }
-                    .padding(horizontal = 24.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.menu_show_hidden),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Switch(
-                    checked = state.showHidden,
-                    onCheckedChange = { onEvent(ProjectsEvent.ToggleShowHidden) },
-                )
+            if (showClone) {
+                TextButton(onClick = onClone, modifier = Modifier.padding(horizontal = 24.dp)) {
+                    Icon(XIcons.Commit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.home_clone))
+                }
+            }
+            if (showBrowse) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .expressiveClickable { onEvent(ProjectsEvent.ToggleShowHidden) }
+                        .padding(horizontal = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.menu_show_hidden),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Switch(
+                        checked = state.showHidden,
+                        onCheckedChange = { onEvent(ProjectsEvent.ToggleShowHidden) },
+                    )
+                }
             }
             val listModifier = if (expandFull) Modifier.weight(1f) else Modifier
             LazyColumn(modifier = listModifier) {
@@ -182,6 +193,7 @@ fun OpenProjectSheet(
                         )
                     }
                 }
+                if (showBrowse) {
                 item(key = "h-browse") { SectionLabel(R.string.sheet_browse) }
                 if (needle.isNotEmpty()) {
                     // Search active: poore storage se recursive results, browseDir/shortcuts ignore.
@@ -232,6 +244,7 @@ fun OpenProjectSheet(
                             )
                         }
                     }
+                }
                 }
             }
             SnackbarHost(snackbarHostState)
