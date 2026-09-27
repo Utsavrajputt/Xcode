@@ -10,7 +10,7 @@ import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.core.git.GitResult
-import com.invictus.xcode.core.git.GitSession
+import com.invictus.xcode.core.git.GitSessionRegistry
 import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitErrorDetails
@@ -82,10 +82,15 @@ class GitOnboardingViewModel(
     val effects = _effects.receiveAsFlow()
 
     /**
-     * Built up-front but harmless before `git init`: [GitSession.repository] is lazy,
-     * so nothing touches JGit until the repo actually exists.
+     * Shared with any other screen open on this same repo (see [GitSessionRegistry]) - and
+     * harmless before `git init` either way: [GitSession.repository] is lazy, so nothing
+     * touches JGit until the repo actually exists.
      */
-    private val session = GitSession(File(projectPath), globalIdentityFile, io)
+    private val session = GitSessionRegistry.acquire(File(projectPath), globalIdentityFile, io)
+
+    override fun onCleared() {
+        GitSessionRegistry.release(File(projectPath))
+    }
 
     init {
         detectStartStep()
