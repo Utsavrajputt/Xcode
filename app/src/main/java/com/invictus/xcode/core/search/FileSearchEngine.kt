@@ -23,6 +23,7 @@ class FileSearchEngine {
         includeIgnored: Boolean = false,
         extensionFilter: String = "",
         folderFilter: String = "",
+        defaultValuesOnly: Boolean = false,
     ): List<Result> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val extensions = extensionFilter.lowercase()
