@@ -149,7 +149,8 @@ class ProjectsViewModel(
 
     private fun browseUp() {
         val current = _uiState.value.browseDir ?: return
-        val atShortcutRoot = _uiState.value.shortcuts.any { it.file.path == current.path }
+        val atShortcutRoot = _uiState.value.shortcuts.any { it.file.path == current.path } ||
+            current.path == android.os.Environment.getExternalStorageDirectory().path
         browse(if (atShortcutRoot) null else current.parentFile)
     }
 

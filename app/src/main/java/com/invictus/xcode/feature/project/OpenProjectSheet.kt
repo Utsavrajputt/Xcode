@@ -6,6 +6,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -48,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -175,13 +178,49 @@ fun OpenProjectSheet(
                 }
             }
             val listModifier = if (expandFull) Modifier.weight(1f) else Modifier
-            LazyColumn(modifier = listModifier) {
+            LazyColumn(modifier = listModifier, contentPadding = PaddingValues(bottom = 16.dp)) {
                 if (typedPath != null) {
                     item(key = "typed") {
                         TypedPathRow(path = typedPath, isFolder = pathIsFolder, onOpen = { onOpen(File(typedPath)) })
                     }
                 }
-                if (recents.isNotEmpty() && showRecent) {
+                if (!showBrowse && typedPath == null) {
+                    // Trimmed (in-workspace) sheet: a tiny Browse section above Recent -- just
+                    // Internal storage by default; tapping it browses in place.
+                    item(key = "h-browse-lite") { SectionLabel(R.string.sheet_browse) }
+                    val liteDir = state.browseDir
+                    if (liteDir == null) {
+                        item(key = "browse-internal") {
+                            FolderRow(
+                                name = stringResource(R.string.workspace_root_internal),
+                                onEnter = { onEvent(ProjectsEvent.Browse(storageRoot)) },
+                                onOpen = { onOpen(storageRoot) },
+                            )
+                        }
+                    } else {
+                        item(key = "browse-lite-head") {
+                            BrowseHeader(
+                                dir = liteDir,
+                                onUp = { onEvent(ProjectsEvent.BrowseUp) },
+                                onOpen = { onOpen(liteDir) },
+                            )
+                        }
+                        val liteError = state.browseError
+                        if (liteError != null) {
+                            item(key = "browse-lite-error") { HintText(liteError.asString(), isError = true) }
+                        } else if (entries.isEmpty()) {
+                            item(key = "browse-lite-empty") { HintText(stringResource(R.string.sheet_no_subfolders)) }
+                        }
+                        items(items = entries, key = { "bl:" + it.path }) { dir ->
+                            FolderRow(
+                                name = dir.name,
+                                onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
+                                onOpen = { onOpen(dir) },
+                            )
+                        }
+                    }
+                }
+                if (recents.isNotEmpty() && showRecent && (showBrowse || state.browseDir == null)) {
                     item(key = "h-recent") { SectionLabel(R.string.sheet_recent) }
                     items(items = recents, key = { "r:" + it.file.path }) { item ->
                         RecentRow(
@@ -447,11 +486,13 @@ private fun RecentRow(
                     )
                 }
                 .alpha(if (item.exists) 1f else 0.5f)
+                .padding(horizontal = 12.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(28.dp))
                 .background(
                     if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                     else Color.Transparent,
                 )
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             FileTypeIcon(name = file.name, isDirectory = true)
