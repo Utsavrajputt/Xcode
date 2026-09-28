@@ -29,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,8 @@ import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSession
 import com.invictus.xcode.core.git.normalizeHost
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.github.GitHubProfile
+import com.invictus.xcode.core.github.GitHubProfileRepository
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.git.CredentialEntry
 import com.invictus.xcode.feature.git.GitConfirmDialog
@@ -70,6 +73,7 @@ import java.io.File
 class SettingsGitHubViewModel(
     private val credentialStore: GitCredentialStore,
     private val settingsStore: EditorSettingsStore,
+    private val profileRepo: GitHubProfileRepository,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -91,6 +95,8 @@ class SettingsGitHubViewModel(
         val editorToken: String = "",
         val deleteTarget: String? = null,
         val defaultParent: String = "",
+        /** GitHub profile per host (github.com only), from cache first then live refresh. */
+        val profiles: Map<String, GitHubProfile> = emptyMap(),
         val error: GitErrorDetails? = null,
     )
 
@@ -133,6 +139,45 @@ class SettingsGitHubViewModel(
             CredentialEntry(host = host, username = cred?.username.orEmpty(), linkedRemotes = emptyList())
         }
         _ui.update { it.copy(tokens = entries) }
+        refreshProfiles(entries.map { it.host })
+    }
+
+    /** Shows cached profiles immediately, then refetches any that are missing or older than 24h. */
+    private fun refreshProfiles(hosts: List<String>) {
+        val githubHosts = hosts.filter { profileRepo.supports(it) }
+        viewModelScope.launch(io) {
+            val cached = githubHosts.mapNotNull { h -> profileRepo.cached(h)?.let { h to it } }.toMap()
+            _ui.update { it.copy(profiles = cached) }
+            githubHosts.forEach { host ->
+                val c = cached[host]
+                if (c != null && !profileRepo.isStale(c)) return@forEach
+                val token = credentialStore.get(host)?.token ?: return@forEach
+                launch {
+                    val fresh = profileRepo.fetch(host, token)
+                    _ui.update { s ->
+                        s.copy(profiles = if (fresh != null) s.profiles + (host to fresh) else s.profiles - host)
+                    }
+                }
+            }
+        }
+    }
+
+    /** Fills only the blank identity fields from the GitHub profile; a private email stays empty. */
+    fun autofillFromGitHub() {
+        val profile = _ui.value.profiles.values.firstOrNull() ?: return
+        val fillName = _ui.value.identityName.isBlank()
+        val email = profile.email?.takeIf { _ui.value.identityEmail.isBlank() }
+        _ui.update { s ->
+            s.copy(
+                identityName = if (fillName) profile.autofillName else s.identityName,
+                identityEmail = email ?: s.identityEmail,
+            )
+        }
+        if (!fillName && email == null) {
+            _messages.value = "Nothing to fill: email is private on your GitHub profile"
+        } else if (email == null) {
+            _messages.value = "Name filled. Email is private on GitHub, enter it manually"
+        }
     }
 
     fun onIdentityName(v: String) = _ui.update { it.copy(identityName = v) }
@@ -173,6 +218,7 @@ class SettingsGitHubViewModel(
         credentialStore.put(
             GitCredential(host = normalizedHost, username = username.ifBlank { "x-access-token" }, token = token),
         )
+        profileRepo.clear(normalizedHost)
         _ui.update { it.copy(showTokenEditor = false, editHost = null) }
         _messages.value = "Token saved for $normalizedHost"
         loadTokens()
@@ -184,6 +230,7 @@ class SettingsGitHubViewModel(
     fun deleteToken() {
         val target = _ui.value.deleteTarget ?: return
         credentialStore.remove(target)
+        profileRepo.clear(target)
         _ui.update { it.copy(deleteTarget = null) }
         _messages.value = "Token removed for $target"
         loadTokens()
@@ -198,6 +245,7 @@ class SettingsGitHubViewModel(
                 SettingsGitHubViewModel(
                     credentialStore = app.container.gitCredentialStore,
                     settingsStore = app.container.editorSettingsStore,
+                    profileRepo = app.container.gitHubProfileRepository,
                     globalIdentityFile = app.container.gitGlobalIdentityFile,
                 )
             }
@@ -213,6 +261,7 @@ fun SettingsGitHubScreen(
 ) {
     val ui by viewModel.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    val avatarLoader = (LocalContext.current.applicationContext as XcodeApp).container.avatarImageLoader
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { msg -> msg?.let { snackbar.showSnackbar(it); viewModel.messageHandled() } }
@@ -260,6 +309,11 @@ fun SettingsGitHubScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if ((ui.identityName.isBlank() || ui.identityEmail.isBlank()) && ui.profiles.isNotEmpty()) {
+                    TextButton(onClick = viewModel::autofillFromGitHub) {
+                        Text(stringResource(R.string.settings_github_autofill))
+                    }
+                }
                 Button(
                     onClick = viewModel::saveIdentity,
                     enabled = !ui.savingIdentity &&
@@ -330,11 +384,20 @@ fun SettingsGitHubScreen(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                Text(
-                                    entry.username,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                val profile = ui.profiles[entry.host]
+                                if (profile != null) {
+                                    GitHubProfileRow(
+                                        profile = profile,
+                                        imageLoader = avatarLoader,
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                    )
+                                } else {
+                                    Text(
+                                        entry.username,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 Row {
                                     TextButton(onClick = { viewModel.openEditToken(entry) }) {
                                         Text(stringResource(R.string.git_cred_edit))

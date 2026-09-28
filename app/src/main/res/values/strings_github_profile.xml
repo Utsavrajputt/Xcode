@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_github_avatar_desc">%1$s avatar</string>
+    <string name="settings_github_profile_stats">%1$d repos · %2$d followers · %3$d following</string>
+    <string name="settings_github_autofill">Fill from GitHub</string>
+</resources>

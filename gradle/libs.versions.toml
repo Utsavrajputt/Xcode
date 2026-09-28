@@ -14,6 +14,7 @@ datastore = "1.1.7"
 materialSymbols = "2.2.1"
 webkit = "1.13.0"
 coil = "2.7.0"
+okhttp = "4.12.0"
 androidsvg = "1.4"
 jgit = "5.13.5.202508271544-r"
 slf4j = "2.0.19"
@@ -41,6 +42,7 @@ compose-material-symbols = { module = "com.composables:icons-material-symbols-cm
 compose-material-symbols-rounded-filled = { module = "com.composables:icons-material-symbols-rounded-filled-cmp", version.ref = "materialSymbols" }
 androidx-webkit = { module = "androidx.webkit:webkit", version.ref = "webkit" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 org-eclipse-jgit = { module = "org.eclipse.jgit:org.eclipse.jgit", version.ref = "jgit" }
 slf4j-nop = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }

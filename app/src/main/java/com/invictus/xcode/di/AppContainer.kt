@@ -8,6 +8,8 @@ import com.invictus.xcode.core.fs.FileOpenPolicy
 import com.invictus.xcode.core.fs.FileOps
 import com.invictus.xcode.core.data.AppDatabase
 import com.invictus.xcode.core.git.GitOnboardingPrefs
+import com.invictus.xcode.core.github.AvatarImageLoader
+import com.invictus.xcode.core.github.GitHubProfileRepository
 import com.invictus.xcode.core.fs.StoragePermission
 import com.invictus.xcode.core.permission.BatteryOptimization
 import com.invictus.xcode.core.permission.NotificationPermission
@@ -55,6 +57,10 @@ class AppContainer(context: Context) {
     val gitCredentialStore: GitCredentialStore by lazy { GitCredentialStore(appContext) }
 
     val gitOnboardingPrefs: GitOnboardingPrefs by lazy { GitOnboardingPrefs(appContext) }
+
+    // GitHub profile on token cards: live /user fetch (24h refresh) + avatar loader (72h disk cache).
+    val gitHubProfileRepository: GitHubProfileRepository by lazy { GitHubProfileRepository(appContext) }
+    val avatarImageLoader: coil.ImageLoader by lazy { AvatarImageLoader.create(appContext) }
 
     // M11 search: fuzzy file search + workspace grep + Room-backed search history.
     val fileSearchEngine: FileSearchEngine by lazy { FileSearchEngine() }

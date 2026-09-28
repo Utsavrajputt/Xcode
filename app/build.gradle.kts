@@ -87,6 +87,7 @@ dependencies {
     // M5 preview: WebViewAssetLoader (markdown/HTML), Coil (images), AndroidSVG (svg -> Picture).
     implementation(libs.androidx.webkit)
     implementation(libs.coil.compose)
+    implementation(libs.okhttp) // GitHub profile fetch + avatar cache interceptor (same version Coil 2.7 uses)
     implementation(libs.androidsvg)
 
     // M6 git: JGit (pure-Java Git) + silent SLF4J provider (JGit's log chatter is
