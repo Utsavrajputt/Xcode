@@ -199,7 +199,9 @@
     <string name="settings_code_search_default_strings">Code search: default strings only</string>
     <string name="settings_search_default_strings_desc">Skip localized resource folders (values-hi, values-en, values-night…) and search only the plain values folder.</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
-    <string name="settings_category_diagnostics_desc">Crash logs you can copy or share</string>
+    <string name="settings_category_diagnostics_desc">Crash logs and git logs you can copy or share</string>
+    <string name="settings_section_crash_logs">Crash logs</string>
+    <string name="settings_category_crash_logs_desc">Crashes and handled errors; copy or share</string>
     <string name="settings_section_github">GitHub</string>
     <string name="settings_category_github_desc">Identity and access tokens for all repositories</string>
     <string name="settings_github_title">GitHub</string>
