@@ -14,12 +14,13 @@ import java.util.Locale
  *
  * One line per operation, appended to `git_logs/git.log`; when it passes [MAX_BYTES] it is
  * rotated to `git.log.1` (older rotation is dropped), so total size stays around 1 MB.
- * Recording can be switched off from Settings ([setEnabled]); default is on.
+ * Recording can be switched off from Settings ([setEnabled]); default is off (a saved choice is kept).
  */
 object GitLog {
 
     private const val PREFS = "git_log"
     private const val KEY_ENABLED = "enabled"
+    private const val DEFAULT_ENABLED = false
     private const val DIR = "git_logs"
     private const val FILE = "git.log"
     private const val FILE_OLD = "git.log.1"
@@ -34,7 +35,7 @@ object GitLog {
     @Volatile private var appContext: Context? = null
 
     @Volatile
-    var enabled: Boolean = true
+    var enabled: Boolean = DEFAULT_ENABLED
         private set
 
     data class Entry(val raw: String, val ok: Boolean, val totalMs: Long)
@@ -44,7 +45,7 @@ object GitLog {
         appContext = context.applicationContext
         enabled = context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_ENABLED, true)
+            .getBoolean(KEY_ENABLED, DEFAULT_ENABLED)
     }
 
     fun setEnabled(context: Context, value: Boolean) {

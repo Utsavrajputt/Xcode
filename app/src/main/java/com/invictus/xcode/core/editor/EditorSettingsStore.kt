@@ -33,6 +33,8 @@ class EditorSettingsStore(private val context: Context) {
         val PROJECT_SHEET_SHOW_HIDDEN = booleanPreferencesKey("project_sheet_show_hidden")
         val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
         val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
+        val FILE_SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("file_search_default_strings_only")
+        val CODE_SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("code_search_default_strings_only")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -78,6 +80,22 @@ class EditorSettingsStore(private val context: Context) {
     /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; on by default. */
     val gitStatusPollingEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.GIT_STATUS_POLLING_ENABLED] ?: true }
+
+    /** Settings "File search" toggle -- hide values-* (localized strings) folders from file search; off by default. */
+    val fileSearchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.FILE_SEARCH_DEFAULT_STRINGS_ONLY] ?: false }
+
+    /** Settings "Code search" toggle -- hide values-* (localized strings) folders from code search; off by default. */
+    val codeSearchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.CODE_SEARCH_DEFAULT_STRINGS_ONLY] ?: false }
+
+    suspend fun setFileSearchDefaultStringsOnly(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.FILE_SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
+    }
+
+    suspend fun setCodeSearchDefaultStringsOnly(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.CODE_SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
+    }
 
     suspend fun setCloneDefaultParent(path: String) {
         context.editorSettingsDataStore.edit { it[Keys.CLONE_DEFAULT_PARENT] = path }

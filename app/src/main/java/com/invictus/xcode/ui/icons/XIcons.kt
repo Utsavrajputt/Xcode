@@ -147,6 +147,13 @@ object XIcons {
                 "c0,-2.66 -5.33,-4 -8,-4z",
         )
     }
+    /** git rebase entry point (Material "call_merge" — a branch folding back into the trunk). */
+    val Rebase: ImageVector by lazy {
+        icon(
+            "Rebase",
+            "M17,20.41L18.41,19 15,15.59 13.59,17 17,20.41zM7.5,8H11v5.59L5.59,19 7,20.41l6,-6V8h3.5L12,3.5 7.5,8z",
+        )
+    }
     val AccountTree: ImageVector by lazy {
         icon(
             "AccountTree",

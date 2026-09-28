@@ -195,6 +195,9 @@
     <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
     <string name="settings_git_status_polling">Git status detection</string>
     <string name="settings_git_status_polling_desc">Track file changes against the last commit in the background. Turn off to save battery and CPU on large repos.</string>
+    <string name="settings_file_search_default_strings">File search: default strings only</string>
+    <string name="settings_code_search_default_strings">Code search: default strings only</string>
+    <string name="settings_search_default_strings_desc">Skip localized resource folders (values-hi, values-en, values-night…) and search only the plain values folder.</string>
     <string name="settings_section_diagnostics">Diagnostics</string>
     <string name="settings_category_diagnostics_desc">Crash logs you can copy or share</string>
     <string name="settings_section_github">GitHub</string>
@@ -478,6 +481,7 @@
 <string name="git_rebase_action">Rebase</string>
 <string name="git_rebase_picker_title">Rebase</string>
 <string name="git_rebase_picker_desc">Pick a branch below to move your commits on top of its latest changes. Commit or stash your changes first.</string>
+<string name="git_rebase_no_branches">No branches to rebase onto</string>
 <string name="git_rebasing">Rebasing…</string>
 <string name="conflict_accept_ours">Accept ours</string>
 <string name="conflict_accept_theirs">Accept theirs</string>

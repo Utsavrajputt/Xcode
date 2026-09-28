@@ -206,7 +206,7 @@ internal fun ConflictActionsRow(change: GitPathChange, onEvent: (GitEvent) -> Un
 internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
     if (state.rebasePicker) {
         AlertDialog(
-            onDismissRequest = { onEvent(GitEvent.DismissRebasePicker) },
+            onDismissRequest = { if (!state.rebasing) onEvent(GitEvent.DismissRebasePicker) },
             title = { Text(stringResource(R.string.git_rebase_picker_title)) },
             text = {
                 Column(
@@ -229,7 +229,7 @@ internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
-                    } else if (state.rebaseCandidates.isEmpty()) {
+                    } else if (state.rebaseLoading) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -241,6 +241,12 @@ internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
+                    } else if (state.rebaseCandidates.isEmpty()) {
+                        Text(
+                            stringResource(R.string.git_rebase_no_branches),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(8.dp),
+                        )
                     } else {
                         state.rebaseCandidates.forEach { branch ->
                             Text(
@@ -259,7 +265,10 @@ internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { onEvent(GitEvent.DismissRebasePicker) }) {
+                TextButton(
+                    onClick = { onEvent(GitEvent.DismissRebasePicker) },
+                    enabled = !state.rebasing,
+                ) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

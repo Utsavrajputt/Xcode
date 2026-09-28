@@ -46,7 +46,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -445,6 +447,10 @@ private fun RecentRow(
                     )
                 }
                 .alpha(if (item.exists) 1f else 0.5f)
+                .background(
+                    if (isCurrent) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                    else Color.Transparent,
+                )
                 .padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -467,10 +473,11 @@ private fun RecentRow(
             }
             when {
                 isBackingUp -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                isCurrent -> Text(
-                    text = stringResource(R.string.sheet_current),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                isCurrent -> Icon(
+                    XIcons.Check,
+                    contentDescription = stringResource(R.string.sheet_current),
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
                 )
             }
         }

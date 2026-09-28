@@ -202,14 +202,6 @@ fun GitScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { viewModel.onEvent(GitEvent.OpenRebasePicker) },
-                        enabled = state.snapshot?.hasCommits == true &&
-                            state.snapshot?.rebaseInProgress != true &&
-                            state.snapshot?.mergeInProgress != true,
-                    ) {
-                        Icon(XIcons.Redo, contentDescription = stringResource(R.string.git_rebase_action))
-                    }
-                    IconButton(
                         onClick = { viewModel.onEvent(GitEvent.Fetch) },
                         enabled = canSync && state.networkOp == null,
                     ) {
@@ -575,6 +567,12 @@ private fun BranchCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        IconButton(
+            onClick = { onEvent(GitEvent.OpenRebasePicker) },
+            enabled = snapshot.hasCommits && !snapshot.rebaseInProgress && !snapshot.mergeInProgress,
+        ) {
+            Icon(XIcons.Rebase, contentDescription = stringResource(R.string.git_rebase_action))
         }
         Box {
             IconButton(onClick = { onEvent(GitEvent.OpenBranchMenu) }) {

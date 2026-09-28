@@ -121,10 +121,15 @@ fun FileTree(
         val engine = remember { FileSearchEngine() }
         var results by remember { mutableStateOf<List<FileSearchEngine.Result>>(emptyList()) }
         var searching by remember { mutableStateOf(false) }
-        LaunchedEffect(query, state.root, state.showHidden) {
+        LaunchedEffect(query, state.root, state.showHidden, state.searchDefaultStringsOnly) {
             searching = true
             delay(200) // debounce; naya query aane par purana scan cancel ho jaata hai
-            results = engine.search(root = state.root, query = query, showHidden = state.showHidden)
+            results = engine.search(
+                root = state.root,
+                query = query,
+                showHidden = state.showHidden,
+                defaultValuesOnly = state.searchDefaultStringsOnly,
+            )
             searching = false
         }
         Box(modifier = modifier.fillMaxSize()) {

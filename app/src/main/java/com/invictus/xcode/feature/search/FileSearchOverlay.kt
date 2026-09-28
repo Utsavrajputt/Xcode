@@ -50,6 +50,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.data.SearchQueryEntity
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.search.FileSearchEngine
 import com.invictus.xcode.core.search.SearchHistoryStore
 import com.invictus.xcode.core.search.SearchKind
@@ -60,6 +61,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
@@ -69,6 +71,7 @@ class FileSearchViewModel(
     private val root: File,
     private val engine: FileSearchEngine,
     private val history: SearchHistoryStore,
+    private val settingsStore: EditorSettingsStore,
 ) : ViewModel() {
     data class UiState(
         val query: String = "",
@@ -99,7 +102,10 @@ class FileSearchViewModel(
         searchJob = viewModelScope.launch {
             delay(250) // debounce; naya query aane par purana cancel
             _uiState.update { it.copy(searching = true) }
-            val found = engine.search(root, query)
+            val found = engine.search(
+                root, query,
+                defaultValuesOnly = settingsStore.fileSearchDefaultStringsOnly.first(),
+            )
             _uiState.update { it.copy(results = found, searching = false) }
         }
     }
@@ -123,6 +129,7 @@ class FileSearchViewModel(
                     root = this[RootKey] ?: root,
                     engine = app.container.fileSearchEngine,
                     history = app.container.searchHistoryStore,
+                    settingsStore = app.container.editorSettingsStore,
                 )
             }
         }

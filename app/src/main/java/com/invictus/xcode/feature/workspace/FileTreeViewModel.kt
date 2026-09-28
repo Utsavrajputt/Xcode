@@ -101,6 +101,9 @@ class FileTreeViewModel(
         viewModelScope.launch { observePins() }
         viewModelScope.launch { restoreLastProject() }
         viewModelScope.launch {
+            settingsStore.fileSearchDefaultStringsOnly.collect { on -> publish { copy(searchDefaultStringsOnly = on) } }
+        }
+        viewModelScope.launch {
             settingsStore.gitStatusPollingEnabled.collect { enabled ->
                 val turnedOn = enabled && !gitStatusPollingEnabled
                 val turnedOff = !enabled && gitStatusPollingEnabled

@@ -125,6 +125,20 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setGitStatusPollingEnabled(enabled) }
     }
 
+    val fileSearchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.fileSearchDefaultStringsOnly
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setFileSearchDefaultStringsOnly(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setFileSearchDefaultStringsOnly(enabled) }
+    }
+
+    val codeSearchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.codeSearchDefaultStringsOnly
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setCodeSearchDefaultStringsOnly(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setCodeSearchDefaultStringsOnly(enabled) }
+    }
+
     /** Last font size the user zoomed to anywhere, in px; 0f = editor's own built-in default. */
     private var defaultFontSizePx: Float = 0f
 

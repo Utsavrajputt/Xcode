@@ -41,6 +41,7 @@ class FileSearchEngine {
                 if (!showHidden && name.startsWith(".")) continue
                 if (child.isDirectory) {
                     if (!includeIgnored && name in DEFAULT_SKIPPED_DIRS) continue
+                    if (defaultValuesOnly && isLocalizedValuesDir(name)) continue
                     walk(child)
                 } else {
                     if (extensions.isNotEmpty() && child.extension.lowercase() !in extensions) continue
@@ -59,5 +60,8 @@ class FileSearchEngine {
     companion object {
         val DEFAULT_SKIPPED_DIRS = setOf(".git", "build", "node_modules", ".gradle", ".idea")
         const val MAX_RESULTS = 200
+
+        /** Android res qualifier folders (values-hi, values-night...); plain "values" is kept. */
+        fun isLocalizedValuesDir(name: String): Boolean = name.startsWith("values-")
     }
 }

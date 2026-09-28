@@ -63,6 +63,8 @@ data class FileTreeUiState(
     val rootName: String?,
     val rows: List<TreeRow> = emptyList(),
     val showHidden: Boolean = false,
+    /** Mirrors Settings "File search: default strings only" for the tree's search box. */
+    val searchDefaultStringsOnly: Boolean = false,
     val showGitFolder: Boolean = false,
     val clipboard: Clipboard? = null,
     val renaming: RenameState? = null,

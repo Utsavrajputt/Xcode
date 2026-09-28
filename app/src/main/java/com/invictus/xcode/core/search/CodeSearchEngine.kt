@@ -18,6 +18,7 @@ class CodeSearchEngine {
         val includeGlob: String = "",
         val excludeGlob: String = "",
         val maxFileSizeBytes: Long = 2L * 1024 * 1024,
+        val defaultValuesOnly: Boolean = false,
     )
 
     data class LineMatch(val line: Int, val text: String, val ranges: List<IntRange>)
@@ -43,6 +44,7 @@ class CodeSearchEngine {
                 if (name.startsWith(".")) continue // .git waghera hamesha skip
                 if (child.isDirectory) {
                     if (name in DEFAULT_SKIPPED_DIRS) continue
+                    if (options.defaultValuesOnly && FileSearchEngine.isLocalizedValuesDir(name)) continue
                     stack.add(child)
                     continue
                 }

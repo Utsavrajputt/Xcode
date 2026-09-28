@@ -137,6 +137,7 @@ class GitViewModel(
         val rebasePicker: Boolean = false,
         val rebaseCandidates: List<String> = emptyList(),
         val rebasing: Boolean = false,
+        val rebaseLoading: Boolean = false,
         /** Shown when a plain (non-force) push is rejected — remote has commits we don't. */
         val pushRejected: Boolean = false,
         // Quick branch switcher dropdown
@@ -290,7 +291,7 @@ class GitViewModel(
             GitEvent.DismissAbortRebase -> _uiState.update { it.copy(abortRebaseConfirm = false) }
             GitEvent.OpenRebasePicker -> openRebasePicker()
             GitEvent.DismissRebasePicker ->
-                _uiState.update { it.copy(rebasePicker = false, rebaseCandidates = emptyList()) }
+                _uiState.update { it.copy(rebasePicker = false, rebaseLoading = false, rebaseCandidates = emptyList()) }
             is GitEvent.RebaseOnto -> rebaseOnto(event.branch)
             // ---- quick branch switcher ----
             GitEvent.OpenBranchMenu -> openBranchMenu()
@@ -587,17 +588,31 @@ class GitViewModel(
         }
     }
 
+    /** Last successful fetch of all remotes; lets the merge/rebase pickers skip a redundant fetch. */
+    private var lastFetchAt = 0L
+
     private fun fetch() {
         val snapshot = _uiState.value.snapshot ?: return
         if (!snapshot.hasCommits) return
-        val remote = snapshot.trackingInfo?.remote ?: _uiState.value.remotes.firstOrNull()?.name
-        if (remote == null) {
+        // Saare remotes (origin + upstream...) fetch hote hain, tracking wala pehle.
+        val tracking = snapshot.trackingInfo?.remote
+        val remotes = (listOfNotNull(tracking) + _uiState.value.remotes.map { it.name }).distinct()
+        if (remotes.isEmpty()) {
             message(R.string.git_err_no_remote)
             return
         }
         viewModelScope.launch(io) {
-            runNetwork(GitPendingAction.FETCH, remote, PendingNetworkMode.Plain) { cp ->
-                session.fetch(remote, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
+            var allOk = true
+            for (remote in remotes) {
+                val ok = runNetwork(GitPendingAction.FETCH, remote, PendingNetworkMode.Plain, announce = false) { cp ->
+                    session.fetch(remote, cp) { p -> _uiState.update { it.copy(progressTask = p.task) } }
+                }
+                if (!ok) { allOk = false; break }
+            }
+            if (allOk) {
+                lastFetchAt = System.currentTimeMillis()
+                message(R.string.git_msg_fetched)
+                refresh()
             }
         }
     }
@@ -607,6 +622,7 @@ class GitViewModel(
         action: GitPendingAction,
         remote: String,
         mode: PendingNetworkMode,
+        announce: Boolean = true,
         call: suspend (CredentialsProvider?) -> GitResult<Unit>,
     ): Boolean {
         val url = session.remoteUrl(remote)
@@ -620,14 +636,16 @@ class GitViewModel(
         _uiState.update { it.copy(networkOp = action, progressTask = "") }
         val ok = when (val result = call(provider)) {
             is GitResult.Ok -> {
-                message(
-                    when (action) {
-                        GitPendingAction.PUSH -> R.string.git_msg_pushed
-                        GitPendingAction.PULL -> R.string.git_msg_pulled
-                        else -> R.string.git_msg_fetched
-                    },
-                )
-                refresh()
+                if (announce) {
+                    message(
+                        when (action) {
+                            GitPendingAction.PUSH -> R.string.git_msg_pushed
+                            GitPendingAction.PULL -> R.string.git_msg_pulled
+                            else -> R.string.git_msg_fetched
+                        },
+                    )
+                    refresh()
+                }
                 true
             }
             is GitResult.Err -> {
@@ -828,12 +846,16 @@ class GitViewModel(
         val snapshot = _uiState.value.snapshot ?: return
         if (!snapshot.hasCommits || snapshot.rebaseInProgress || snapshot.mergeInProgress) return
         viewModelScope.launch(io) {
-            _uiState.update { it.copy(rebasePicker = true, rebaseCandidates = emptyList()) }
+            _uiState.update {
+                it.copy(rebasePicker = true, rebaseLoading = true, rebaseCandidates = emptyList())
+            }
             backgroundPruneFetch()
             when (val result = session.mergeCandidates()) {
-                is GitResult.Ok -> _uiState.update { it.copy(rebaseCandidates = result.value) }
+                is GitResult.Ok -> _uiState.update {
+                    it.copy(rebaseCandidates = result.value, rebaseLoading = false)
+                }
                 is GitResult.Err -> _uiState.update {
-                    it.copy(rebasePicker = false, error = result.error)
+                    it.copy(rebasePicker = false, rebaseLoading = false, error = result.error)
                 }
             }
         }
@@ -847,24 +869,30 @@ class GitViewModel(
      * back to whatever was already fetched, same as before this existed.
      */
     private suspend fun backgroundPruneFetch() {
-        val remote = _uiState.value.snapshot?.trackingInfo?.remote
-            ?: _uiState.value.remotes.firstOrNull()?.name
-            ?: return
-        val host = session.remoteUrl(remote)?.let(::normalizeHost)
-        val credential = host?.let { credentialStore.get(it) }
-        if (host != null && credential == null) return
-        val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
-        session.fetch(remote, provider)
+        // Abhi hi (manual ya picker se) fetch ho chuka hai to dobara network hit nahi.
+        if (System.currentTimeMillis() - lastFetchAt < FETCH_FRESH_MS) return
+        val tracking = _uiState.value.snapshot?.trackingInfo?.remote
+        val remotes = (listOfNotNull(tracking) + _uiState.value.remotes.map { it.name }).distinct()
+        for (remote in remotes) {
+            val host = session.remoteUrl(remote)?.let(::normalizeHost)
+            val credential = host?.let { credentialStore.get(it) }
+            if (host != null && credential == null) continue
+            val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
+            session.fetch(remote, provider)
+        }
+        lastFetchAt = System.currentTimeMillis()
     }
 
     private fun rebaseOnto(branch: String) {
         viewModelScope.launch(io) {
-            _uiState.update { it.copy(rebasing = true, rebasePicker = false) }
+            _uiState.update { it.copy(rebasing = true) }
             when (val result = session.rebaseOnto(branch)) {
                 is GitResult.Ok -> message(rebaseOutcomeMessage(result.value))
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
-            _uiState.update { it.copy(rebasing = false, rebaseCandidates = emptyList()) }
+            _uiState.update {
+                it.copy(rebasing = false, rebasePicker = false, rebaseCandidates = emptyList())
+            }
             refresh()
         }
     }
@@ -1015,6 +1043,9 @@ class GitViewModel(
     companion object {
         private const val DEFAULT_USERNAME = "x-access-token"
         private const val EXTERNAL_CHANGE_DEBOUNCE_MS = 400L
+
+        /** A fetch newer than this is considered fresh; merge/rebase pickers skip re-fetching. */
+        private const val FETCH_FRESH_MS = 5 * 60 * 1000L
 
         const val SECTION_CONFLICTS = "conflicts"
         const val SECTION_STAGED = "staged"

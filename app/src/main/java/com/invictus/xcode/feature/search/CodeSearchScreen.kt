@@ -56,6 +56,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.data.SearchQueryEntity
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.search.CodeSearchEngine
 import com.invictus.xcode.core.search.SearchHistoryStore
 import com.invictus.xcode.core.search.SearchKind
@@ -67,6 +68,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -76,6 +78,7 @@ class CodeSearchViewModel(
     private val root: File,
     private val engine: CodeSearchEngine,
     private val history: SearchHistoryStore,
+    private val settingsStore: EditorSettingsStore,
 ) : ViewModel() {
     data class UiState(
         val query: String = "",
@@ -133,7 +136,7 @@ class CodeSearchViewModel(
                 return
             }
         }
-        val options = CodeSearchEngine.Options(
+        val base = CodeSearchEngine.Options(
             regex = _uiState.value.regex,
             caseSensitive = _uiState.value.caseSensitive,
             wholeWord = _uiState.value.wholeWord,
@@ -142,6 +145,7 @@ class CodeSearchViewModel(
         )
         searchJob = viewModelScope.launch {
             delay(300)
+            val options = base.copy(defaultValuesOnly = settingsStore.codeSearchDefaultStringsOnly.first())
             _uiState.update { it.copy(searching = true) }
             val found = mutableListOf<CodeSearchEngine.FileResult>()
             var matches = 0
@@ -202,6 +206,7 @@ class CodeSearchViewModel(
                     root = this[RootKey] ?: root,
                     engine = app.container.codeSearchEngine,
                     history = app.container.searchHistoryStore,
+                    settingsStore = app.container.editorSettingsStore,
                 )
             }
         }

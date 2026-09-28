@@ -359,7 +359,7 @@ class GitSession(
     /** HEAD's full commit message, for pre-filling the commit box when Amend is toggled on. */
     suspend fun headCommitMessage(): GitResult<String?> = ioOp(TITLE_COMMIT) {
         timedLock {
-            val headId = repository.resolve("HEAD") ?: return@withLock null
+            val headId = repository.resolve("HEAD") ?: return@timedLock null
             RevWalk(repository).use { it.parseCommit(headId).fullMessage }
         }
     }
