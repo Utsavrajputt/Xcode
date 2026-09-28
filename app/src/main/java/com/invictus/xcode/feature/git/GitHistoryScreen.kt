@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.clickable
+import com.invictus.xcode.core.git.GitTrigger
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -98,12 +99,12 @@ class GitHistoryViewModel(
 
     private var searchJob: Job? = null
 
-    init { reload() }
+    init { reload("screen-open") }
 
     fun messageHandled() { _messages.value = null }
 
-    private fun reload() {
-        viewModelScope.launch(io) {
+    private fun reload(trigger: String = "user") {
+        viewModelScope.launch(io + GitTrigger(trigger)) {
             _ui.update { it.copy(loading = it.commits.isEmpty()) }
             val r = if (filePath != null) session.log(max = 300, path = filePath) else session.log()
             when (r) {

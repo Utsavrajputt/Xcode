@@ -1,5 +1,6 @@
 package com.invictus.xcode.core.git
 
+import com.invictus.xcode.core.diagnostics.GitLog
 import com.invictus.xcode.core.git.model.GitBranchDetail
 import com.invictus.xcode.core.git.model.GitConflictSide
 import com.invictus.xcode.core.git.model.MergeOutcome
@@ -23,6 +24,7 @@ import com.invictus.xcode.core.git.model.RebaseOutcome
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -134,7 +136,7 @@ class GitSession(
 
     /** Create a fresh repository in [workTree] (`git init`). Safe on a folder without .git. */
     suspend fun initRepository(): GitResult<Unit> = ioOp(TITLE_INIT) {
-        mutex.withLock {
+        timedLock {
             Git.init().setDirectory(workTree).call().close()
         }
         Unit
@@ -142,7 +144,7 @@ class GitSession(
 
     /** Make [branch] track [remote]/[branch] (`branch.<name>.remote` + `branch.<name>.merge`). */
     suspend fun setUpstream(remote: String, branch: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
-        mutex.withLock {
+        timedLock {
             repository.config.setString(
                 ConfigConstants.CONFIG_BRANCH_SECTION, branch, "remote", remote,
             )
@@ -158,7 +160,7 @@ class GitSession(
 
     /** Refresh snapshot + status together under the mutex; what the UI shows after any op. */
     suspend fun refresh(): GitResult<Pair<GitRepoSnapshot, GitWorkingTreeStatus>> =
-        ioOp(TITLE_STATUS) { mutex.withLock { doSnapshot() to doStatus() } }
+        ioOp(TITLE_STATUS) { timedLock { doSnapshot() to doStatus() } }
 
     /**
      * Snapshot + status + remotes in one [ioOp]/lock/`withContext(io)` hop instead of the
@@ -169,16 +171,16 @@ class GitSession(
      */
     suspend fun refreshFull(): GitResult<Triple<GitRepoSnapshot, GitWorkingTreeStatus, List<GitRemoteInfo>>> =
         ioOp(TITLE_STATUS) {
-            mutex.withLock { Triple(doSnapshot(), doStatus(), readRemotes()) }
+            timedLock { Triple(doSnapshot(), doStatus(), readRemotes()) }
         }
 
     suspend fun status(): GitResult<GitWorkingTreeStatus> =
-        ioOp(TITLE_STATUS) { mutex.withLock { doStatus() } }
+        ioOp(TITLE_STATUS) { timedLock { doStatus() } }
 
     // ---- stage / unstage ---------------------------------------------------
 
     suspend fun stage(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { fastAddSingle(path.normalized()) }
+        timedLock { fastAddSingle(path.normalized()) }
         Unit
     }
 
@@ -237,7 +239,7 @@ class GitSession(
     }
 
     suspend fun unstage(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { fastResetSingle(path.normalized()) }
+        timedLock { fastResetSingle(path.normalized()) }
         Unit
     }
 
@@ -297,7 +299,7 @@ class GitSession(
      * tracked deletions, skip straight past it instead of paying for an empty walk.
      */
     suspend fun stageAll(): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock {
+        timedLock {
             val hadDeletions = lastStatus?.changes.orEmpty()
                 .any { it.unstaged == GitWorkingState.DELETED }
             git.add().addFilepattern(".").call()
@@ -309,7 +311,7 @@ class GitSession(
     }
 
     suspend fun unstageAll(): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { git.reset().setMode(ResetCommand.ResetType.MIXED).call() }
+        timedLock { git.reset().setMode(ResetCommand.ResetType.MIXED).call() }
         Unit
     }
 
@@ -318,7 +320,7 @@ class GitSession(
      * untracked file outright. Never touches the index (caller ensures it's unstaged first).
      */
     suspend fun discard(path: String, isUntracked: Boolean): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock {
+        timedLock {
             if (isUntracked) {
                 File(workTree, path).deleteRecursively()
             } else {
@@ -337,7 +339,7 @@ class GitSession(
     suspend fun resetTo(ref: String, mode: GitResetMode): GitResult<Unit> = ioOp(TITLE_RESET) {
         val target = ref.trim()
         require(target.isNotEmpty()) { "Reset target is empty." }
-        mutex.withLock {
+        timedLock {
             if (repository.resolve(target) == null) {
                 throw IllegalArgumentException("Can't resolve '$target'.")
             }
@@ -356,15 +358,15 @@ class GitSession(
 
     /** HEAD's full commit message, for pre-filling the commit box when Amend is toggled on. */
     suspend fun headCommitMessage(): GitResult<String?> = ioOp(TITLE_COMMIT) {
-        mutex.withLock {
-            val headId = repository.resolve("HEAD") ?: return@withLock null
+        timedLock {
+            val headId = repository.resolve("HEAD") ?: return@timedLock null
             RevWalk(repository).use { it.parseCommit(headId).fullMessage }
         }
     }
 
     suspend fun commit(message: String, amend: Boolean): GitResult<GitCommitSummary> =
         ioOp(TITLE_COMMIT) {
-            mutex.withLock {
+            timedLock {
                 val identity = resolveIdentity() ?: throw GitIdentityMissingException()
                 // Amend with a blank box keeps HEAD's own message instead of wiping it —
                 // the UI pre-fills this box already, but stay safe if it got cleared.
@@ -414,7 +416,7 @@ class GitSession(
         force: Boolean = false,
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_PUSH) {
-        mutex.withLock {
+        timedLock {
             if (force) {
                 val branch = currentBranchName()
                     ?: throw IllegalStateException("Detached HEAD: force push needs a branch.")
@@ -462,7 +464,7 @@ class GitSession(
         rebase: Boolean = false,
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_PULL) {
-        mutex.withLock {
+        timedLock {
             git.fetch()
                 .setRemote(remote)
                 .setCredentialsProvider(credentials)
@@ -486,7 +488,7 @@ class GitSession(
         credentials: CredentialsProvider?,
         onProgress: (GitProgress) -> Unit = {},
     ): GitResult<Unit> = ioOp(TITLE_FETCH) {
-        mutex.withLock {
+        timedLock {
             git.fetch()
                 .setRemote(remote)
                 .setCredentialsProvider(credentials)
@@ -501,7 +503,7 @@ class GitSession(
 
     /** HEAD-vs-worktree diff for one repo-relative path, parsed into render rows. */
     suspend fun fileDiff(path: String): GitResult<GitFileDiffResult> =
-        ioOp(TITLE_DIFF) { mutex.withLock { doFileDiff(path.normalized()) } }
+        ioOp(TITLE_DIFF) { timedLock { doFileDiff(path.normalized()) } }
 
     private fun doFileDiff(relPath: String): GitFileDiffResult {
         val headId = repository.resolve("HEAD")
@@ -554,7 +556,7 @@ class GitSession(
     // ---- remotes / branches -------------------------------------------------
 
     suspend fun listRemotes(): GitResult<List<GitRemoteInfo>> = ioOp(TITLE_STATUS) {
-        mutex.withLock { readRemotes() }
+        timedLock { readRemotes() }
     }
 
     private fun readRemotes(): List<GitRemoteInfo> =
@@ -570,7 +572,7 @@ class GitSession(
         }
 
     suspend fun listBranches(): GitResult<List<GitBranchInfo>> = ioOp(TITLE_STATUS) {
-        mutex.withLock {
+        timedLock {
             val current = runCatching { repository.branch }.getOrNull()
             git.branchList().call().map { ref ->
                 GitBranchInfo(
@@ -639,7 +641,7 @@ class GitSession(
 
     /** Local branches + current unborn branch (empty repo me bhi HEAD wali dikhe). */
     suspend fun listBranchesDetailed(): GitResult<List<GitBranchDetail>> = ioOp(TITLE_BRANCH) {
-        mutex.withLock {
+        timedLock {
             val current = currentBranchName()
             val listed = git.branchList().call().map { ref ->
                 val name = ref.name.removePrefix("refs/heads/")
@@ -664,7 +666,7 @@ class GitSession(
     suspend fun createBranch(name: String, checkout: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
         val n = name.trim()
         require(n.isNotEmpty()) { "Branch name is empty." }
-        mutex.withLock {
+        timedLock {
             if (repository.resolve("HEAD") == null) {
                 // Unborn: branch has no tip yet, just point HEAD at the new name.
                 repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
@@ -678,7 +680,7 @@ class GitSession(
 
     suspend fun checkoutBranch(name: String, create: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
         val n = name.trim()
-        mutex.withLock {
+        timedLock {
             if (create && repository.resolve("HEAD") == null) {
                 repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
             } else {
@@ -691,7 +693,7 @@ class GitSession(
     suspend fun renameBranch(oldName: String?, newName: String): GitResult<Unit> = ioOp(TITLE_BRANCH) {
         val nn = newName.trim()
         require(nn.isNotEmpty()) { "Branch name is empty." }
-        mutex.withLock {
+        timedLock {
             val old = oldName?.trim()?.takeIf { it.isNotEmpty() } ?: currentBranchName()
                 ?: throw IllegalStateException("No current branch to rename.")
             if (repository.resolve("HEAD") == null) {
@@ -712,7 +714,7 @@ class GitSession(
     suspend fun deleteBranch(name: String, force: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
         val n = name.trim()
         if (n == currentBranchName()) throw IllegalStateException("Cannot delete the current branch.")
-        mutex.withLock { git.branchDelete().setBranchNames(n).setForce(force).call() }
+        timedLock { git.branchDelete().setBranchNames(n).setForce(force).call() }
         Unit
     }
 
@@ -720,7 +722,7 @@ class GitSession(
 
     suspend fun log(max: Int = 300, path: String? = null): GitResult<List<GitCommitSummary>> =
         ioOp(TITLE_LOG) {
-            mutex.withLock {
+            timedLock {
                 if (repository.resolve("HEAD") == null) return@ioOp emptyList()
                 val cmd = git.log().setMaxCount(max)
                 if (path != null) cmd.addPath(path.normalized())
@@ -734,7 +736,7 @@ class GitSession(
         mode: GitLogSearchMode,
         max: Int = 300,
     ): GitResult<List<GitCommitSummary>> = ioOp(TITLE_LOG) {
-        mutex.withLock {
+        timedLock {
             if (repository.resolve("HEAD") == null) return@ioOp emptyList()
             val q = query.trim()
             git.log().setMaxCount(3000).call()
@@ -755,7 +757,7 @@ class GitSession(
     }
 
     suspend fun cherryPick(commitId: String): GitResult<Unit> = ioOp(TITLE_CHERRY_PICK) {
-        mutex.withLock {
+        timedLock {
             val result = git.cherryPick()
                 .include(repository.resolve(commitId.trim()))
                 .call()
@@ -779,7 +781,7 @@ class GitSession(
     // ---- M8: stash --------------------------------------------------------------
 
     suspend fun stashCreate(message: String?): GitResult<Unit> = ioOp(TITLE_STASH) {
-        mutex.withLock {
+        timedLock {
             val cmd = git.stashCreate()
             if (!message.isNullOrBlank()) cmd.setWorkingDirectoryMessage(message.trim())
             cmd.call()
@@ -788,7 +790,7 @@ class GitSession(
     }
 
     suspend fun stashList(): GitResult<List<GitStashInfo>> = ioOp(TITLE_STASH) {
-        mutex.withLock {
+        timedLock {
             git.stashList().call().toList().mapIndexed { index, c ->
                 GitStashInfo(
                     ref = "stash@{$index}",
@@ -801,7 +803,7 @@ class GitSession(
     }
 
     suspend fun stashApply(ref: String, pop: Boolean): GitResult<Unit> = ioOp(TITLE_STASH) {
-        mutex.withLock {
+        timedLock {
             git.stashApply().setStashRef(ref).call()
             if (pop) git.stashDrop().setStashRef(stashIndexFromRef(ref)).call()
         }
@@ -809,7 +811,7 @@ class GitSession(
     }
 
     suspend fun stashDrop(ref: String): GitResult<Unit> = ioOp(TITLE_STASH) {
-        mutex.withLock { git.stashDrop().setStashRef(stashIndexFromRef(ref)).call() }
+        timedLock { git.stashDrop().setStashRef(stashIndexFromRef(ref)).call() }
         Unit
     }
 
@@ -822,7 +824,7 @@ class GitSession(
     // ---- M8: tags ----------------------------------------------------------------
 
     suspend fun listTags(): GitResult<List<GitTagInfo>> = ioOp(TITLE_TAG) {
-        mutex.withLock {
+        timedLock {
             val walk = RevWalk(repository)
             try {
                 git.tagList().call().map { ref ->
@@ -845,7 +847,7 @@ class GitSession(
     suspend fun createTag(name: String, message: String?): GitResult<Unit> = ioOp(TITLE_TAG) {
         val n = name.trim()
         require(n.isNotEmpty()) { "Tag name is empty." }
-        mutex.withLock {
+        timedLock {
             val cmd = git.tag().setName(n)
             if (!message.isNullOrBlank()) cmd.setAnnotated(true).setMessage(message.trim())
             cmd.call()
@@ -854,21 +856,21 @@ class GitSession(
     }
 
     suspend fun deleteTag(name: String): GitResult<Unit> = ioOp(TITLE_TAG) {
-        mutex.withLock { git.tagDelete().setTags(name.trim()).call() }
+        timedLock { git.tagDelete().setTags(name.trim()).call() }
         Unit
     }
 
     // ---- M8: remotes ---------------------------------------------------------------
 
     suspend fun addRemote(name: String, url: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
-        mutex.withLock {
+        timedLock {
             git.remoteAdd().setName(name.trim()).setUri(URIish(url.trim())).call()
         }
         Unit
     }
 
     suspend fun setRemoteUrl(name: String, url: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
-        mutex.withLock {
+        timedLock {
             repository.config.setString(
                 ConfigConstants.CONFIG_REMOTE_SECTION, name, ConfigConstants.CONFIG_KEY_URL, url.trim(),
             )
@@ -880,7 +882,7 @@ class GitSession(
     suspend fun renameRemote(oldName: String, newName: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
         val old = oldName.trim()
         val new = newName.trim()
-        mutex.withLock {
+        timedLock {
             val cfg = repository.config
             val url = cfg.getString(
                 ConfigConstants.CONFIG_REMOTE_SECTION, old, ConfigConstants.CONFIG_KEY_URL,
@@ -911,7 +913,7 @@ class GitSession(
     }
 
     suspend fun removeRemote(name: String): GitResult<Unit> = ioOp(TITLE_REMOTE) {
-        mutex.withLock { git.remoteRemove().setRemoteName(name.trim()).call() }
+        timedLock { git.remoteRemove().setRemoteName(name.trim()).call() }
         Unit
     }
 
@@ -926,7 +928,7 @@ class GitSession(
     suspend fun mergeBranch(branch: String): GitResult<MergeOutcome> = ioOp(TITLE_MERGE) {
         val name = branch.trim()
         require(name.isNotEmpty()) { "Branch name is empty." }
-        mutex.withLock {
+        timedLock {
             val commitId = resolveBranchRef(name)
             if (currentBranchName() == name) {
                 throw IllegalStateException("Already on '$name'.")
@@ -976,7 +978,7 @@ class GitSession(
 
     /** Local + remote short names minus the current branch, for the merge picker. */
     suspend fun mergeCandidates(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
-        mutex.withLock {
+        timedLock {
             val current = currentBranchName()
             val local = git.branchList().call()
                 .map { it.name.removePrefix("refs/heads/") }
@@ -989,7 +991,7 @@ class GitSession(
 
     /** Saved MERGE_MSG content, to prefill the "Complete merge" dialog. */
     suspend fun mergeMessage(): GitResult<String?> = ioOp(TITLE_MERGE) {
-        mutex.withLock {
+        timedLock {
             val f = File(repository.directory, "MERGE_MSG")
             if (f.isFile) f.readText().trim().ifBlank { null } else null
         }
@@ -997,7 +999,7 @@ class GitSession(
 
     /** Plan-solved abort: drop the merge state files, then hard-reset the tree. */
     suspend fun abortMerge(): GitResult<Unit> = ioOp(TITLE_MERGE) {
-        mutex.withLock {
+        timedLock {
             if (repository.readMergeHeads() == null) return@ioOp Unit
             repository.writeMergeCommitMsg(null)
             repository.writeMergeHeads(null)
@@ -1011,7 +1013,7 @@ class GitSession(
         ioOp(TITLE_MERGE) {
             val msg = message.trim()
             require(msg.isNotEmpty()) { "Commit message is empty." }
-            mutex.withLock {
+            timedLock {
                 if (repository.readMergeHeads() == null) {
                     throw IllegalStateException("No merge is in progress.")
                 }
@@ -1031,7 +1033,7 @@ class GitSession(
         side: GitConflictSide,
     ): GitResult<Unit> = ioOp(TITLE_MERGE) {
         val p = path.normalized()
-        mutex.withLock {
+        timedLock {
             git.checkout()
                 .setStage(
                     if (side == GitConflictSide.OURS) CheckoutCommand.Stage.OURS
@@ -1046,7 +1048,7 @@ class GitSession(
 
     /** "Mark resolved" = keep the file exactly as edited and stage it (plan 3.4). */
     suspend fun markConflictResolved(path: String): GitResult<Unit> = ioOp(TITLE_STAGE) {
-        mutex.withLock { git.add().addFilepattern(path.normalized()).call() }
+        timedLock { git.add().addFilepattern(path.normalized()).call() }
         Unit
     }
 
@@ -1056,7 +1058,7 @@ class GitSession(
         side: GitConflictSide,
     ): GitResult<String> = ioOp(TITLE_DIFF) {
         val p = path.normalized()
-        mutex.withLock {
+        timedLock {
             val stage = if (side == GitConflictSide.OURS) {
                 DirCacheEntry.STAGE_2
             } else {
@@ -1090,7 +1092,7 @@ class GitSession(
     suspend fun rebaseOnto(branch: String): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
         val name = branch.trim()
         require(name.isNotEmpty()) { "Rebase target is empty." }
-        mutex.withLock {
+        timedLock {
             val onto = resolveBranchRef(name)
             if (currentBranchName() == name) {
                 throw IllegalStateException("Already on '$name'.")
@@ -1101,7 +1103,7 @@ class GitSession(
 
     /** Resumes a stopped rebase once every conflicted path is resolved and staged. */
     suspend fun continueRebase(): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
-        mutex.withLock {
+        timedLock {
             if (!repository.repositoryState.isRebasing) {
                 throw IllegalStateException("No rebase is in progress.")
             }
@@ -1111,7 +1113,7 @@ class GitSession(
 
     /** Drops the commit currently being replayed and moves on to the next one. */
     suspend fun skipRebaseCommit(): GitResult<RebaseOutcome> = ioOp(TITLE_REBASE) {
-        mutex.withLock {
+        timedLock {
             if (!repository.repositoryState.isRebasing) {
                 throw IllegalStateException("No rebase is in progress.")
             }
@@ -1121,7 +1123,7 @@ class GitSession(
 
     /** Restores the branch to where the rebase started; conflict resolutions are lost. */
     suspend fun abortRebase(): GitResult<Unit> = ioOp(TITLE_REBASE) {
-        mutex.withLock {
+        timedLock {
             if (!repository.repositoryState.isRebasing) return@ioOp Unit
             git.rebase().setOperation(RebaseCommand.Operation.ABORT).call()
         }
@@ -1246,18 +1248,52 @@ class GitSession(
         )
     }
 
-    private suspend fun <T> ioOp(title: String, block: suspend () -> T): GitResult<T> =
-        withContext(io) {
-            try {
+    private suspend fun <T> ioOp(title: String, block: suspend () -> T): GitResult<T> {
+        val stats = GitOpStats()
+        val trigger = currentCoroutineContext()[GitTrigger]?.label ?: "user"
+        val startNs = System.nanoTime()
+        return withContext(io + stats) {
+            var failure: Throwable? = null
+            val result: GitResult<T> = try {
                 GitResult.Ok(runWithLockRecovery(block))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: RepositoryNotFoundException) {
+                failure = e
                 GitResult.Err(GitErrorFactory.from(e, title) { "This folder is not a Git repository." })
             } catch (e: Throwable) {
+                failure = e
                 GitResult.Err(GitErrorFactory.from(e, title) { it.message ?: "Unknown error" })
             }
+            if (GitLog.enabled) {
+                GitLog.record(
+                    op = title,
+                    ok = failure == null,
+                    totalMs = (System.nanoTime() - startNs) / 1_000_000,
+                    waitMs = stats.totalWaitNs() / 1_000_000,
+                    trigger = trigger,
+                    repo = workTree.path,
+                    branch = runCatching { repository.branch }.getOrNull(),
+                    error = failure,
+                )
+            }
+            result
         }
+    }
+
+    /**
+     * [mutex].withLock that also reports how long this op sat waiting for the lock (queued behind
+     * another op on the same repo) into the surrounding [ioOp]'s [GitOpStats], so the git log can
+     * split "waited for lock" from "actually ran".
+     */
+    private suspend inline fun <T> timedLock(block: () -> T): T {
+        val stats = currentCoroutineContext()[GitOpStats]
+        val waitStart = System.nanoTime()
+        return mutex.withLock {
+            stats?.addWait(System.nanoTime() - waitStart)
+            block()
+        }
+    }
 
     /**
      * Runs [block] once; if it fails on a leftover `.lock` file (e.g. the app was killed

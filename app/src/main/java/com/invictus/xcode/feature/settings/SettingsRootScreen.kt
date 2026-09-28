@@ -47,6 +47,7 @@ fun SettingsRootScreen(
     onOpenEditing: () -> Unit,
     onOpenBehavior: () -> Unit,
     onOpenDiagnostics: () -> Unit,
+    onOpenGitLogs: () -> Unit,
     onOpenGitHub: () -> Unit,
     batteryOptimizationDisabled: Boolean = true,
     onFixBatteryOptimization: () -> Unit = {},
@@ -173,6 +174,14 @@ fun SettingsRootScreen(
                     title = stringResource(R.string.settings_section_diagnostics),
                     subtitle = stringResource(R.string.settings_category_diagnostics_desc),
                     onClick = onOpenDiagnostics,
+                )
+                CategoryRowGap()
+                CategoryRow(
+                    icon = XIcons.Commit,
+                    chevron = XIcons.ChevronRight,
+                    title = stringResource(R.string.settings_section_git_logs),
+                    subtitle = stringResource(R.string.settings_category_git_logs_desc),
+                    onClick = onOpenGitLogs,
                 )
                 CategoryRowGap()
                 CategoryRow(

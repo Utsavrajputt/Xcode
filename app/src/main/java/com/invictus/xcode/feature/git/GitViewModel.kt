@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import androidx.lifecycle.ViewModel
+import com.invictus.xcode.core.git.GitTrigger
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
@@ -181,7 +182,7 @@ class GitViewModel(
                     }
                 }
             }
-            refresh()
+            refresh("screen-open")
             repoWatcher.start(File(projectPath, ".git"))
             viewModelScope.launch { debounceExternalChanges() }
         }
@@ -204,7 +205,7 @@ class GitViewModel(
             externalChangeEvents.receive()
             delay(EXTERNAL_CHANGE_DEBOUNCE_MS)
             while (externalChangeEvents.tryReceive().isSuccess) { /* drain the rest of the burst */ }
-            refresh()
+            refresh("watcher")
         }
     }
 
@@ -215,7 +216,8 @@ class GitViewModel(
 
     fun onEvent(event: GitEvent) {
         when (event) {
-            GitEvent.Refresh -> refresh()
+            GitEvent.Refresh -> refresh("user")
+            GitEvent.ResumeRefresh -> refresh("resume")
             GitEvent.StageAll -> stage(null)
             GitEvent.UnstageAll -> unstage(null)
             is GitEvent.Stage -> stage(event.path)
@@ -300,8 +302,8 @@ class GitViewModel(
 
     // ---- refresh -----------------------------------------------------------
 
-    private fun refresh() {
-        viewModelScope.launch(io) {
+    private fun refresh(trigger: String = "after-op") {
+        viewModelScope.launch(io + GitTrigger(trigger)) {
             _uiState.update { it.copy(loading = it.snapshot == null) }
             when (val result = session.refreshFull()) {
                 is GitResult.Ok -> {

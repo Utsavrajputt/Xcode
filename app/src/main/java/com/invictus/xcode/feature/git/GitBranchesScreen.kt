@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Box
+import com.invictus.xcode.core.git.GitTrigger
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -96,12 +97,12 @@ class GitBranchesViewModel(
     private val _messages = MutableStateFlow<String?>(null)
     val messages: StateFlow<String?> = _messages.asStateFlow()
 
-    init { load() }
+    init { load("screen-open") }
 
     fun messageHandled() { _messages.value = null }
 
-    fun load() {
-        viewModelScope.launch(io) {
+    fun load(trigger: String = "after-op") {
+        viewModelScope.launch(io + GitTrigger(trigger)) {
             _ui.update { it.copy(loading = it.branches.isEmpty()) }
             val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
             when (val r = session.listBranchesDetailed()) {

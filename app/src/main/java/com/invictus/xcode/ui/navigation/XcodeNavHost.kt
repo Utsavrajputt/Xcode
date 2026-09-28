@@ -1,6 +1,7 @@
 package com.invictus.xcode.ui.navigation
 
 import androidx.compose.animation.core.tween
+import com.invictus.xcode.feature.diagnostics.GitLogsScreen
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -143,6 +144,7 @@ fun XcodeNavHost(
                 onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },
                 onOpenBehavior = { navController.navigate(Routes.SETTINGS_BEHAVIOR) },
                 onOpenDiagnostics = { navController.navigate(Routes.SETTINGS_DIAGNOSTICS) },
+                onOpenGitLogs = { navController.navigate(Routes.SETTINGS_GIT_LOGS) },
                 onOpenGitHub = { navController.navigate(Routes.SETTINGS_GITHUB) },
             )
         }
@@ -151,6 +153,9 @@ fun XcodeNavHost(
         }
         composable(Routes.SETTINGS_DIAGNOSTICS) {
             CrashLogsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS_GIT_LOGS) {
+            GitLogsScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS_APPEARANCE) {
             SettingsAppearanceScreen(

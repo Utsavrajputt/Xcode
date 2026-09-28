@@ -1,6 +1,7 @@
 package com.invictus.xcode
 
 import android.app.Application
+import com.invictus.xcode.core.diagnostics.GitLog
 import com.invictus.xcode.core.diagnostics.CrashHandler
 import com.invictus.xcode.core.git.installGitByteCounting
 import com.invictus.xcode.core.git.installGitPerformanceTuning
@@ -14,6 +15,7 @@ class XcodeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashHandler.install(this)
+        GitLog.init(this)
         ThemeSettings.init(this)
         installGitByteCounting()
         installGitPerformanceTuning()

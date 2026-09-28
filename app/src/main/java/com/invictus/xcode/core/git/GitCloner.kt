@@ -1,6 +1,7 @@
 package com.invictus.xcode.core.git
 
 import kotlinx.coroutines.CancellationException
+import com.invictus.xcode.core.diagnostics.GitLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
@@ -17,6 +18,7 @@ object GitCloner {
         branch: String?,
         onProgress: (GitCloneProgress) -> Unit,
     ): GitResult<File> = withContext(Dispatchers.IO) {
+        val startNs = System.nanoTime()
         try {
             val tracker = GitCloneProgressTracker(onProgress)
             val cmd = Git.cloneRepository()
@@ -28,10 +30,12 @@ object GitCloner {
             val git = GitByteTracker.track(tracker::onBytesRead) { cmd.call() }
             git.close()
             tracker.finish()
+            GitLog.record("Git clone", true, (System.nanoTime() - startNs) / 1_000_000, 0, "user", directory.path, branch, null)
             GitResult.Ok(directory)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
+            GitLog.record("Git clone", false, (System.nanoTime() - startNs) / 1_000_000, 0, "user", directory.path, branch, e)
             GitResult.Err(GitErrorFactory.from(e, "Clone failed") { it.message ?: "Unknown error" })
         }
     }

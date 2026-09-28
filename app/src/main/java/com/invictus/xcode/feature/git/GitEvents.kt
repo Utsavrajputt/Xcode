@@ -5,6 +5,8 @@ import com.invictus.xcode.core.git.model.GitResetMode
 
 sealed interface GitEvent {
     data object Refresh : GitEvent
+    /** Screen returned to foreground (ON_RESUME) — same refresh, but logged with trigger=resume. */
+    data object ResumeRefresh : GitEvent
     data object StageAll : GitEvent
     data object UnstageAll : GitEvent
     data class Stage(val path: String) : GitEvent

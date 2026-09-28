@@ -92,7 +92,7 @@ fun GitScreen(
     val scope = rememberCoroutineScope()
 
     // External edits (Termux, another git client) show up when the user comes back.
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onEvent(GitEvent.Refresh) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onEvent(GitEvent.ResumeRefresh) }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
