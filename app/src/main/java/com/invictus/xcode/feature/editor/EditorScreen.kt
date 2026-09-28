@@ -1,14 +1,19 @@
 package com.invictus.xcode.feature.editor
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,12 +26,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,28 +39,30 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -124,21 +131,11 @@ fun EditorScreen(
     val gitStateFlow = gitViewModel?.uiState
         ?: kotlinx.coroutines.flow.MutableStateFlow(GitViewModel.UiState())
     val gitState by gitStateFlow.collectAsStateWithLifecycle()
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    var showGitSheet by remember { mutableStateOf(false) }
+    // Bumped whenever the editor content/undo stack changes, so undo/redo enabled-state recomputes.
+    var historyTick by remember { mutableIntStateOf(0) }
 
-    // Collapsible app bar: scrolling the editor content hides the title/nav/action row (not the
-    // tab bar below it) to give the small-screen keyboard more room, VS Code-mobile style.
     val density = LocalDensity.current
-    var appBarHeightPx by remember { mutableFloatStateOf(0f) }
-    val appBarOffset = remember { Animatable(0f) }
-    val scrollScope = rememberCoroutineScope()
-    val onEditorScroll = remember {
-        OnEditorScroll { deltaY ->
-            if (appBarHeightPx <= 0f) return@OnEditorScroll
-            val target = (appBarOffset.value - deltaY).coerceIn(-appBarHeightPx, 0f)
-            scrollScope.launch { appBarOffset.snapTo(target) }
-        }
-    }
 
     LaunchedEffect(viewModel) {
         viewModel.messages.collect { snackbarHostState.showSnackbar(it.resolve(context)) }
@@ -146,8 +143,10 @@ fun EditorScreen(
     LaunchedEffect(gitViewModel) {
         gitViewModel?.effects?.collect { effect ->
             when (effect) {
-                is GitViewModel.Effect.OpenFile ->
+                is GitViewModel.Effect.OpenFile -> {
+                    showGitSheet = false
                     viewModel.onEvent(EditorEvent.Open(effect.file))
+                }
                 is GitViewModel.Effect.Message ->
                     snackbarHostState.showSnackbar(effect.text.resolve(context))
             }
@@ -158,11 +157,10 @@ fun EditorScreen(
         if (state.tabs.isEmpty()) onBack()
     }
     // Switching tabs closes the finder rather than trying to carry it to a different buffer,
-    // and un-collapses the bar so a new file always opens with title/actions visible.
+    // (the top bar is fixed and never collapses).
     LaunchedEffect(state.activePath) {
         showFind = false
         findState.reset()
-        appBarOffset.snapTo(0f)
     }
 
     // A save from Termux/git or another app while Xcode was backgrounded may not have raised a
@@ -172,6 +170,8 @@ fun EditorScreen(
     val active = state.tabs.firstOrNull { it.path == state.activePath }
     val activePath = state.activePath
     val activeBuffer = activePath?.let { viewModel.buffer(it) }
+    val canUndo = remember(historyTick, activePath) { handle.editor?.canUndo() == true }
+    val canRedo = remember(historyTick, activePath) { handle.editor?.canRedo() == true }
 
     // Keeps Sora's live search and the panel's independent match count both in sync with the
     // query/options/edits, without polling on every recomposition.
@@ -196,125 +196,72 @@ fun EditorScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        gesturesEnabled = gitViewModel != null,
-        drawerContent = {
-            if (gitViewModel != null && gitState != null && projectRoot != null) {
-                ModalDrawerSheet {
-                    SourceControlDrawerSheet(
-                        state = gitState,
-                        projectRoot = projectRoot,
-                        onEvent = gitViewModel::onEvent,
-                    )
-                }
-            }
-        },
-    ) {
     Scaffold(
         modifier = modifier,
         topBar = {
-            // Bar's own measured height clipped down by how far it has scrolled off --
-            // Scaffold reserves exactly this much space, so the tab bar below rides up flush,
-            // no blank gap. onGloballyPositioned captures the natural (uncollapsed) height once.
-            val barHeightDp = with(density) {
-                (appBarHeightPx + appBarOffset.value).coerceAtLeast(0f).toDp()
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .let { if (appBarHeightPx > 0f) it.height(barHeightDp) else it }
-                    .clipToBounds(),
-            ) {
-                TopAppBar(
-                    modifier = Modifier.onGloballyPositioned { coords ->
-                        if (appBarHeightPx <= 0f) appBarHeightPx = coords.size.height.toFloat()
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            EditorTopBar(
+                onBack = onBack,
+                actions = {
+                    IconButton(
+                        onClick = {
+                            showFind = !showFind
+                            if (!showFind) {
+                                handle.editor?.searcher?.stopSearch()
+                                findState.reset()
+                            }
+                        },
+                    ) {
+                        Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
+                    }
+                    HistoryButton(
+                        enabled = canUndo,
+                        onClick = { handle.editor?.undo() },
+                        icon = XIcons.Undo,
+                        description = stringResource(R.string.action_undo),
+                    )
+                    HistoryButton(
+                        enabled = canRedo,
+                        onClick = { handle.editor?.redo() },
+                        icon = XIcons.Redo,
+                        description = stringResource(R.string.action_redo),
+                    )
+                    IconButton(
+                        onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
+                        enabled = active?.dirty == true,
+                    ) {
+                        Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
+                    }
+                    if (active?.previewType?.isTextPreview == true) {
+                        IconButton(onClick = { viewModel.onEvent(EditorEvent.CyclePreviewMode(active.path)) }) {
+                            val (icon, description) = when (active.previewMode) {
+                                PreviewMode.EDITOR -> XIcons.Code to R.string.preview_mode_editor
+                                PreviewMode.SPLIT -> XIcons.HorizontalSplit to R.string.preview_mode_split
+                                PreviewMode.PREVIEW -> XIcons.Visibility to R.string.preview_mode_preview
+                            }
+                            Icon(icon, contentDescription = stringResource(description))
                         }
-                    },
-                    title = {
-                        Text(
-                            text = active?.name.orEmpty(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    }
+                    Box {
+                        IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
+                            Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
+                        }
+                        QuickActionsMenu(
+                            expanded = showQuickActions,
+                            handle = handle,
+                            activePath = activePath,
+                            onDismiss = { showQuickActions = false },
                         )
-                    },
-                    actions = {
-                        IconButton(
-                            onClick = {
-                                showFind = !showFind
-                                if (!showFind) {
-                                    handle.editor?.searcher?.stopSearch()
-                                    findState.reset()
-                                }
-                            },
-                        ) {
-                            Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
-                        }
-                        IconButton(onClick = { handle.editor?.undo() }) {
-                            Icon(XIcons.Undo, contentDescription = stringResource(R.string.action_undo))
-                        }
-                        IconButton(onClick = { handle.editor?.redo() }) {
-                            Icon(XIcons.Redo, contentDescription = stringResource(R.string.action_redo))
-                        }
-                        IconButton(
-                            onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
-                            enabled = active?.dirty == true,
-                        ) {
-                            Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
-                        }
-                        if (gitViewModel != null) {
-                            val changedCount = gitState?.status?.changes?.size ?: 0
-                            BadgedBox(
-                                badge = {
-                                    if (changedCount > 0) Badge { Text("$changedCount") }
-                                },
-                            ) {
-                                IconButton(
-                                    onClick = { scrollScope.launch { drawerState.open() } },
-                                ) {
-                                    Icon(
-                                        XIcons.Commit,
-                                        contentDescription = stringResource(R.string.git_title),
-                                    )
-                                }
-                            }
-                        }
-                        if (active?.previewType?.isTextPreview == true) {
-                            IconButton(onClick = { viewModel.onEvent(EditorEvent.CyclePreviewMode(active.path)) }) {
-                                val (icon, description) = when (active.previewMode) {
-                                    PreviewMode.EDITOR -> XIcons.Code to R.string.preview_mode_editor
-                                    PreviewMode.SPLIT -> XIcons.HorizontalSplit to R.string.preview_mode_split
-                                    PreviewMode.PREVIEW -> XIcons.Visibility to R.string.preview_mode_preview
-                                }
-                                Icon(icon, contentDescription = stringResource(description))
-                            }
-                        }
-                        Box {
-                            IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
-                                Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
-                            }
-                            QuickActionsMenu(
-                                expanded = showQuickActions,
-                                handle = handle,
-                                activePath = activePath,
-                                onDismiss = { showQuickActions = false },
-                            )
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(XIcons.Settings, contentDescription = stringResource(R.string.action_settings))
-                        }
-                        EditorOverflowMenu(
-                            activePath = state.activePath,
-                            anyDirty = state.tabs.any { it.dirty },
-                            onEvent = viewModel::onEvent,
-                        )
-                    },
-                )
-            }
+                    }
+                },
+                overflow = {
+                    EditorOverflowMenu(
+                        activePath = state.activePath,
+                        anyDirty = state.tabs.any { it.dirty },
+                        onEvent = viewModel::onEvent,
+                        onOpenSettings = onOpenSettings,
+                    )
+                },
+            )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
@@ -414,7 +361,7 @@ fun EditorScreen(
                                 onViewState = { line, column, size, scrollX, scrollY ->
                                     viewModel.onViewState(path, line, column, size, scrollX, scrollY)
                                 },
-                                onScroll = onEditorScroll,
+                                onHistoryChanged = { historyTick++ },
                                 modifier = m,
                             )
                         }
@@ -459,6 +406,21 @@ fun EditorScreen(
                         }
                     }
                 }
+                if (gitViewModel != null && activePath != null) {
+                    val changedCount = gitState.status?.changes?.size ?: 0
+                    BadgedBox(
+                        badge = { if (changedCount > 0) Badge { Text("$changedCount") } },
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
+                    ) {
+                        SmallFloatingActionButton(
+                            onClick = { showGitSheet = true },
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ) {
+                            Icon(XIcons.Commit, contentDescription = stringResource(R.string.git_title))
+                        }
+                    }
+                }
             }
             if (activePath != null && symbolBarVisible) {
                 SymbolBar(
@@ -470,6 +432,18 @@ fun EditorScreen(
             }
         }
     }
+
+    if (showGitSheet && gitViewModel != null && projectRoot != null) {
+        ModalBottomSheet(
+            onDismissRequest = { showGitSheet = false },
+            sheetState = rememberModalBottomSheetState(),
+        ) {
+            SourceControlDrawerSheet(
+                state = gitState,
+                projectRoot = projectRoot,
+                onEvent = gitViewModel::onEvent,
+            )
+        }
     }
 
     state.pendingClose?.let { pending ->
@@ -485,11 +459,69 @@ fun EditorScreen(
     }
 }
 
+/**
+ * Fixed-height top bar (never collapses on scroll/zoom). Back and the overflow menu stay pinned;
+ * the action icons between them swipe horizontally when they don't all fit.
+ */
+@Composable
+private fun EditorTopBar(
+    onBack: () -> Unit,
+    actions: @Composable () -> Unit,
+    overflow: @Composable () -> Unit,
+) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .height(56.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            }
+            Row(
+                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End,
+            ) { actions() }
+            overflow()
+        }
+    }
+}
+
+/** Undo/redo: tinted glow while there is something to undo/redo, plain disabled look otherwise. */
+@Composable
+private fun HistoryButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+) {
+    val glow by animateColorAsState(
+        targetValue = if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
+        label = "historyGlow",
+    )
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.background(glow, CircleShape),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = if (enabled) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+        )
+    }
+}
+
 @Composable
 private fun EditorOverflowMenu(
     activePath: String?,
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -528,14 +560,27 @@ private fun EditorOverflowMenu(
                     onEvent(EditorEvent.CloseAll)
                 },
             )
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.action_settings)) },
+                leadingIcon = { Icon(XIcons.Settings, contentDescription = null) },
+                onClick = {
+                    open = false
+                    onOpenSettings()
+                },
+            )
         }
     }
 }
 
 /**
- * Drag-to-reorder tab strip. Long-press starts a drag (a plain tap still just switches tabs);
- * the dragged tab follows the finger and swaps past a neighbor once it crosses that neighbor's
- * midpoint -- the usual reorderable-list feel.
+ * Drag-to-reorder tab strip. Long-press then drag reorders (a plain tap still just switches
+ * tabs; long-press and release without moving opens the tab menu). The dragged tab follows the
+ * finger and swaps past a neighbor once it crosses that neighbor's midpoint.
+ *
+ * Two things used to break this: the tab's own long-click handler consumed the gesture before
+ * the drag detector could use it, and the drag lambda kept reading the tab list from the
+ * composition it was created in, so after the first swap every later swap used stale indices.
  */
 @Composable
 private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
@@ -549,6 +594,9 @@ private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
 
     var draggingPath by remember { mutableStateOf<String?>(null) }
     var dragOffsetX by remember { mutableFloatStateOf(0f) }
+    var menuPath by remember { mutableStateOf<String?>(null) }
+    val tabsNow by rememberUpdatedState(state.tabs)
+    val moveSlopPx = with(LocalDensity.current) { 8.dp.toPx() }
     // Filled in by each tab's onGloballyPositioned; used to size neighbor swap thresholds.
     val itemWidths = remember { mutableMapOf<String, Float>() }
 
@@ -563,6 +611,8 @@ private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
                 tab = tab,
                 selected = tab.path == state.activePath,
                 onSelect = { onEvent(EditorEvent.Select(tab.path)) },
+                menuOpen = menuPath == tab.path,
+                onDismissMenu = { menuPath = null },
                 onClose = { onEvent(EditorEvent.CloseTab(tab.path)) },
                 onTogglePin = { onEvent(EditorEvent.TogglePin(tab.path)) },
                 onCloseOthers = { onEvent(EditorEvent.CloseOthers(tab.path)) },
@@ -570,14 +620,22 @@ private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
                 modifier = Modifier
                     .onGloballyPositioned { coords -> itemWidths[tab.path] = coords.size.width.toFloat() }
                     .zIndex(if (isDragging) 1f else 0f)
-                    .let { m -> if (isDragging) m.offset { IntOffset(dragOffsetX.roundToInt(), 0) } else m }
-                    .pointerInput(tab.path, state.tabs.size) {
+                    .let { m ->
+                        if (isDragging) m.offset { IntOffset(dragOffsetX.roundToInt(), 0) }
+                        else m.animateItem()
+                    }
+                    .pointerInput(tab.path) {
+                        var totalMove = 0f
                         detectDragGesturesAfterLongPress(
                             onDragStart = {
                                 draggingPath = tab.path
                                 dragOffsetX = 0f
+                                totalMove = 0f
+                                onEvent(EditorEvent.Select(tab.path))
                             },
                             onDragEnd = {
+                                // Held without moving: behave like the old long-press menu.
+                                if (totalMove < moveSlopPx) menuPath = tab.path
                                 draggingPath = null
                                 dragOffsetX = 0f
                             },
@@ -588,18 +646,20 @@ private fun TabBar(state: EditorUiState, onEvent: (EditorEvent) -> Unit) {
                             onDrag = { change, amount ->
                                 change.consume()
                                 dragOffsetX += amount.x
+                                totalMove += kotlin.math.abs(amount.x)
+                                val tabs = tabsNow
                                 val myWidth = itemWidths[tab.path] ?: return@detectDragGesturesAfterLongPress
-                                val fromIndex = state.tabs.indexOfFirst { it.path == tab.path }
+                                val fromIndex = tabs.indexOfFirst { it.path == tab.path }
                                 if (fromIndex < 0) return@detectDragGesturesAfterLongPress
                                 if (dragOffsetX > 0) {
-                                    val next = state.tabs.getOrNull(fromIndex + 1) ?: return@detectDragGesturesAfterLongPress
+                                    val next = tabs.getOrNull(fromIndex + 1) ?: return@detectDragGesturesAfterLongPress
                                     val nextWidth = itemWidths[next.path] ?: myWidth
                                     if (dragOffsetX > nextWidth / 2) {
                                         onEvent(EditorEvent.Reorder(fromIndex, fromIndex + 1))
                                         dragOffsetX -= nextWidth
                                     }
                                 } else {
-                                    val prev = if (fromIndex > 0) state.tabs[fromIndex - 1] else null
+                                    val prev = if (fromIndex > 0) tabs[fromIndex - 1] else null
                                     if (prev != null) {
                                         val prevWidth = itemWidths[prev.path] ?: myWidth
                                         if (-dragOffsetX > prevWidth / 2) {
@@ -621,19 +681,20 @@ private fun EditorTab(
     tab: EditorTabUi,
     selected: Boolean,
     onSelect: () -> Unit,
+    menuOpen: Boolean,
+    onDismissMenu: () -> Unit,
     onClose: () -> Unit,
     onTogglePin: () -> Unit,
     onCloseOthers: () -> Unit,
     onCloseAll: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     Surface(
         color = if (selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.small.copy(bottomStart = CornerSize(0.dp), bottomEnd = CornerSize(0.dp)),
         modifier = modifier
             .height(40.dp)
-            .combinedClickable(onClick = onSelect, onLongClick = { showMenu = true }),
+            .clickable(onClick = onSelect),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -672,7 +733,7 @@ private fun EditorTab(
                 )
             }
         }
-        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+        DropdownMenu(expanded = menuOpen, onDismissRequest = onDismissMenu) {
             DropdownMenuItem(
                 text = {
                     Text(
@@ -682,15 +743,15 @@ private fun EditorTab(
                     )
                 },
                 leadingIcon = { Icon(XIcons.Pin, contentDescription = null) },
-                onClick = { showMenu = false; onTogglePin() },
+                onClick = { onDismissMenu(); onTogglePin() },
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_others)) },
-                onClick = { showMenu = false; onCloseOthers() },
+                onClick = { onDismissMenu(); onCloseOthers() },
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_all)) },
-                onClick = { showMenu = false; onCloseAll() },
+                onClick = { onDismissMenu(); onCloseAll() },
             )
         }
     }

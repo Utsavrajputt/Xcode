@@ -55,6 +55,8 @@ fun CodeEditorView(
     onEdited: () -> Unit,
     onViewState: (line: Int, column: Int, textSizePx: Float, scrollX: Int, scrollY: Int) -> Unit,
     onScroll: OnEditorScroll = OnEditorScroll {},
+    /** Fired (posted, after Sora updated its undo stack) on any content change incl. undo/redo/new text. */
+    onHistoryChanged: () -> Unit = {},
     modifier: Modifier = Modifier,
     /** M11: code-search jump requests (path to 1-based line) for this tab's view. */
     path: String = "",
@@ -64,6 +66,7 @@ fun CodeEditorView(
     val currentOnJump by rememberUpdatedState(jumpToLine)
     val currentOnViewState by rememberUpdatedState(onViewState)
     val currentOnScroll by rememberUpdatedState(onScroll)
+    val currentOnHistory by rememberUpdatedState(onHistoryChanged)
 
     // Live editor reference so the jump collector (below) can drive the cursor.
     val editorHolder = remember { arrayOfNulls<CodeEditor>(1) }
@@ -97,6 +100,8 @@ fun CodeEditorView(
                 subscribeEvent(ContentChangeEvent::class.java) { event, _ ->
                     // Loading text into the view is not an edit.
                     if (event.action != ContentChangeEvent.ACTION_SET_NEW_TEXT) currentOnEdited()
+                    // Deferred so canUndo()/canRedo() are read after the undo stack has been updated.
+                    post { currentOnHistory() }
                 }
 
                 subscribeEvent(ScrollEvent::class.java) { event, _ ->
@@ -117,6 +122,7 @@ fun CodeEditorView(
 
                 handle.editor = this
                 editorHolder[0] = this
+                post { currentOnHistory() }
             }
         },
         update = { editor ->
