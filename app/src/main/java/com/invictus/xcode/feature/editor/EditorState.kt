@@ -73,6 +73,8 @@ sealed interface EditorEvent {
     ) : EditorEvent
     /** App bar's preview toggle: Editor -> Split -> Preview -> Editor, for markdown/html tabs. */
     data class CyclePreviewMode(val path: String) : EditorEvent
+    /** Chevron on the split-mode handle: hide the preview and go back to the plain editor. */
+    data class ClosePreview(val path: String) : EditorEvent
     /** Drag handle in split mode; ratio is the editor pane's share of the available height. */
     data class SetSplitRatio(val path: String, val ratio: Float) : EditorEvent
     /** HTML preview's one-time "Enable JavaScript?" dialog. */

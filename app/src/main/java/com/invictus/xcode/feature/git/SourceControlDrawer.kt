@@ -312,11 +312,6 @@ private fun DrawerQuickActions(state: GitViewModel.UiState, onEvent: (GitEvent) 
             onClick = { onEvent(GitEvent.Pull) },
             onMenuItemClick = { onEvent(GitEvent.PullRebase) },
         )
-        OutlinedButton(
-            onClick = { onEvent(GitEvent.OpenMerge) },
-            enabled = state.snapshot?.hasCommits == true &&
-                state.snapshot?.mergeInProgress != true && !state.merging,
-        ) { Text(stringResource(R.string.git_merge)) }
     }
 }
 

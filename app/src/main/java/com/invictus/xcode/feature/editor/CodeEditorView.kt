@@ -93,6 +93,7 @@ fun CodeEditorView(
                 if (buffer.textSizePx > 0f) textSizePx = buffer.textSizePx
                 applyLook(this, buffer, textMate, darkTheme, highlightReady, themeId)
                 getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
+                applyTextLabelsToSelectionPopup(this)
 
                 // Same Content object as last time, so undo/redo history comes along.
                 setText(buffer.content)

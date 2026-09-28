@@ -259,6 +259,7 @@ class EditorViewModel(
                 ),
             )
             is EditorEvent.CyclePreviewMode -> cyclePreviewMode(event.path)
+            is EditorEvent.ClosePreview -> closePreview(event.path)
             is EditorEvent.SetSplitRatio -> setSplitRatio(event.path, event.ratio)
             is EditorEvent.SetHtmlJsEnabled -> setHtmlJsEnabled(event.path, event.enabled)
         }
@@ -269,6 +270,12 @@ class EditorViewModel(
         if (!tab.previewType.isTextPreview) return
         _uiState.update { state ->
             state.copy(tabs = state.tabs.map { if (it.path == path) it.copy(previewMode = it.previewMode.next()) else it })
+        }
+    }
+
+    private fun closePreview(path: String) {
+        _uiState.update { state ->
+            state.copy(tabs = state.tabs.map { if (it.path == path) it.copy(previewMode = PreviewMode.EDITOR) else it })
         }
     }
 

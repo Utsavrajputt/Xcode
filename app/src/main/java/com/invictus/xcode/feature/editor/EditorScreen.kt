@@ -1,6 +1,5 @@
 package com.invictus.xcode.feature.editor
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -202,17 +201,6 @@ fun EditorScreen(
             EditorTopBar(
                 onBack = onBack,
                 actions = {
-                    IconButton(
-                        onClick = {
-                            showFind = !showFind
-                            if (!showFind) {
-                                handle.editor?.searcher?.stopSearch()
-                                findState.reset()
-                            }
-                        },
-                    ) {
-                        Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
-                    }
                     HistoryButton(
                         enabled = canUndo,
                         onClick = { handle.editor?.undo() },
@@ -225,12 +213,6 @@ fun EditorScreen(
                         icon = XIcons.Redo,
                         description = stringResource(R.string.action_redo),
                     )
-                    IconButton(
-                        onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
-                        enabled = active?.dirty == true,
-                    ) {
-                        Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
-                    }
                     if (active?.previewType?.isTextPreview == true) {
                         IconButton(onClick = { viewModel.onEvent(EditorEvent.CyclePreviewMode(active.path)) }) {
                             val (icon, description) = when (active.previewMode) {
@@ -243,7 +225,7 @@ fun EditorScreen(
                     }
                     Box {
                         IconButton(onClick = { showQuickActions = true }, enabled = activePath != null) {
-                            Icon(XIcons.Bolt, contentDescription = stringResource(R.string.editor_quick_actions))
+                            Icon(XIcons.Tune, contentDescription = stringResource(R.string.editor_quick_actions))
                         }
                         QuickActionsMenu(
                             expanded = showQuickActions,
@@ -251,6 +233,25 @@ fun EditorScreen(
                             activePath = activePath,
                             onDismiss = { showQuickActions = false },
                         )
+                    }
+                },
+                pinned = {
+                    IconButton(
+                        onClick = {
+                            showFind = !showFind
+                            if (!showFind) {
+                                handle.editor?.searcher?.stopSearch()
+                                findState.reset()
+                            }
+                        },
+                    ) {
+                        Icon(XIcons.Search, contentDescription = stringResource(R.string.find_action))
+                    }
+                    IconButton(
+                        onClick = { viewModel.onEvent(EditorEvent.SaveActive) },
+                        enabled = active?.dirty == true,
+                    ) {
+                        Icon(XIcons.Save, contentDescription = stringResource(R.string.action_save))
                     }
                 },
                 overflow = {
@@ -386,7 +387,7 @@ fun EditorScreen(
                                 var ratio by remember(path) { mutableFloatStateOf(buffer.previewSplitRatio) }
                                 Column(Modifier.fillMaxSize()) {
                                     editorContent(Modifier.weight(ratio).fillMaxWidth())
-                                    SplitDragHandle(onDragDeltaPx = { deltaY ->
+                                    SplitDragHandle(onClose = { viewModel.onEvent(EditorEvent.ClosePreview(path)) }, onDragDeltaPx = { deltaY ->
                                         if (totalHeightPx > 0f) {
                                             ratio = (ratio + deltaY / totalHeightPx).coerceIn(0.15f, 0.85f)
                                             viewModel.onEvent(EditorEvent.SetSplitRatio(path, ratio))
@@ -460,13 +461,14 @@ fun EditorScreen(
 }
 
 /**
- * Fixed-height top bar (never collapses on scroll/zoom). Back and the overflow menu stay pinned;
- * the action icons between them swipe horizontally when they don't all fit.
+ * Fixed-height top bar (never collapses on scroll/zoom). Back, search, save and the overflow menu
+ * stay pinned; the other action icons swipe horizontally when they don't all fit.
  */
 @Composable
 private fun EditorTopBar(
     onBack: () -> Unit,
     actions: @Composable () -> Unit,
+    pinned: @Composable () -> Unit,
     overflow: @Composable () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -485,12 +487,13 @@ private fun EditorTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
             ) { actions() }
+            pinned()
             overflow()
         }
     }
 }
 
-/** Undo/redo: tinted glow while there is something to undo/redo, plain disabled look otherwise. */
+/** Undo/redo: plain icon, dimmed while there is nothing to undo/redo (no background highlight). */
 @Composable
 private fun HistoryButton(
     enabled: Boolean,
@@ -498,19 +501,11 @@ private fun HistoryButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
 ) {
-    val glow by animateColorAsState(
-        targetValue = if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent,
-        label = "historyGlow",
-    )
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.background(glow, CircleShape),
-    ) {
+    IconButton(onClick = onClick, enabled = enabled) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = if (enabled) MaterialTheme.colorScheme.primary
+            tint = if (enabled) MaterialTheme.colorScheme.onSurface
             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
         )
     }

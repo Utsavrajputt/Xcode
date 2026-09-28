@@ -28,11 +28,8 @@ interface EditorAction {
 }
 
 object EditorActionRegistry {
+    /** Bolt menu only: line-level actions. Select all/cut/copy/paste live in the selection popup. */
     val actions: List<EditorAction> = listOf(
-        SelectAllAction,
-        CutAction,
-        CopyAction,
-        PasteAction,
         DuplicateLineAction,
         DeleteLineAction,
         MoveLineUpAction,

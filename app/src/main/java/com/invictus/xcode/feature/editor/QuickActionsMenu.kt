@@ -2,11 +2,13 @@ package com.invictus.xcode.feature.editor
 
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.invictus.xcode.core.editor.EditorActionRegistry
+import com.invictus.xcode.ui.icons.XIcons
 
 /**
  * Plan 3.2 "quick actions menu" (top bar entry point). Lists every action registered in
@@ -27,6 +29,7 @@ fun QuickActionsMenu(
             val available = editor != null && action.isAvailable(editor, activePath, context)
             DropdownMenuItem(
                 text = { Text(stringResource(action.labelRes)) },
+                leadingIcon = iconFor(action.id)?.let { icon -> { Icon(icon, contentDescription = null) } },
                 enabled = available,
                 onClick = {
                     onDismiss()
@@ -35,4 +38,13 @@ fun QuickActionsMenu(
             )
         }
     }
+}
+
+private fun iconFor(id: String) = when (id) {
+    "duplicate_line" -> XIcons.ContentCopy
+    "delete_line" -> XIcons.Delete
+    "move_line_up" -> XIcons.ArrowUpward
+    "move_line_down" -> XIcons.ArrowDownward
+    "toggle_comment" -> XIcons.Comment
+    else -> null
 }

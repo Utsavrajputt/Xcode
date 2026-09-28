@@ -55,6 +55,35 @@ object XIcons {
     val Bolt: ImageVector = MaterialSymbols.RoundedFilled.Bolt
     val Settings: ImageVector = MaterialSymbols.RoundedFilled.Settings
 
+    // Editor tools menu glyphs (Material paths, same hand-drawn pattern as below).
+    /** Top-bar tools menu (Material "tune" — sliders), replaces the old bolt. */
+    val Tune: ImageVector by lazy {
+        icon(
+            "Tune",
+            "M3,17v2h6v-2H3zM3,5v2h10V5H3zM13,21v-2h8v-2h-8v-2h-2v6h2zM7,9v2H3v2h4v2h2V9H7zM21,13v-2H11v2h10z" +
+                "M15,9h2V7h4V5h-4V3h-2v6z",
+        )
+    }
+    val ContentCopy: ImageVector by lazy {
+        icon(
+            "ContentCopy",
+            "M16,1H4C2.9,1 2,1.9 2,3v14h2V3h12V1zM19,5H8C6.9,5 6,5.9 6,7v14c0,1.1 0.9,2 2,2h11c1.1,0 2,-0.9 2,-2V7" +
+                "C21,5.9 20.1,5 19,5zM19,21H8V7h11V21z",
+        )
+    }
+    val Delete: ImageVector by lazy {
+        icon("Delete", "M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6v12zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z")
+    }
+    val ArrowUpward: ImageVector by lazy {
+        icon("ArrowUpward", "M4,12l1.41,1.41L11,7.83V20h2V7.83l5.58,5.59L20,12l-8,-8 -8,8z")
+    }
+    val ArrowDownward: ImageVector by lazy {
+        icon("ArrowDownward", "M20,12l-1.41,-1.41L13,16.17V4h-2v12.17l-5.58,-5.59L4,12l8,8 8,-8z")
+    }
+    val Comment: ImageVector by lazy {
+        icon("Comment", "M21.99,4c0,-1.1 -0.89,-2 -1.99,-2H4c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h14l4,4 -0.01,-18z")
+    }
+
     // Convenience alias used by some newer call sites.
     val Add: ImageVector = MaterialSymbols.RoundedFilled.Add
 
