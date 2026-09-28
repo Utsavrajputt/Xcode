@@ -131,6 +131,11 @@ fun CodeEditorView(
                 applyLook(editor, buffer, textMate, darkTheme, highlightReady, themeId)
             }
             editor.getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
+            val wordsVersion = textMate.userWords.version
+            if (appliedWordsVersion[editor] != wordsVersion) {
+                appliedWordsVersion[editor] = wordsVersion
+                textMate.refreshCompletionWords(editor, buffer.file)
+            }
         },
         onRelease = { editor ->
             val cursor = editor.cursor
@@ -169,6 +174,9 @@ private fun restoreScroll(editor: CodeEditor, x: Int, y: Int) {
 }
 
 /** What an editor view is currently dressed in; kept in its `tag` to skip redundant work. */
+/** Which learned-word snapshot each live editor last received (avoids reapplying every recompose). */
+private val appliedWordsVersion = java.util.WeakHashMap<CodeEditor, Int>()
+
 private data class Look(val dark: Boolean, val highlighted: Boolean, val themeId: String)
 
 private fun applyLook(

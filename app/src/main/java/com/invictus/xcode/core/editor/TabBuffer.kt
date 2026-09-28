@@ -53,6 +53,9 @@ class TabBuffer(
     /** Survives close-all/close-others and is placed first in the tab row. */
     var isPinned: Boolean = false
 
+    /** Word tokens of the file as last opened/saved; baseline for what counts as newly typed. Null = unknown. */
+    var knownTokens: Set<String>? = null
+
     /** Hash of the file's content as far as this app instance knows it (set on open + save). */
     var diskContentHash: String = ""
 

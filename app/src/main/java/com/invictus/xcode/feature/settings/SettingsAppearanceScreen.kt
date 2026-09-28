@@ -66,7 +66,7 @@ fun SettingsAppearanceScreen(
     val selectedThemeName = if (themeId == EditorThemes.SYSTEM_DEFAULT) {
         stringResource(R.string.editor_theme_system_default)
     } else {
-        EditorThemes.find(themeId)?.displayName ?: stringResource(R.string.editor_theme_system_default)
+        EditorThemes.familyOf(themeId)?.name ?: stringResource(R.string.editor_theme_system_default)
     }
     val symbolBarPreview = symbolBar.joinToString(" ")
 

@@ -25,6 +25,9 @@ class TextMateSupport(private val context: Context) {
 
     private val lock = Any()
 
+    /** Words the user has typed before; offered by autocomplete in every file. */
+    val userWords: UserWordStore by lazy { UserWordStore(context) }
+
     private val _ready = MutableStateFlow(false)
 
     /** True once grammars and themes are loaded. Until then editors show plain text. */
@@ -74,22 +77,37 @@ class TextMateSupport(private val context: Context) {
     ): Boolean {
         if (!_ready.value) return false
         return try {
-            val themeName = EditorThemes.find(themeId)?.assetName ?: if (dark) DARK_THEME else LIGHT_THEME
+            val themeName = EditorThemes.resolve(themeId, dark)?.assetName ?: if (dark) DARK_THEME else LIGHT_THEME
             ThemeRegistry.getInstance().setTheme(themeName)
             editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
             val scope = LanguageRegistry.scopeFor(file)
             if (scope != null) {
                 val language = TextMateLanguage.create(scope, true)
-                language.setCompleterKeywords(LanguageKeywords.forScope(scope).toTypedArray())
+                language.setCompleterKeywords(completionWords(scope))
                 editor.setEditorLanguage(language)
             } else {
                 // No grammar for this file: still get word-based completion instead of none.
-                editor.setEditorLanguage(PlainTextLanguage())
+                editor.setEditorLanguage(PlainTextLanguage(userWords.words()))
             }
             true
         } catch (_: Exception) {
             // A bad grammar must never take the editor down with it.
             false
+        }
+    }
+
+    private fun completionWords(scope: String): Array<String> =
+        (LanguageKeywords.forScope(scope) + userWords.words()).distinct().toTypedArray()
+
+    /** Swaps in the latest learned words without recreating the language (keeps highlighting state). */
+    fun refreshCompletionWords(editor: CodeEditor, file: File) {
+        runCatching {
+            when (val language = editor.editorLanguage) {
+                is TextMateLanguage -> LanguageRegistry.scopeFor(file)?.let {
+                    language.setCompleterKeywords(completionWords(it))
+                }
+                is PlainTextLanguage -> language.setCompleterKeywords(userWords.words())
+            }
         }
     }
 

@@ -83,7 +83,7 @@ fun SettingsScreen(
     val selectedThemeName = if (themeId == EditorThemes.SYSTEM_DEFAULT) {
         stringResource(R.string.editor_theme_system_default)
     } else {
-        EditorThemes.find(themeId)?.displayName ?: stringResource(R.string.editor_theme_system_default)
+        EditorThemes.familyOf(themeId)?.name ?: stringResource(R.string.editor_theme_system_default)
     }
     val symbolBarPreview = symbolBar.joinToString(" ")
 
@@ -388,11 +388,11 @@ private fun ThemePickerDialog(
                     isSelected = selected == EditorThemes.SYSTEM_DEFAULT,
                     onClick = { onSelect(EditorThemes.SYSTEM_DEFAULT) },
                 )
-                EditorThemes.ALL.forEach { theme ->
+                EditorThemes.FAMILIES.forEach { family ->
                     ThemeRow(
-                        name = theme.displayName,
-                        isSelected = selected == theme.id,
-                        onClick = { onSelect(theme.id) },
+                        name = family.name,
+                        isSelected = EditorThemes.familyOf(selected)?.id == family.id,
+                        onClick = { onSelect(family.id) },
                     )
                 }
             }

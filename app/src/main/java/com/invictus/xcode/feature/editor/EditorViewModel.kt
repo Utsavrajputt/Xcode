@@ -426,6 +426,9 @@ class EditorViewModel(
      * any other read failure) or [OutOfMemoryError] -- callers already handle both.
      */
     @Throws(IOException::class)
+    private fun tokensForLearning(text: String): Set<String>? =
+        if (text.length <= LEARN_MAX_CHARS) textMate.userWords.tokens(text) else null
+
     private fun loadBuffer(file: File): TabBuffer {
         val buffer = try {
             val loaded = TextFileIo.read(file)
@@ -435,7 +438,10 @@ class EditorViewModel(
                 charset = loaded.charset,
                 hasBom = loaded.hasBom,
                 lineEnding = loaded.lineEnding,
-            ).apply { diskContentHash = EditorSessionStore.hashOf(loaded.text) }
+            ).apply {
+                diskContentHash = EditorSessionStore.hashOf(loaded.text)
+                knownTokens = tokensForLearning(loaded.text)
+            }
         } catch (_: FileTooLargeException) {
             val loaded = TextFileIo.readForPaging(file)
             val session = PagedEditSession(loaded.text)
@@ -637,6 +643,7 @@ class EditorViewModel(
         buffer.revision++
         buffer.savedRevision = buffer.revision
         buffer.diskContentHash = hash
+        buffer.knownTokens = tokensForLearning(text) // disk text isn't "typed", so don't learn it
         buffer.lastKnownDiskModified = mtime
         buffer.externalChange = ExternalChange.None
         setDirty(path, false)
@@ -663,6 +670,10 @@ class EditorViewModel(
             val hash = withContext(io) {
                 try {
                     TextFileIo.write(buffer.file, text, buffer.charset, buffer.hasBom, buffer.lineEnding)
+                    // Words newly typed since the last open/save become autocomplete suggestions everywhere.
+                    if (!buffer.isPaged && text.length <= LEARN_MAX_CHARS) {
+                        buffer.knownTokens = textMate.userWords.learn(buffer.knownTokens, text)
+                    }
                     EditorSessionStore.hashOf(text)
                 } catch (_: IOException) {
                     null
@@ -808,6 +819,8 @@ class EditorViewModel(
     }
 
     companion object {
+        /** Files larger than this are skipped for word learning (tokenizing them would be slow). */
+        private const val LEARN_MAX_CHARS = 500_000
         private const val SESSION_LOAD_KEY = "__session__"
         private const val PERSIST_DEBOUNCE_MS = 600L
         private const val EXTERNAL_EVENT_DEBOUNCE_MS = 400L

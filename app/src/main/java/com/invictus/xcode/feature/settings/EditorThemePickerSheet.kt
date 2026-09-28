@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -43,9 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorTheme
+import com.invictus.xcode.core.editor.EditorThemeFamily
 import com.invictus.xcode.core.editor.EditorThemePreviewColors
 import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.ui.theme.ExpressiveMotion
+import com.invictus.xcode.ui.theme.ThemeMode
+import com.invictus.xcode.ui.theme.ThemeSettings
 
 /**
  * Editor colour-theme picker, styled like [com.invictus.xcode.ui.theme.ThemePickerSheet]: a
@@ -78,8 +83,30 @@ fun EditorThemePickerSheet(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
+            Spacer(Modifier.height(12.dp))
+            val dark = when (ThemeSettings.mode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(horizontal = 24.dp),
+            ) {
+                FilterChip(
+                    selected = !dark,
+                    onClick = { ThemeSettings.updateMode(ThemeMode.LIGHT) },
+                    label = { Text("Light") },
+                )
+                FilterChip(
+                    selected = dark,
+                    onClick = { ThemeSettings.updateMode(ThemeMode.DARK) },
+                    label = { Text("Dark") },
+                )
+            }
             Spacer(Modifier.height(20.dp))
             EditorThemeStrip(
+                dark = dark,
                 selected = selected,
                 onSelect = onSelect,
             )
@@ -89,14 +116,16 @@ fun EditorThemePickerSheet(
 
 @Composable
 private fun EditorThemeStrip(
+    dark: Boolean,
     selected: String,
     onSelect: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
-    val entries = remember { listOf<EditorTheme?>(null) + EditorThemes.ALL }
+    val entries = remember { listOf<EditorThemeFamily?>(null) + EditorThemes.FAMILIES }
+    val selectedFamily = EditorThemes.familyOf(selected)?.id
 
     LaunchedEffect(Unit) {
-        val index = entries.indexOfFirst { it?.id == selected || (it == null && selected == EditorThemes.SYSTEM_DEFAULT) }
+        val index = entries.indexOfFirst { it?.id == selectedFamily || (it == null && selected == EditorThemes.SYSTEM_DEFAULT) }
         if (index >= 0) {
             listState.animateScrollToItem(maxOf(0, index - 1))
         }
@@ -108,17 +137,18 @@ private fun EditorThemeStrip(
         contentPadding = PaddingValues(horizontal = 24.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        items(entries, key = { it?.id ?: EditorThemes.SYSTEM_DEFAULT }) { theme ->
-            if (theme == null) {
+        items(entries, key = { it?.id ?: EditorThemes.SYSTEM_DEFAULT }) { family ->
+            if (family == null) {
                 SystemDefaultPreviewCard(
                     selected = selected == EditorThemes.SYSTEM_DEFAULT,
                     onSelect = { onSelect(EditorThemes.SYSTEM_DEFAULT) },
                 )
             } else {
                 EditorThemePreviewCard(
-                    theme = theme,
-                    selected = selected == theme.id,
-                    onSelect = { onSelect(theme.id) },
+                    theme = family.variant(dark),
+                    name = family.name,
+                    selected = selectedFamily == family.id,
+                    onSelect = { onSelect(family.id) },
                 )
             }
         }
@@ -145,12 +175,13 @@ private fun SystemDefaultPreviewCard(selected: Boolean, onSelect: () -> Unit) {
 @Composable
 private fun EditorThemePreviewCard(
     theme: EditorTheme,
+    name: String,
     selected: Boolean,
     onSelect: () -> Unit,
 ) {
     val p: EditorThemePreviewColors = theme.preview
     CodePreviewCard(
-        name = theme.displayName,
+        name = name,
         background = Color(p.background),
         foreground = Color(p.foreground),
         comment = Color(p.comment),
