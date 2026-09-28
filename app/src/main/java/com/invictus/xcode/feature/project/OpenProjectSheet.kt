@@ -127,10 +127,9 @@ fun OpenProjectSheet(
         folderSearching = false
     }
 
-    // Fixed 90% height makes sense once there's enough content to scroll through (browsing into
-    // a folder, an active search, or a real recents list); otherwise it just leaves blank space
-    // below a handful of shortcut rows, so let the sheet wrap to its content instead.
-    val expandFull = state.browseDir != null || needle.isNotEmpty() || (showRecent && recents.isNotEmpty())
+    // Fixed 90% height only while browsing into a folder or searching (dynamic, long lists);
+    // a plain recents list wraps to its content so there's no blank space above/below it.
+    val expandFull = state.browseDir != null || needle.isNotEmpty()
     val heightModifier = if (expandFull) Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION) else Modifier
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {

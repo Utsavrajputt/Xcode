@@ -1,6 +1,9 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Column
+import com.invictus.xcode.ui.icons.XIcons
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -201,7 +204,11 @@ fun GitRemotesScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.git_remotes_title)) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("‹") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
                 actions = {
                     TextButton(onClick = onOpenCredentials) {
                         Text(stringResource(R.string.git_remote_manage_tokens))
@@ -434,7 +441,11 @@ fun GitCredentialsScreen(projectPath: String, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.git_credentials_title)) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("‹") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
                 actions = {
                     TextButton(onClick = { vm.openAdd() }) {
                         Text(stringResource(R.string.git_cred_add))

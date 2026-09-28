@@ -1,6 +1,9 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Column
+import com.invictus.xcode.ui.icons.XIcons
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -165,7 +168,11 @@ fun GitStashScreen(projectPath: String, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.git_stash_title)) },
-                navigationIcon = { TextButton(onClick = onBack) { Text("‹") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
                 actions = {
                     TextButton(onClick = { vm.openCreate() }) {
                         Text(stringResource(R.string.git_stash_create))

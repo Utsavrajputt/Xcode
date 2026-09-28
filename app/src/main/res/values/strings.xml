@@ -429,6 +429,7 @@
 <string name="git_loading">Loading…</string>
 <string name="git_merging">Merging…</string>
 <string name="git_msg_merged_ff">Fast-forwarded.</string>
+<string name="git_msg_switched_branch">Switched to \'%1$s\'</string>
 <string name="git_msg_merged">Merge committed.</string>
 <string name="git_msg_merge_uptodate">Already up to date.</string>
 <string name="git_msg_merge_conflicts">Merge has conflicts — resolve them in the drawer.</string>

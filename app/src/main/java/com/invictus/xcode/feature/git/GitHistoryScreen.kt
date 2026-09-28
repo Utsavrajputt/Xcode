@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -222,7 +223,11 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
-                navigationIcon = { TextButton(onClick = onBack) { Text("‹") } },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
+                },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },

@@ -138,6 +138,9 @@ class GitViewModel(
         val rebasing: Boolean = false,
         /** Shown when a plain (non-force) push is rejected — remote has commits we don't. */
         val pushRejected: Boolean = false,
+        // Quick branch switcher dropdown
+        val branchMenuOpen: Boolean = false,
+        val branchMenuItems: List<String> = emptyList(),
     )
 
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
@@ -287,6 +290,11 @@ class GitViewModel(
             GitEvent.DismissRebasePicker ->
                 _uiState.update { it.copy(rebasePicker = false, rebaseCandidates = emptyList()) }
             is GitEvent.RebaseOnto -> rebaseOnto(event.branch)
+            // ---- quick branch switcher ----
+            GitEvent.OpenBranchMenu -> openBranchMenu()
+            GitEvent.DismissBranchMenu ->
+                _uiState.update { it.copy(branchMenuOpen = false) }
+            is GitEvent.CheckoutBranch -> checkoutBranch(event.name)
         }
     }
 
@@ -967,6 +975,34 @@ class GitViewModel(
             }
             GitPendingAction.FETCH -> fetch()
             else -> Unit
+        }
+    }
+
+    private fun openBranchMenu() {
+        _uiState.update { it.copy(branchMenuOpen = true) }
+        viewModelScope.launch(io) {
+            when (val result = session.listBranches()) {
+                is GitResult.Ok -> _uiState.update {
+                    it.copy(branchMenuItems = result.value.map { b -> b.name }.sorted())
+                }
+                is GitResult.Err -> _uiState.update {
+                    it.copy(branchMenuOpen = false, error = result.error)
+                }
+            }
+        }
+    }
+
+    private fun checkoutBranch(name: String) {
+        _uiState.update { it.copy(branchMenuOpen = false) }
+        if (name == _uiState.value.snapshot?.headName) return
+        viewModelScope.launch(io) {
+            when (val result = session.checkoutBranch(name, create = false)) {
+                is GitResult.Ok -> {
+                    message(R.string.git_msg_switched_branch, name)
+                    refresh()
+                }
+                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
+            }
         }
     }
 

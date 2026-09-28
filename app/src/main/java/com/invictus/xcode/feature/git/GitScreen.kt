@@ -335,7 +335,7 @@ private fun GitContent(
     val status = state.status
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item(key = "branch") {
-            BranchCard(snapshot, onClick = onBranchClick)
+            BranchCard(snapshot, state, onEvent, onClick = onBranchClick)
         }
         item(key = "commit") { CommitCard(state, onEvent) }
         item(key = "sync") { SyncRow(canSync, snapshot, onEvent) }
@@ -543,7 +543,12 @@ private fun ChangeRow(
 }
 
 @Composable
-private fun BranchCard(snapshot: GitRepoSnapshot, onClick: () -> Unit) {
+private fun BranchCard(
+    snapshot: GitRepoSnapshot,
+    state: GitViewModel.UiState,
+    onEvent: (GitEvent) -> Unit,
+    onClick: () -> Unit,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
@@ -570,6 +575,32 @@ private fun BranchCard(snapshot: GitRepoSnapshot, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        Box {
+            IconButton(onClick = { onEvent(GitEvent.OpenBranchMenu) }) {
+                Icon(XIcons.KeyboardArrowDown, contentDescription = stringResource(R.string.git_branch_checkout))
+            }
+            DropdownMenu(
+                expanded = state.branchMenuOpen,
+                onDismissRequest = { onEvent(GitEvent.DismissBranchMenu) },
+            ) {
+                state.branchMenuItems.forEach { name ->
+                    val current = name == snapshot.headName
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (current) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                        },
+                        onClick = { onEvent(GitEvent.CheckoutBranch(name)) },
+                        enabled = !current,
+                    )
+                }
+            }
         }
     }
 }

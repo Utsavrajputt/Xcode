@@ -267,7 +267,9 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.git_branches_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("‹") }
+                    IconButton(onClick = onBack) {
+                        Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                    }
                 },
                 actions = {
                     TextButton(onClick = { vm.openCreate() }) {

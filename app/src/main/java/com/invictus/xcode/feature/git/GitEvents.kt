@@ -67,6 +67,10 @@ sealed interface GitEvent {
     data object OpenRebasePicker : GitEvent
     data object DismissRebasePicker : GitEvent
     data class RebaseOnto(val branch: String) : GitEvent
+    // Quick branch switcher (chevron next to the branch name on the Source Control screen).
+    data object OpenBranchMenu : GitEvent
+    data object DismissBranchMenu : GitEvent
+    data class CheckoutBranch(val name: String) : GitEvent
 }
 
 sealed interface GitCloneEvent {
