@@ -236,7 +236,7 @@ class CodeSearchViewModel(
 fun CodeSearchScreen(
     projectPath: String,
     onBack: () -> Unit,
-    onOpenMatch: (file: File, line: Int) -> Unit,
+    onOpenMatch: (file: File, line: Int, column: Int, length: Int) -> Unit,
     onLocateInTree: (file: File) -> Unit,
 ) {
     val owner = LocalViewModelStoreOwner.current ?: return
@@ -430,7 +430,8 @@ fun CodeSearchScreen(
                                                     // Query clear NAHI hoti: dusra result bina dobara
                                                     // type kiye chuna ja sakta hai.
                                                     viewModel.recordHistory()
-                                                    onOpenMatch(fileResult.file, m.line)
+                                                    val first = m.ranges.firstOrNull()
+                                                    onOpenMatch(fileResult.file, m.line, first?.first ?: -1, first?.let { it.last - it.first + 1 } ?: 0)
                                                 }
                                                 .padding(start = 32.dp, end = 16.dp, top = 3.dp, bottom = 3.dp),
                                         ) {

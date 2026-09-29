@@ -60,7 +60,7 @@ fun CodeEditorView(
     modifier: Modifier = Modifier,
     /** M11: code-search jump requests (path to 1-based line) for this tab's view. */
     path: String = "",
-    jumpToLine: SharedFlow<Pair<String, Int>>? = null,
+    jumpToLine: SharedFlow<JumpRequest>? = null,
 ) {
     val currentOnEdited by rememberUpdatedState(onEdited)
     val currentOnJump by rememberUpdatedState(jumpToLine)
@@ -73,12 +73,13 @@ fun CodeEditorView(
 
     LaunchedEffect(path) {
         val flow = currentOnJump ?: return@LaunchedEffect
-        flow.collect { (target, line) ->
-            if (target != path) return@collect
+        flow.collect { request ->
+            if (request.path != path) return@collect
             editorHolder[0]?.post {
                 editorHolder[0]?.let { editor ->
-                    val lc = (line - 1).coerceIn(0, buffer.content.lineCount - 1)
-                    editor.setSelection(lc, 0, true)
+                    val lc = (request.line - 1).coerceIn(0, buffer.content.lineCount - 1)
+                    editor.setSelection(lc, maxOf(request.column, 0), true)
+                    if (request.column >= 0 && request.length > 0) flashMatch(editor, lc, request.column, request.length)
                 }
             }
         }
@@ -120,6 +121,14 @@ fun CodeEditorView(
                 // viewport), then the exact scroll offset the user left the tab at.
                 if (line != 0 || column != 0) post { setSelection(line, column, false) }
                 restoreScroll(this, buffer.scrollX, buffer.scrollY)
+                if (buffer.pendingFlashLength > 0) {
+                    val col = buffer.pendingFlashColumn
+                    val len = buffer.pendingFlashLength
+                    buffer.pendingFlashColumn = -1
+                    buffer.pendingFlashLength = 0
+                    // After the restore posts above have run, so the match is scrolled into view first.
+                    post { post { flashMatch(this, line, col, len) } }
+                }
 
                 handle.editor = this
                 editorHolder[0] = this

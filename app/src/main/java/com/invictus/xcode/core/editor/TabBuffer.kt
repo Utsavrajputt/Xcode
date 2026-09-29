@@ -40,6 +40,10 @@ class TabBuffer(
 
     val isDirty: Boolean get() = revision != savedRevision
 
+    /** Search match to flash once the editor view first appears (new tab opened from code search). */
+    var pendingFlashColumn: Int = -1
+    var pendingFlashLength: Int = 0
+
     var cursorLine: Int = 0
     var cursorColumn: Int = 0
 

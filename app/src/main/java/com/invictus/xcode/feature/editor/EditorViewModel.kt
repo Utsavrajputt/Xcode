@@ -174,8 +174,8 @@ class EditorViewModel(
     private val _showEditor = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     /** M11: code-search jump requests (path to 1-based line); consumed by the live editor view. */
-    private val _jumpToLine = MutableSharedFlow<Pair<String, Int>>(extraBufferCapacity = 1)
-    val jumpToLine: SharedFlow<Pair<String, Int>> = _jumpToLine
+    private val _jumpToLine = MutableSharedFlow<JumpRequest>(extraBufferCapacity = 1)
+    val jumpToLine: SharedFlow<JumpRequest> = _jumpToLine
     val showEditor: SharedFlow<Unit> = _showEditor.asSharedFlow()
 
     /**
@@ -220,7 +220,7 @@ class EditorViewModel(
     fun onEvent(event: EditorEvent) {
         when (event) {
             is EditorEvent.Open -> open(event.file)
-            is EditorEvent.OpenAtLine -> open(event.file, event.line)
+            is EditorEvent.OpenAtLine -> open(event.file, event.line, event.column, event.length)
             is EditorEvent.Select -> if (event.path in buffers) {
                 _uiState.update { it.copy(activePath = event.path) }
                 schedulePersist()
@@ -344,7 +344,7 @@ class EditorViewModel(
         schedulePersist()
     }
 
-    private fun open(file: File, jumpToLine: Int? = null) {
+    private fun open(file: File, jumpToLine: Int? = null, matchColumn: Int = -1, matchLength: Int = 0) {
         val previewType = PreviewRouter.typeOf(file)
         if (previewType.isMedia) {
             // Binary -- never a text tab. Full-screen preview route handles it from here.
@@ -355,7 +355,7 @@ class EditorViewModel(
         val path = file.path
         if (path in buffers) {
             _uiState.update { it.copy(activePath = path) }
-            jumpToLine?.let { _jumpToLine.tryEmit(path to it) }
+            jumpToLine?.let { _jumpToLine.tryEmit(JumpRequest(path, it, matchColumn, matchLength)) }
             _showEditor.tryEmit(Unit)
             return
         }
@@ -381,6 +381,10 @@ class EditorViewModel(
                         buffer.cursorLine = (it - 1).coerceAtLeast(0)
                         buffer.cursorColumn = 0
                         buffer.scrollY = 0
+                        if (matchColumn >= 0 && matchLength > 0) {
+                            buffer.pendingFlashColumn = matchColumn
+                            buffer.pendingFlashLength = matchLength
+                        }
                     }
                     buffers[path] = buffer
                     val session = buffer.pagedSession

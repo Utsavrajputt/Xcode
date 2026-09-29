@@ -27,7 +27,9 @@ internal fun applyTextLabelsToSelectionPopup(editor: CodeEditor) {
     runCatching {
         val window = editor.getComponent(EditorTextActionWindow::class.java)
         val root = findContentView(window) ?: return
-        relabel(root, editor.context)
+        relabelAll(root, editor.context)
+        // Sora may rebuild/refresh the buttons each time the popup shows; keep our labels on.
+        root.viewTreeObserver.addOnGlobalLayoutListener { runCatching { relabelAll(root, editor.context) } }
     }
 }
 
@@ -48,25 +50,35 @@ private fun findContentView(window: Any): View? {
     return null
 }
 
-private fun relabel(view: View, context: Context) {
-    if (view is ImageView) {
-        labelFor(view, context)?.let { label ->
-            val density = context.resources.displayMetrics.density
-            view.scaleType = ImageView.ScaleType.CENTER
-            view.minimumWidth = 0
-            view.setPadding((12 * density).toInt(), view.paddingTop, (12 * density).toInt(), view.paddingBottom)
-            view.layoutParams = view.layoutParams?.apply { width = ViewGroup.LayoutParams.WRAP_CONTENT }
-            view.setImageDrawable(LabelDrawable(label, context, view.imageTintList))
-        }
-        return
+private fun collectImages(view: View, out: MutableList<ImageView>) {
+    if (view is ImageView) out.add(view)
+    else if (view is ViewGroup) for (i in 0 until view.childCount) collectImages(view.getChildAt(i), out)
+}
+
+/** Sora's popup order is: select all, copy, paste, cut -- used when ids/descriptions don't say. */
+private val ORDER = listOf(R.string.qa_select_all, R.string.qa_copy, R.string.qa_paste, R.string.qa_cut)
+
+private fun relabelAll(root: View, context: Context) {
+    val images = ArrayList<ImageView>()
+    collectImages(root, images)
+    val density = context.resources.displayMetrics.density
+    images.forEachIndexed { index, view ->
+        if (view.drawable is LabelDrawable) return@forEachIndexed
+        val label = labelFor(view, context) ?: ORDER.getOrNull(index)?.let(context::getString) ?: return@forEachIndexed
+        view.scaleType = ImageView.ScaleType.CENTER
+        view.minimumWidth = 0
+        view.setPadding((12 * density).toInt(), view.paddingTop, (12 * density).toInt(), view.paddingBottom)
+        view.layoutParams = view.layoutParams?.apply { width = ViewGroup.LayoutParams.WRAP_CONTENT }
+        view.setImageDrawable(LabelDrawable(label, context, view.imageTintList))
     }
-    if (view is ViewGroup) for (i in 0 until view.childCount) relabel(view.getChildAt(i), context)
 }
 
 private fun labelFor(view: View, context: Context): String? {
-    val entry = runCatching { context.resources.getResourceEntryName(view.id) }.getOrNull().orEmpty().lowercase()
+    val entry = if (view.id != View.NO_ID) {
+        runCatching { context.resources.getResourceEntryName(view.id) }.getOrNull().orEmpty().lowercase()
+    } else ""
     return when {
-        "select_all" in entry -> context.getString(R.string.qa_select_all)
+        "select" in entry && "all" in entry -> context.getString(R.string.qa_select_all)
         "cut" in entry -> context.getString(R.string.qa_cut)
         "copy" in entry -> context.getString(R.string.qa_copy)
         "paste" in entry -> context.getString(R.string.qa_paste)

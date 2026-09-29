@@ -279,8 +279,8 @@ fun XcodeNavHost(
                 CodeSearchScreen(
                     projectPath = path,
                     onBack = { navController.popBackStack() },
-                    onOpenMatch = { file, line ->
-                        editorViewModel.onEvent(EditorEvent.OpenAtLine(file, line))
+                    onOpenMatch = { file, line, column, length ->
+                        editorViewModel.onEvent(EditorEvent.OpenAtLine(file, line, column, length))
                         navController.navigate(Routes.EDITOR) { launchSingleTop = true }
                     },
                     onLocateInTree = { file ->
