@@ -33,7 +33,6 @@ class MainActivity : ComponentActivity() {
         val container = (application as XcodeApp).container
         val storagePermission = container.storagePermission
         val notificationPermission = container.notificationPermission
-        val batteryOptimization = container.batteryOptimization
 
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -51,7 +50,6 @@ class MainActivity : ComponentActivity() {
                     XcodeNavHost(
                         storageGranted = uiState.storageGranted,
                         notificationGranted = uiState.notificationGranted,
-                        batteryOptimizationDisabled = uiState.batteryOptimizationDisabled,
                         onboardingCompleted = uiState.onboardingCompleted,
                         onGrantStorage = { storagePermission.openSettings(this@MainActivity) },
                         onRequestNotification = {
@@ -65,7 +63,6 @@ class MainActivity : ComponentActivity() {
                                 notificationPermission.openSettings(this@MainActivity)
                             }
                         },
-                        onDisableBattery = { batteryOptimization.requestDisable(this@MainActivity) },
                         onFinishOnboarding = { viewModel.onEvent(MainUiEvent.CompleteOnboarding) },
                     )
                     ThemeTransitionOverlay(transitionController)

@@ -53,9 +53,9 @@ class EditorViewModel(
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    /** Selected editor colour theme; [EditorThemes.SYSTEM_DEFAULT] follows the app light/dark. */
+    /** Selected editor colour theme; [EditorThemes.SYSTEM_DEFAULT] follows the app light/dark; unset = [EditorThemes.DEFAULT_ID]. */
     val themeId: StateFlow<String> = settingsStore.themeId
-        .stateIn(viewModelScope, SharingStarted.Eagerly, EditorThemes.SYSTEM_DEFAULT)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, EditorThemes.DEFAULT_ID)
 
     fun setTheme(id: String) {
         viewModelScope.launch { settingsStore.setThemeId(id) }
@@ -125,18 +125,11 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setGitStatusPollingEnabled(enabled) }
     }
 
-    val fileSearchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.fileSearchDefaultStringsOnly
+    val searchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.searchDefaultStringsOnly
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    fun setFileSearchDefaultStringsOnly(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setFileSearchDefaultStringsOnly(enabled) }
-    }
-
-    val codeSearchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.codeSearchDefaultStringsOnly
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    fun setCodeSearchDefaultStringsOnly(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setCodeSearchDefaultStringsOnly(enabled) }
+    fun setSearchDefaultStringsOnly(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setSearchDefaultStringsOnly(enabled) }
     }
 
     /** Last font size the user zoomed to anywhere, in px; 0f = editor's own built-in default. */

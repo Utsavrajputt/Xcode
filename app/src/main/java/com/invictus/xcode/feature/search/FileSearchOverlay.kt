@@ -104,7 +104,7 @@ class FileSearchViewModel(
             _uiState.update { it.copy(searching = true) }
             val found = engine.search(
                 root, query,
-                defaultValuesOnly = settingsStore.fileSearchDefaultStringsOnly.first(),
+                defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first(),
             )
             _uiState.update { it.copy(results = found, searching = false) }
         }

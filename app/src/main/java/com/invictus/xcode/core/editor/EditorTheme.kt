@@ -44,6 +44,9 @@ object EditorThemes {
     /** Not a real theme id: means "follow the app's own light/dark", the pre-M3-part-3 behavior. */
     const val SYSTEM_DEFAULT = "system"
 
+    /** Theme family used until the user picks one (fresh installs / nothing saved yet). */
+    const val DEFAULT_ID = "github"
+
     private fun c(bg: Long, fg: Long, comment: Long, string: Long, keyword: Long, function: Long) =
         EditorThemePreviewColors(bg, fg, comment, string, keyword, function)
 
@@ -80,15 +83,16 @@ object EditorThemes {
     private val ONE_LIGHT = EditorTheme("one-light", "One Light", "one-light", false,
         c(0xFFFAFAFA, 0xFF383A42, 0xFFA0A1A7, 0xFF50A14F, 0xFFA626A4, 0xFF4078F2))
 
+    // Picker order: System default (not listed here) -> GitHub -> VS Code -> the rest.
     val FAMILIES: List<EditorThemeFamily> = listOf(
+        EditorThemeFamily("github", "GitHub", GITHUB_DARK, GITHUB_LIGHT),
+        EditorThemeFamily("vscode", "VS Code", VSCODE_DARK, VSCODE_LIGHT),
         EditorThemeFamily("one-dark-pro", "One Dark Pro", ONE_DARK, ONE_LIGHT),
         EditorThemeFamily("darcula", "Darcula", DARCULA, INTELLIJ_LIGHT),
         EditorThemeFamily("eclipse", "Eclipse", ECLIPSE_DARK, ECLIPSE),
         EditorThemeFamily("ayu", "Ayu", AYU_DARK, AYU_LIGHT),
         EditorThemeFamily("monokai", "Monokai", MONOKAI, MONOKAI_LIGHT),
         EditorThemeFamily("solarized", "Solarized", SOLARIZED_DARK, SOLARIZED_LIGHT),
-        EditorThemeFamily("github", "GitHub", GITHUB_DARK, GITHUB_LIGHT),
-        EditorThemeFamily("vscode", "VS Code", VSCODE_DARK, VSCODE_LIGHT),
     )
 
     /** Every variant; TextMate loads all of them up front. */

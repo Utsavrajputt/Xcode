@@ -99,6 +99,9 @@ class CodeSearchViewModel(
     val uiState: StateFlow<UiState> = _uiState
     private var searchJob: Job? = null
 
+    /** Files dismissed with the X on their card; cleared on every new query / option change. */
+    private val dismissedPaths = mutableSetOf<String>()
+
     init {
         viewModelScope.launch {
             history.observe(SearchKind.CODE).collect { items ->
@@ -119,6 +122,7 @@ class CodeSearchViewModel(
     }
 
     fun onQueryChange(query: String) {
+        dismissedPaths.clear()
         _uiState.update { it.copy(query = query) }
         searchJob?.cancel()
         if (query.isBlank()) {
@@ -145,20 +149,33 @@ class CodeSearchViewModel(
         )
         searchJob = viewModelScope.launch {
             delay(300)
-            val options = base.copy(defaultValuesOnly = settingsStore.codeSearchDefaultStringsOnly.first())
+            val options = base.copy(defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first())
             _uiState.update { it.copy(searching = true) }
             val found = mutableListOf<CodeSearchEngine.FileResult>()
-            var matches = 0
             // Stream: results dheere dheere dikhte rahen; naya query -> collect cancel.
             engine.search(root, query, options).collect { fr ->
                 found.add(fr)
-                matches += fr.matches.size
-                _uiState.update {
-                    it.copy(results = found.toList(), fileCount = found.size, matchCount = matches)
-                }
+                publishVisible(found)
             }
             _uiState.update { it.copy(searching = false) }
         }
+    }
+
+    /** Everything the engine found so far, minus dismissed files; drives the list and the summary counts. */
+    private var allFound: List<CodeSearchEngine.FileResult> = emptyList()
+
+    private fun publishVisible(found: List<CodeSearchEngine.FileResult>) {
+        allFound = found.toList()
+        val visible = allFound.filter { it.file.path !in dismissedPaths }
+        _uiState.update {
+            it.copy(results = visible, fileCount = visible.size, matchCount = visible.sumOf { r -> r.matches.size })
+        }
+    }
+
+    /** X on a file card: drop that file's matches from the current results only. */
+    fun dismissFile(file: File) {
+        dismissedPaths.add(file.path)
+        publishVisible(allFound)
     }
 
     fun setRegex(v: Boolean) = applyOption { it.copy(regex = v) }
@@ -421,6 +438,7 @@ fun CodeSearchScreen(
                                     FileResultHeader(
                                         fileResult = fileResult,
                                         onLocateInTree = { onLocateInTree(fileResult.file) },
+                                        onDismiss = { viewModel.dismissFile(fileResult.file) },
                                     )
                                     fileResult.matches.forEach { m ->
                                         Row(
@@ -473,6 +491,7 @@ fun CodeSearchScreen(
 private fun FileResultHeader(
     fileResult: CodeSearchEngine.FileResult,
     onLocateInTree: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -508,6 +527,9 @@ private fun FileResultHeader(
                     },
                 )
             }
+        }
+        IconButton(onClick = onDismiss) {
+            Icon(XIcons.Close, contentDescription = stringResource(R.string.search_dismiss_file))
         }
     }
 }

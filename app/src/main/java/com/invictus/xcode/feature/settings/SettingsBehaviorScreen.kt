@@ -33,8 +33,7 @@ fun SettingsBehaviorScreen(
 ) {
     val autoReloadExternal by viewModel.autoReloadExternalChanges.collectAsStateWithLifecycle()
     val gitStatusPollingEnabled by viewModel.gitStatusPollingEnabled.collectAsStateWithLifecycle()
-    val fileSearchDefaultStringsOnly by viewModel.fileSearchDefaultStringsOnly.collectAsStateWithLifecycle()
-    val codeSearchDefaultStringsOnly by viewModel.codeSearchDefaultStringsOnly.collectAsStateWithLifecycle()
+    val searchDefaultStringsOnly by viewModel.searchDefaultStringsOnly.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -87,17 +86,10 @@ fun SettingsBehaviorScreen(
 
             SettingsSectionCard {
                 SwitchSettingRow(
-                    title = stringResource(R.string.settings_file_search_default_strings),
+                    title = stringResource(R.string.settings_search_default_strings),
                     subtitle = stringResource(R.string.settings_search_default_strings_desc),
-                    checked = fileSearchDefaultStringsOnly,
-                    onCheckedChange = viewModel::setFileSearchDefaultStringsOnly,
-                )
-                SettingsDivider()
-                SwitchSettingRow(
-                    title = stringResource(R.string.settings_code_search_default_strings),
-                    subtitle = stringResource(R.string.settings_search_default_strings_desc),
-                    checked = codeSearchDefaultStringsOnly,
-                    onCheckedChange = viewModel::setCodeSearchDefaultStringsOnly,
+                    checked = searchDefaultStringsOnly,
+                    onCheckedChange = viewModel::setSearchDefaultStringsOnly,
                 )
             }
         }

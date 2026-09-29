@@ -849,7 +849,7 @@ class GitViewModel(
             _uiState.update {
                 it.copy(rebasePicker = true, rebaseLoading = true, rebaseCandidates = emptyList())
             }
-            backgroundPruneFetch()
+            // No network fetch here: the picker lists what's already fetched so it opens instantly.
             when (val result = session.mergeCandidates()) {
                 is GitResult.Ok -> _uiState.update {
                     it.copy(rebaseCandidates = result.value, rebaseLoading = false)

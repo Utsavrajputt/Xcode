@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.map
 private val Context.onboardingDataStore: DataStore<Preferences> by preferencesDataStore(name = "onboarding")
 
 /**
- * Whether the startup permission onboarding (storage / notifications / battery) has
+ * Whether the startup permission onboarding (storage / notifications) has
  * been finished or skipped once. Separate from [com.invictus.xcode.core.git.GitOnboardingPrefs],
  * which is the per-repo "M9 guided Git onboarding" wizard -- this one is app-level and
  * runs once, before Home.

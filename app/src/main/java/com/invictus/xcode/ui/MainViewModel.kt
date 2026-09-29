@@ -7,7 +7,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.fs.StoragePermission
-import com.invictus.xcode.core.permission.BatteryOptimization
 import com.invictus.xcode.core.permission.NotificationPermission
 import com.invictus.xcode.core.permission.OnboardingPrefs
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +19,6 @@ import kotlinx.coroutines.runBlocking
 data class MainUiState(
     val storageGranted: Boolean,
     val notificationGranted: Boolean,
-    val batteryOptimizationDisabled: Boolean,
     val onboardingCompleted: Boolean,
 )
 
@@ -35,7 +33,6 @@ sealed interface MainUiEvent {
 class MainViewModel(
     private val storagePermission: StoragePermission,
     private val notificationPermission: NotificationPermission,
-    private val batteryOptimization: BatteryOptimization,
     private val onboardingPrefs: OnboardingPrefs,
 ) : ViewModel() {
 
@@ -43,7 +40,6 @@ class MainViewModel(
         MainUiState(
             storageGranted = storagePermission.isGranted(),
             notificationGranted = notificationPermission.isGranted(),
-            batteryOptimizationDisabled = batteryOptimization.isDisabled(),
             // Read synchronously (tiny local DataStore, one boolean) so a returning user
             // whose onboarding is already done never sees a one-frame onboarding flash.
             onboardingCompleted = runBlocking { onboardingPrefs.isCompleted() },
@@ -57,8 +53,7 @@ class MainViewModel(
                 it.copy(
                     storageGranted = storagePermission.isGranted(),
                     notificationGranted = notificationPermission.isGranted(),
-                    batteryOptimizationDisabled = batteryOptimization.isDisabled(),
-                )
+                        )
             }
             MainUiEvent.CompleteOnboarding -> {
                 _uiState.update { it.copy(onboardingCompleted = true) }
@@ -74,7 +69,6 @@ class MainViewModel(
                 MainViewModel(
                     storagePermission = app.container.storagePermission,
                     notificationPermission = app.container.notificationPermission,
-                    batteryOptimization = app.container.batteryOptimization,
                     onboardingPrefs = app.container.onboardingPrefs,
                 )
             }

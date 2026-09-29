@@ -11,7 +11,6 @@ import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.core.github.AvatarImageLoader
 import com.invictus.xcode.core.github.GitHubProfileRepository
 import com.invictus.xcode.core.fs.StoragePermission
-import com.invictus.xcode.core.permission.BatteryOptimization
 import com.invictus.xcode.core.permission.NotificationPermission
 import com.invictus.xcode.core.permission.OnboardingPrefs
 import com.invictus.xcode.core.project.ProjectBackup
@@ -34,7 +33,6 @@ class AppContainer(context: Context) {
 
     val notificationPermission: NotificationPermission by lazy { NotificationPermission(appContext) }
 
-    val batteryOptimization: BatteryOptimization by lazy { BatteryOptimization(appContext) }
 
     val onboardingPrefs: OnboardingPrefs by lazy { OnboardingPrefs(appContext) }
 

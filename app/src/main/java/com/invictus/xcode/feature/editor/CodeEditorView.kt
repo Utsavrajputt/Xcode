@@ -49,7 +49,7 @@ fun CodeEditorView(
     darkTheme: Boolean,
     textMate: TextMateSupport,
     highlightReady: Boolean,
-    themeId: String = EditorThemes.SYSTEM_DEFAULT,
+    themeId: String = EditorThemes.DEFAULT_ID,
     autocompleteEnabled: Boolean = true,
     handle: EditorHandle,
     onEdited: () -> Unit,

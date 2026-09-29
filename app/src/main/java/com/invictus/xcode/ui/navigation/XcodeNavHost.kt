@@ -50,18 +50,16 @@ private const val NavSlideFraction = 4
 
 /**
  * Permission gate + app screens. Starts on the onboarding stepper (storage /
- * notifications / battery) when All files access is missing or onboarding hasn't
+ * notifications) when All files access is missing or onboarding hasn't
  * been finished yet, and moves between the two as storage access is granted/revoked.
  */
 @Composable
 fun XcodeNavHost(
     storageGranted: Boolean,
     notificationGranted: Boolean,
-    batteryOptimizationDisabled: Boolean,
     onboardingCompleted: Boolean,
     onGrantStorage: () -> Unit,
     onRequestNotification: () -> Unit,
-    onDisableBattery: () -> Unit,
     onFinishOnboarding: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -97,10 +95,8 @@ fun XcodeNavHost(
             OnboardingScreen(
                 hasStoragePermission = storageGranted,
                 hasNotificationPermission = notificationGranted,
-                batteryOptimizationDisabled = batteryOptimizationDisabled,
                 onGrantStoragePermission = onGrantStorage,
                 onRequestNotificationPermission = onRequestNotification,
-                onDisableBatteryOptimization = onDisableBattery,
                 onFinishOnboarding = onFinishOnboarding,
             )
         }
@@ -138,8 +134,6 @@ fun XcodeNavHost(
         }
         composable(Routes.SETTINGS) {
             SettingsRootScreen(
-                batteryOptimizationDisabled = batteryOptimizationDisabled,
-                onFixBatteryOptimization = onDisableBattery,
                 onBack = { navController.popBackStack() },
                 onOpenAppearance = { navController.navigate(Routes.SETTINGS_APPEARANCE) },
                 onOpenEditing = { navController.navigate(Routes.SETTINGS_EDITING) },

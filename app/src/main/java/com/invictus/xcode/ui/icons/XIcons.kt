@@ -233,7 +233,7 @@ object XIcons {
         )
     }
 
-    // Onboarding (startup permission stepper): storage/notification/battery steps.
+    // Onboarding (startup permission stepper): storage/notification steps.
     /** Notification step (Material Symbols "notifications" — a bell). */
     val Notifications: ImageVector by lazy {
         icon(
@@ -244,14 +244,6 @@ object XIcons {
         )
     }
 
-    /** Battery step (Material Symbols "shield" — used the same way xmd's onboarding does). */
-    val Shield: ImageVector by lazy {
-        icon(
-            "Shield",
-            "M12,1L3,5v6c0,5.55 3.84,10.74 9,12 5.16,-1.26 9,-6.45 9,-12V5l-9,-4z" +
-                "M12,11.99h7c-0.53,4.12 -3.28,7.79 -7,8.94V12H5V6.3l7,-3.11v8.8z",
-        )
-    }
 
     /** Info step marker (Material Symbols "info"). */
     val Info: ImageVector by lazy {

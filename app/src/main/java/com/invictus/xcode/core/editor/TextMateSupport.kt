@@ -73,7 +73,7 @@ class TextMateSupport(private val context: Context) {
         editor: CodeEditor,
         file: File,
         dark: Boolean,
-        themeId: String = EditorThemes.SYSTEM_DEFAULT,
+        themeId: String = EditorThemes.DEFAULT_ID,
     ): Boolean {
         if (!_ready.value) return false
         return try {

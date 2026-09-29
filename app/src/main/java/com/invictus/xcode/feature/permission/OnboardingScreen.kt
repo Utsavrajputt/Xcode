@@ -56,18 +56,16 @@ import com.invictus.xcode.ui.icons.XIcons
 private val GrantedColor = Color(0xFF2E7D32)
 
 /**
- * Startup permission onboarding: storage (mandatory) -> notifications (skippable) ->
- * battery optimization (skippable), styled after xmd's OnboardingScreen. Shown once,
+ * Startup permission onboarding: storage (mandatory) -> notifications (skippable),
+ * styled after xmd's OnboardingScreen. Shown once,
  * before Home, gated by [com.invictus.xcode.core.permission.OnboardingPrefs].
  */
 @Composable
 fun OnboardingScreen(
     hasStoragePermission: Boolean,
     hasNotificationPermission: Boolean,
-    batteryOptimizationDisabled: Boolean,
     onGrantStoragePermission: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    onDisableBatteryOptimization: () -> Unit,
     onFinishOnboarding: () -> Unit,
 ) {
     var step by remember { mutableIntStateOf(0) }
@@ -83,7 +81,7 @@ fun OnboardingScreen(
                 .navigationBarsPadding()
                 .padding(24.dp),
         ) {
-            // Step indicator: Storage, Notifications, Battery.
+            // Step indicator: Storage, Notifications.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -94,8 +92,6 @@ fun OnboardingScreen(
                 StepDot(active = step == 0, completed = hasStoragePermission)
                 StepConnector(filled = step > 0)
                 StepDot(active = step == 1, completed = hasNotificationPermission)
-                StepConnector(filled = step > 1)
-                StepDot(active = step == 2, completed = batteryOptimizationDisabled)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -122,7 +118,7 @@ fun OnboardingScreen(
                             actionLabel = stringResource(R.string.startup_onboarding_grant_storage),
                             onAction = onGrantStoragePermission,
                         )
-                        1 -> PermissionStepContent(
+                        else -> PermissionStepContent(
                             icon = XIcons.Notifications,
                             granted = hasNotificationPermission,
                             title = stringResource(R.string.startup_onboarding_title_notification),
@@ -131,15 +127,6 @@ fun OnboardingScreen(
                             actionLabel = stringResource(R.string.startup_onboarding_grant_notification),
                             hint = stringResource(R.string.startup_onboarding_notification_hint),
                             onAction = onRequestNotificationPermission,
-                        )
-                        else -> PermissionStepContent(
-                            icon = XIcons.Shield,
-                            granted = batteryOptimizationDisabled,
-                            title = stringResource(R.string.startup_onboarding_title_battery),
-                            description = stringResource(R.string.startup_onboarding_desc_battery),
-                            grantedLabel = stringResource(R.string.startup_onboarding_battery_disabled),
-                            actionLabel = stringResource(R.string.startup_onboarding_disable_battery),
-                            onAction = onDisableBatteryOptimization,
                         )
                     }
                 }
@@ -185,23 +172,9 @@ fun OnboardingScreen(
                             }
                         }
                     }
-                    1 -> {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (!hasNotificationPermission) {
-                                OutlinedButton(onClick = { step = 2 }, shape = RoundedCornerShape(12.dp), modifier = Modifier.height(48.dp)) {
-                                    Text(stringResource(R.string.startup_onboarding_skip))
-                                }
-                            }
-                            Button(onClick = { step = 2 }, shape = RoundedCornerShape(12.dp), modifier = Modifier.height(48.dp)) {
-                                Text(stringResource(R.string.startup_onboarding_next), fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.width(6.dp))
-                                Icon(XIcons.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
                     else -> {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            if (!batteryOptimizationDisabled) {
+                            if (!hasNotificationPermission) {
                                 OutlinedButton(onClick = onFinishOnboarding, shape = RoundedCornerShape(12.dp), modifier = Modifier.height(48.dp)) {
                                     Text(stringResource(R.string.startup_onboarding_skip))
                                 }

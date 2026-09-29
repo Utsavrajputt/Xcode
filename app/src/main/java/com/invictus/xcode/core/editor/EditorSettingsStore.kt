@@ -33,12 +33,11 @@ class EditorSettingsStore(private val context: Context) {
         val PROJECT_SHEET_SHOW_HIDDEN = booleanPreferencesKey("project_sheet_show_hidden")
         val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
         val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
-        val FILE_SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("file_search_default_strings_only")
-        val CODE_SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("code_search_default_strings_only")
+        val SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("search_default_strings_only")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
-        .map { it[Keys.THEME_ID] ?: EditorThemes.SYSTEM_DEFAULT }
+        .map { it[Keys.THEME_ID] ?: EditorThemes.DEFAULT_ID }
 
     /** 0f = no saved preference yet; caller falls back to the editor's built-in default size. */
     val fontSizePx: Flow<Float> = context.editorSettingsDataStore.data
@@ -81,20 +80,12 @@ class EditorSettingsStore(private val context: Context) {
     val gitStatusPollingEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.GIT_STATUS_POLLING_ENABLED] ?: true }
 
-    /** Settings "File search" toggle -- hide values-* (localized strings) folders from file search; off by default. */
-    val fileSearchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data
-        .map { it[Keys.FILE_SEARCH_DEFAULT_STRINGS_ONLY] ?: false }
+    /** Settings "Search" toggle -- hide values-* (localized strings) folders from file search AND code search; off by default. */
+    val searchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.SEARCH_DEFAULT_STRINGS_ONLY] ?: false }
 
-    /** Settings "Code search" toggle -- hide values-* (localized strings) folders from code search; off by default. */
-    val codeSearchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data
-        .map { it[Keys.CODE_SEARCH_DEFAULT_STRINGS_ONLY] ?: false }
-
-    suspend fun setFileSearchDefaultStringsOnly(enabled: Boolean) {
-        context.editorSettingsDataStore.edit { it[Keys.FILE_SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
-    }
-
-    suspend fun setCodeSearchDefaultStringsOnly(enabled: Boolean) {
-        context.editorSettingsDataStore.edit { it[Keys.CODE_SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
+    suspend fun setSearchDefaultStringsOnly(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
     }
 
     suspend fun setCloneDefaultParent(path: String) {
