@@ -76,9 +76,9 @@ class EditorSettingsStore(private val context: Context) {
     val cloneDefaultParent: Flow<String> = context.editorSettingsDataStore.data
         .map { it[Keys.CLONE_DEFAULT_PARENT].orEmpty() }
 
-    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; on by default. */
+    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; off by default. */
     val gitStatusPollingEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
-        .map { it[Keys.GIT_STATUS_POLLING_ENABLED] ?: true }
+        .map { it[Keys.GIT_STATUS_POLLING_ENABLED] ?: false }
 
     /** Settings "Search" toggle -- hide values-* (localized strings) folders from file search AND code search; off by default. */
     val searchDefaultStringsOnly: Flow<Boolean> = context.editorSettingsDataStore.data

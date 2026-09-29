@@ -162,6 +162,10 @@ class GitSession(
     suspend fun refresh(): GitResult<Pair<GitRepoSnapshot, GitWorkingTreeStatus>> =
         ioOp(TITLE_STATUS) { timedLock { doSnapshot() to doStatus() } }
 
+    /** Snapshot only (HEAD, branch, tracking, merge/rebase state): no working-tree walk, unlike [refresh]. */
+    suspend fun snapshot(): GitResult<GitRepoSnapshot> =
+        ioOp(TITLE_STATUS) { timedLock { doSnapshot() } }
+
     /**
      * Snapshot + status + remotes in one [ioOp]/lock/`withContext(io)` hop instead of the
      * two separate suspend calls (`listRemotes()` then `refresh()`) the initial screen load
@@ -358,8 +362,8 @@ class GitSession(
 
     /** HEAD's full commit message, for pre-filling the commit box when Amend is toggled on. */
     suspend fun headCommitMessage(): GitResult<String?> = ioOp(TITLE_COMMIT) {
-        timedLock {
-            val headId = repository.resolve("HEAD") ?: return@timedLock null
+        readOnly {
+            val headId = repository.resolve("HEAD") ?: return@readOnly null
             RevWalk(repository).use { it.parseCommit(headId).fullMessage }
         }
     }
@@ -503,7 +507,7 @@ class GitSession(
 
     /** HEAD-vs-worktree diff for one repo-relative path, parsed into render rows. */
     suspend fun fileDiff(path: String): GitResult<GitFileDiffResult> =
-        ioOp(TITLE_DIFF) { timedLock { doFileDiff(path.normalized()) } }
+        ioOp(TITLE_DIFF) { readOnly { doFileDiff(path.normalized()) } }
 
     private fun doFileDiff(relPath: String): GitFileDiffResult {
         val headId = repository.resolve("HEAD")
@@ -556,7 +560,7 @@ class GitSession(
     // ---- remotes / branches -------------------------------------------------
 
     suspend fun listRemotes(): GitResult<List<GitRemoteInfo>> = ioOp(TITLE_STATUS) {
-        timedLock { readRemotes() }
+        readOnly { readRemotes() }
     }
 
     private fun readRemotes(): List<GitRemoteInfo> =
@@ -572,7 +576,7 @@ class GitSession(
         }
 
     suspend fun listBranches(): GitResult<List<GitBranchInfo>> = ioOp(TITLE_STATUS) {
-        timedLock {
+        readOnly {
             val current = runCatching { repository.branch }.getOrNull()
             git.branchList().call().map { ref ->
                 GitBranchInfo(
@@ -640,27 +644,57 @@ class GitSession(
             ?.removePrefix("refs/heads/")
 
     /** Local branches + current unborn branch (empty repo me bhi HEAD wali dikhe). */
+    /**
+     * Names + upstream only (config lookups, no history walks) so the Branches screen opens
+     * immediately; ahead/behind stay null and are filled in later via [branchDivergence].
+     */
     suspend fun listBranchesDetailed(): GitResult<List<GitBranchDetail>> = ioOp(TITLE_BRANCH) {
-        timedLock {
+        readOnly {
             val current = currentBranchName()
             val listed = git.branchList().call().map { ref ->
                 val name = ref.name.removePrefix("refs/heads/")
-                val track = runCatching { trackingInfo(name) }.getOrNull()
                 GitBranchDetail(
                     name = name,
                     isCurrent = name == current,
-                    upstream = track?.let { "${it.remote}/${it.branch}" },
-                    ahead = track?.ahead ?: 0,
-                    behind = track?.behind ?: 0,
+                    upstream = upstreamOf(name)?.let { "${it.remote}/${it.branch}" },
                 )
             }
             // Unborn branch: branchList() is empty but HEAD already points at one.
             if (listed.none { it.isCurrent } && current != null) {
-                listed + GitBranchDetail(current, isCurrent = true, upstream = null, ahead = 0, behind = 0)
+                listed + GitBranchDetail(current, isCurrent = true, upstream = null)
             } else {
                 listed
             }
         }
+    }
+
+    /** Ahead/behind of local [branch] vs its upstream (its own tip, not HEAD); null when it has none. */
+    suspend fun branchDivergence(branch: String): GitResult<Pair<Int, Int>?> = ioOp(TITLE_BRANCH) {
+        readOnly {
+            val up = upstreamOf(branch) ?: return@ioOp null
+            val local = repository.resolve("refs/heads/$branch") ?: return@ioOp null
+            val walk = RevWalk(repository)
+            try {
+                walk.setRetainBody(false)
+                countRange(walk, local, up.remoteRef) to countRange(walk, up.remoteRef, local)
+            } finally {
+                walk.close()
+            }
+        }
+    }
+
+    private class Upstream(val remote: String, val branch: String, val remoteRef: ObjectId)
+
+    private fun upstreamOf(branch: String): Upstream? {
+        val remote = repository.config.getString(
+            ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE,
+        ) ?: return null
+        val merge = repository.config.getString(
+            ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE,
+        ) ?: return null
+        val shortBranch = merge.removePrefix("refs/heads/")
+        val remoteRef = repository.resolve("refs/remotes/$remote/$shortBranch") ?: return null
+        return Upstream(remote, shortBranch, remoteRef)
     }
 
     suspend fun createBranch(name: String, checkout: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
@@ -720,11 +754,11 @@ class GitSession(
 
     // ---- M8: history + cherry-pick --------------------------------------------
 
-    suspend fun log(max: Int = 300, path: String? = null): GitResult<List<GitCommitSummary>> =
+    suspend fun log(max: Int = 300, path: String? = null, skip: Int = 0): GitResult<List<GitCommitSummary>> =
         ioOp(TITLE_LOG) {
-            timedLock {
+            readOnly {
                 if (repository.resolve("HEAD") == null) return@ioOp emptyList()
-                val cmd = git.log().setMaxCount(max)
+                val cmd = git.log().setMaxCount(max).setSkip(skip)
                 if (path != null) cmd.addPath(path.normalized())
                 cmd.call().map { it.toSummary() }.toList()
             }
@@ -736,7 +770,7 @@ class GitSession(
         mode: GitLogSearchMode,
         max: Int = 300,
     ): GitResult<List<GitCommitSummary>> = ioOp(TITLE_LOG) {
-        timedLock {
+        readOnly {
             if (repository.resolve("HEAD") == null) return@ioOp emptyList()
             val q = query.trim()
             git.log().setMaxCount(3000).call()
@@ -790,7 +824,7 @@ class GitSession(
     }
 
     suspend fun stashList(): GitResult<List<GitStashInfo>> = ioOp(TITLE_STASH) {
-        timedLock {
+        readOnly {
             git.stashList().call().toList().mapIndexed { index, c ->
                 GitStashInfo(
                     ref = "stash@{$index}",
@@ -824,7 +858,7 @@ class GitSession(
     // ---- M8: tags ----------------------------------------------------------------
 
     suspend fun listTags(): GitResult<List<GitTagInfo>> = ioOp(TITLE_TAG) {
-        timedLock {
+        readOnly {
             val walk = RevWalk(repository)
             try {
                 git.tagList().call().map { ref ->
@@ -978,7 +1012,7 @@ class GitSession(
 
     /** Local + remote short names minus the current branch, for the merge picker. */
     suspend fun mergeCandidates(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
-        timedLock {
+        readOnly {
             val current = currentBranchName()
             val local = git.branchList().call()
                 .map { it.name.removePrefix("refs/heads/") }
@@ -1280,6 +1314,20 @@ class GitSession(
             result
         }
     }
+
+    /**
+     * For read-only queries (log, branch list, divergence): runs [block] WITHOUT taking [mutex], so
+     * History/Branches don't sit behind a long status refresh, push, pull or rebase. Refs and objects
+     * are written atomically (lockfile + rename), so a concurrent read sees either the old or the new
+     * state. If a read still trips over a write in flight, it is retried once under the lock, which
+     * is exactly the old behaviour. Never use this for anything that writes.
+     */
+    private suspend inline fun <T> readOnly(block: () -> T): T =
+        try {
+            block()
+        } catch (e: Exception) {
+            timedLock { block() }
+        }
 
     /**
      * [mutex].withLock that also reports how long this op sat waiting for the lock (queued behind

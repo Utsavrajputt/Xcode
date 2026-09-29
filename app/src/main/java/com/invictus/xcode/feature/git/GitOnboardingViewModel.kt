@@ -110,9 +110,14 @@ class GitOnboardingViewModel(
                 steps += Step.REMOTE
                 steps += Step.FIRST_COMMIT
             } else {
-                val refreshed = session.refresh()
-                val snapshot = (refreshed as? GitResult.Ok)?.value?.first
-                val status = (refreshed as? GitResult.Ok)?.value?.second
+                val snapshot = (session.snapshot() as? GitResult.Ok)?.value
+                // Working-tree status is only needed to decide on the first-commit step (no commits yet);
+                // skip the expensive walk otherwise.
+                val status = if (snapshot != null && !snapshot.hasCommits) {
+                    (session.status() as? GitResult.Ok)?.value
+                } else {
+                    null
+                }
                 val identity = (session.getIdentity(local = true) as? GitResult.Ok)?.value
                     ?: (session.getIdentity(local = false) as? GitResult.Ok)?.value
                 val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
@@ -302,7 +307,7 @@ class GitOnboardingViewModel(
             val provider = credential?.let { GitTokenCredentialsProvider(it.username, it.token) }
             when (val r = session.push(remote, provider)) {
                 is GitResult.Ok -> {
-                    val branch = (session.refresh() as? GitResult.Ok)?.value?.first?.headName
+                    val branch = (session.snapshot() as? GitResult.Ok)?.value?.headName
                     if (branch != null) {
                         when (val up = session.setUpstream(remote, branch)) {
                             is GitResult.Err ->

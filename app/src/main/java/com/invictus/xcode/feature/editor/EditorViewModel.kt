@@ -117,9 +117,9 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setAutoReloadExternalChanges(enabled) }
     }
 
-    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; on by default. */
+    /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; off by default. */
     val gitStatusPollingEnabled: StateFlow<Boolean> = settingsStore.gitStatusPollingEnabled
-        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun setGitStatusPollingEnabled(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setGitStatusPollingEnabled(enabled) }

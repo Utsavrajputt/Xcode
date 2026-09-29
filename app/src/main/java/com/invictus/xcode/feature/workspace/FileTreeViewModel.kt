@@ -93,7 +93,7 @@ class FileTreeViewModel(
     private var gitSession: GitSession? = null
 
     /** Mirrors the Settings "Git status detection" toggle for use in non-suspend call sites. */
-    private var gitStatusPollingEnabled: Boolean = true
+    private var gitStatusPollingEnabled: Boolean = false
 
     init {
         viewModelScope.launch { debounceWatcherEvents() }

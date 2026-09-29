@@ -54,6 +54,7 @@ import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -101,16 +102,41 @@ class GitBranchesViewModel(
 
     fun messageHandled() { _messages.value = null }
 
+    private var divergenceJob: Job? = null
+
     fun load(trigger: String = "after-op") {
         viewModelScope.launch(io + GitTrigger(trigger)) {
             _ui.update { it.copy(loading = it.branches.isEmpty()) }
             val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
             when (val r = session.listBranchesDetailed()) {
-                is GitResult.Ok -> _ui.update {
-                    it.copy(loading = false, branches = r.value, remotes = remotes)
+                is GitResult.Ok -> {
+                    // Keep counts we already have for a branch so a reload doesn't flicker them away.
+                    val prev = _ui.value.branches.associateBy { it.name }
+                    val branches = r.value.map { b ->
+                        prev[b.name]?.let { b.copy(ahead = it.ahead, behind = it.behind) } ?: b
+                    }
+                    _ui.update { it.copy(loading = false, branches = branches, remotes = remotes) }
+                    fillDivergence(branches)
                 }
                 is GitResult.Err -> _ui.update { it.copy(loading = false, error = r.error) }
             }
+        }
+    }
+
+    /** Background pass: ahead/behind per tracked branch, current branch first; the list is already on screen. */
+    private fun fillDivergence(branches: List<GitBranchDetail>) {
+        divergenceJob?.cancel()
+        divergenceJob = viewModelScope.launch(io) {
+            branches.filter { it.upstream != null }
+                .sortedByDescending { it.isCurrent }
+                .forEach { b ->
+                    val counts = (session.branchDivergence(b.name) as? GitResult.Ok)?.value ?: return@forEach
+                    _ui.update { st ->
+                        st.copy(branches = st.branches.map {
+                            if (it.name == b.name) it.copy(ahead = counts.first, behind = counts.second) else it
+                        })
+                    }
+                }
         }
     }
 
@@ -307,7 +333,9 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                                 )
                                 Text(
                                     when {
-                                        b.upstream != null -> "$b.upstream ↑${b.ahead} ↓${b.behind}"
+                                        b.upstream != null && b.ahead != null && b.behind != null ->
+                                            "${b.upstream} ↑${b.ahead} ↓${b.behind}"
+                                        b.upstream != null -> b.upstream
                                         else -> stringResource(R.string.git_upstream_none)
                                     },
                                     style = MaterialTheme.typography.bodySmall,

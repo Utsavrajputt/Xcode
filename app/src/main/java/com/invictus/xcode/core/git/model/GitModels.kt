@@ -158,8 +158,9 @@ data class GitBranchDetail(
     val name: String,
     val isCurrent: Boolean,
     val upstream: String?,   // "origin/main", null when no tracking config
-    val ahead: Int,
-    val behind: Int,
+    /** null until the background divergence pass has computed it (names load first, counts fill in). */
+    val ahead: Int? = null,
+    val behind: Int? = null,
 )
 
 data class GitTagInfo(

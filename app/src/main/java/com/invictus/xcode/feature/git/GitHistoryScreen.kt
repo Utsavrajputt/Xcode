@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -80,6 +83,8 @@ class GitHistoryViewModel(
     data class UiState(
         val loading: Boolean = true,
         val commits: List<GitCommitSummary> = emptyList(),
+        val hasMore: Boolean = false,
+        val loadingMore: Boolean = false,
         val query: String = "",
         val mode: GitLogSearchMode = GitLogSearchMode.MESSAGE,
         val detail: GitCommitSummary? = null,
@@ -106,10 +111,31 @@ class GitHistoryViewModel(
     private fun reload(trigger: String = "user") {
         viewModelScope.launch(io + GitTrigger(trigger)) {
             _ui.update { it.copy(loading = it.commits.isEmpty()) }
-            val r = if (filePath != null) session.log(max = 300, path = filePath) else session.log()
-            when (r) {
-                is GitResult.Ok -> _ui.update { it.copy(loading = false, commits = r.value) }
+            when (val r = session.log(max = PAGE_SIZE, path = filePath)) {
+                is GitResult.Ok -> _ui.update {
+                    it.copy(loading = false, commits = r.value, hasMore = r.value.size >= PAGE_SIZE)
+                }
                 is GitResult.Err -> _ui.update { it.copy(loading = false, error = r.error) }
+            }
+        }
+    }
+
+    /** "Load more" button: next [PAGE_SIZE] commits after the ones already shown. */
+    fun loadMore() {
+        val st = _ui.value
+        if (st.loadingMore || !st.hasMore || st.query.isNotBlank()) return
+        viewModelScope.launch(io + GitTrigger("load-more")) {
+            _ui.update { it.copy(loadingMore = true) }
+            when (val r = session.log(max = PAGE_SIZE, path = filePath, skip = st.commits.size)) {
+                is GitResult.Ok -> _ui.update {
+                    val known = it.commits.mapTo(HashSet()) { c -> c.id }
+                    it.copy(
+                        loadingMore = false,
+                        commits = it.commits + r.value.filter { c -> c.id !in known },
+                        hasMore = r.value.size >= PAGE_SIZE,
+                    )
+                }
+                is GitResult.Err -> _ui.update { it.copy(loadingMore = false, error = r.error) }
             }
         }
     }
@@ -121,7 +147,7 @@ class GitHistoryViewModel(
         searchJob = viewModelScope.launch(io) {
             delay(250)   // debounce
             when (val r = session.searchLog(q, _ui.value.mode)) {
-                is GitResult.Ok -> _ui.update { it.copy(commits = r.value) }
+                is GitResult.Ok -> _ui.update { it.copy(commits = r.value, hasMore = false) }
                 is GitResult.Err -> _ui.update { it.copy(error = r.error) }
             }
         }
@@ -181,6 +207,8 @@ class GitHistoryViewModel(
     }
 
     companion object {
+        private const val PAGE_SIZE = 50
+
         fun factory(projectPath: String, filePath: String?) = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as XcodeApp
@@ -293,6 +321,19 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+                if (ui.hasMore && ui.query.isBlank()) {
+                    item(key = "load_more") {
+                        Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                            TextButton(onClick = vm::loadMore, enabled = !ui.loadingMore) {
+                                if (ui.loadingMore) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Text(stringResource(R.string.git_history_load_more))
+                                }
+                            }
+                        }
                     }
                 }
                 if (!ui.loading && ui.commits.isEmpty()) {

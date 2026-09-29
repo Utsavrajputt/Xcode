@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitCredential
+import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.git.GitRepoWatcher
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSessionRegistry
@@ -54,6 +55,7 @@ class GitViewModel(
     private val projectPath: String,
     private val credentialStore: GitCredentialStore,
     globalIdentityFile: File,
+    private val settingsStore: EditorSettingsStore,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -184,8 +186,13 @@ class GitViewModel(
                 }
             }
             refresh("screen-open")
-            repoWatcher.start(File(projectPath, ".git"))
             viewModelScope.launch { debounceExternalChanges() }
+            // Follows Settings > Behavior > "Git status detection": OFF = no .git watcher at all.
+            viewModelScope.launch {
+                settingsStore.gitStatusPollingEnabled.collect { enabled ->
+                    if (enabled) repoWatcher.start(File(projectPath, ".git")) else repoWatcher.stop()
+                }
+            }
         }
     }
 
@@ -1183,6 +1190,7 @@ class GitViewModel(
                     projectPath = projectPath,
                     credentialStore = app.container.gitCredentialStore,
                     globalIdentityFile = app.container.gitGlobalIdentityFile,
+                    settingsStore = app.container.editorSettingsStore,
                 )
             }
         }

@@ -336,6 +336,7 @@
     <string name="git_history_mode_author">Author</string>
     <string name="git_history_mode_hash">Hash</string>
     <string name="git_history_empty">No commits found.</string>
+    <string name="git_history_load_more">Load more</string>
     <string name="git_cherry_pick">Cherry-pick</string>
     <string name="git_stash_title">Stash</string>
     <string name="git_stash_create">Stash</string>
