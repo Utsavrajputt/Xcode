@@ -475,6 +475,13 @@
 <string name="git_rebase_in_progress">Rebase in progress</string>
 <string name="git_rebase_in_progress_conflicts">Rebase in progress — %1$d conflict(s) remaining</string>
 <string name="git_continue_rebase">Continue</string>
+<string name="git_op_continue">Continue</string>
+<string name="git_op_complete">Complete</string>
+<string name="git_op_skip">Skip</string>
+<string name="git_op_abort">Abort</string>
+<string name="git_op_resolved">Resolved</string>
+<string name="git_op_conflicts_left">%1$d conflict(s) left to resolve</string>
+<string name="git_op_all_resolved">All conflicts resolved — ready to continue</string>
 <string name="git_skip_rebase">Skip commit</string>
 <string name="git_abort_rebase">Abort rebase</string>
 <string name="git_abort_rebase_title">Abort rebase?</string>

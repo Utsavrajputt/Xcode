@@ -349,11 +349,15 @@ private fun GitContent(
                 )
             }
         }
+        if (snapshot.mergeInProgress || snapshot.rebaseInProgress) {
+            item(key = "op-banner") { GitOperationBanner(state, onEvent) }
+        }
         status?.let { st ->
+            conflictSection(st.conflicts, onEvent)
             changeSection(
                 keyPrefix = "changes",
                 titleRes = R.string.git_section_changes,
-                changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED } + st.untracked,
+                changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED && !it.isConflict() } + st.untracked,
                 headerActionLabelRes = R.string.git_stage_all,
                 isStagedSection = false,
                 state = state,
@@ -363,7 +367,7 @@ private fun GitContent(
             changeSection(
                 keyPrefix = "staged",
                 titleRes = R.string.git_section_staged,
-                changes = st.staged,
+                changes = st.staged.filterNot { it.isConflict() },
                 headerActionLabelRes = R.string.git_unstage_all,
                 isStagedSection = true,
                 state = state,

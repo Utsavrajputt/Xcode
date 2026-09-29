@@ -77,11 +77,8 @@ fun SourceControlDrawerSheet(
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 item("commit") { DrawerCommitCard(state, onEvent) }
                 item("actions") { DrawerQuickActions(state, onEvent) }
-                if (state.snapshot?.mergeInProgress == true) {
-                    item("merge-banner") { MergeInProgressBanner(state, onEvent) }
-                }
-                if (state.snapshot?.rebaseInProgress == true) {
-                    item("rebase-banner") { RebaseInProgressBanner(state, onEvent) }
+                if (state.snapshot?.mergeInProgress == true || state.snapshot?.rebaseInProgress == true) {
+                    item("op-banner") { GitOperationBanner(state, onEvent) }
                 }
                 if (status.isClean) {
                     item("clean") {
@@ -93,18 +90,11 @@ fun SourceControlDrawerSheet(
                         )
                     }
                 }
-                drawerSection(
-                    key = GitViewModel.SECTION_CONFLICTS,
-                    titleRes = R.string.git_section_conflicts,
-                    changes = status.conflicts,
-                    state = state,
-                    headerActionLabelRes = null,
-                    onEvent = onEvent,
-                )
+                conflictSection(status.conflicts, onEvent)
                 drawerSection(
                     key = GitViewModel.SECTION_STAGED,
                     titleRes = R.string.git_section_staged,
-                    changes = status.staged,
+                    changes = status.staged.filterNot { it.isConflict() },
                     state = state,
                     headerActionLabelRes = R.string.git_unstage_all,
                     onEvent = onEvent,
@@ -112,7 +102,7 @@ fun SourceControlDrawerSheet(
                 drawerSection(
                     key = GitViewModel.SECTION_CHANGES,
                     titleRes = R.string.git_section_changes,
-                    changes = status.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED },
+                    changes = status.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED && !it.isConflict() },
                     state = state,
                     headerActionLabelRes = R.string.git_stage_all,
                     onEvent = onEvent,
@@ -158,68 +148,6 @@ fun SourceControlDrawerSheet(
             onDismiss = { onEvent(GitEvent.DismissPushRejected) },
         )
     }
-}
-
-@Composable
-private fun MergeInProgressBanner(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
-    val conflicts = state.status?.conflicts?.size ?: 0
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = if (conflicts > 0)
-                stringResource(R.string.git_merge_in_progress_conflicts, conflicts)
-            else stringResource(R.string.git_merge_in_progress),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = { onEvent(GitEvent.CompleteMerge) }) {
-                Text(stringResource(R.string.git_complete_merge))
-            }
-            TextButton(onClick = { onEvent(GitEvent.AbortMerge) }) {
-                Text(
-                    stringResource(R.string.git_abort_merge),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-    }
-    HorizontalDivider()
-}
-
-@Composable
-private fun RebaseInProgressBanner(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
-    val conflicts = state.status?.conflicts?.size ?: 0
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-    ) {
-        Text(
-            text = if (conflicts > 0)
-                stringResource(R.string.git_rebase_in_progress_conflicts, conflicts)
-            else stringResource(R.string.git_rebase_in_progress),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.error,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(
-                onClick = { onEvent(GitEvent.ContinueRebase) },
-                enabled = conflicts == 0,
-            ) {
-                Text(stringResource(R.string.git_continue_rebase))
-            }
-            TextButton(onClick = { onEvent(GitEvent.SkipRebaseCommit) }) {
-                Text(stringResource(R.string.git_skip_rebase))
-            }
-            TextButton(onClick = { onEvent(GitEvent.AbortRebase) }) {
-                Text(
-                    stringResource(R.string.git_abort_rebase),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-    }
-    HorizontalDivider()
 }
 
 @Composable
@@ -375,7 +303,7 @@ private fun LazyListScope.drawerSection(
             )
             Spacer(Modifier.width(4.dp))
             Text(
-                stringResource(titleRes) + "  (${'$'}{changes.size})",
+                stringResource(titleRes) + "  (${changes.size})",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.weight(1f),
             )
@@ -455,11 +383,6 @@ private fun DrawerChangeItem(
             ) {
                 GitDiffViewer(result = it)
             }
-        }
-        val isConflict = change.staged == GitStageState.CONFLICT ||
-            change.unstaged == GitWorkingState.CONFLICT
-        if (isConflict) {
-            ConflictActionsRow(change, onEvent)
         }
     }
 }

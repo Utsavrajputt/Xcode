@@ -168,39 +168,6 @@ internal fun GitMergeDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) ->
     }
 }
 
-/** Per-file resolution actions shown under a conflicted row in the drawer. */
-@Composable
-internal fun ConflictActionsRow(change: GitPathChange, onEvent: (GitEvent) -> Unit) {
-    val path = change.repoRelativePath
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(start = 46.dp, end = 8.dp),
-    ) {
-        TextButton(onClick = { onEvent(GitEvent.ResolveConflict(path, GitConflictSide.OURS)) }) {
-            Text(stringResource(R.string.git_conflict_ours))
-        }
-        TextButton(onClick = { onEvent(GitEvent.ResolveConflict(path, GitConflictSide.THEIRS)) }) {
-            Text(stringResource(R.string.git_conflict_theirs))
-        }
-        TextButton(onClick = { onEvent(GitEvent.MarkResolved(path)) }) {
-            Text(stringResource(R.string.git_conflict_resolved))
-        }
-    }
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(start = 46.dp, end = 8.dp, bottom = 4.dp),
-    ) {
-        TextButton(onClick = { onEvent(GitEvent.PreviewConflictSide(path, GitConflictSide.OURS)) }) {
-            Text(stringResource(R.string.git_preview_ours))
-        }
-        TextButton(onClick = { onEvent(GitEvent.PreviewConflictSide(path, GitConflictSide.THEIRS)) }) {
-            Text(stringResource(R.string.git_preview_theirs))
-        }
-    }
-}
-
 /** M11 rebase dialogs; rides along wherever the drawer sheet is composed. */
 @Composable
 internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
