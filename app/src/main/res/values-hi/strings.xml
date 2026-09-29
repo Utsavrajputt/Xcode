@@ -143,6 +143,13 @@
 <string name="git_rebase_in_progress">Rebase in progress</string>
 <string name="git_rebase_in_progress_conflicts">Rebase in progress — %1$d conflict(s) remaining</string>
 <string name="git_continue_rebase">Continue</string>
+<string name="git_op_continue">Continue</string>
+<string name="git_op_complete">Complete</string>
+<string name="git_op_skip">Skip</string>
+<string name="git_op_abort">Abort</string>
+<string name="git_op_resolved">Resolved</string>
+<string name="git_op_conflicts_left">%1$d conflict(s) left to resolve</string>
+<string name="git_op_all_resolved">All conflicts resolved — ready to continue</string>
 <string name="git_skip_rebase">Skip commit</string>
 <string name="git_abort_rebase">Abort rebase</string>
 <string name="git_abort_rebase_title">Abort rebase?</string>
@@ -154,4 +161,21 @@
     <string name="git_logs_toggle">Record git logs</string>
     <string name="git_logs_toggle_desc">Saves each git operation with lock wait, run time, trigger and errors</string>
     <string name="git_logs_empty">No git operations logged yet.</string>
+
+    <!-- M11: search -->
+<string name="search_files_hint">नाम से फ़ाइल खोजें…</string>
+    <string name="search_code_title">फ़ाइलों में खोजें</string>
+    <string name="search_code_hint">Workspace में code खोजें…</string>
+    <string name="search_searching">खोजा जा रहा है…</string>
+    <string name="search_history">हाल की खोजें</string>
+    <string name="search_regex">.*</string>
+    <string name="search_case_sensitive">Aa</string>
+    <string name="search_whole_word">Word</string>
+    <string name="search_include_glob">Include (जैसे *.kt)</string>
+    <string name="search_exclude_glob">Exclude (जैसे build/)</string>
+    <string name="search_matches_summary">%2$d फ़ाइलों में %1$d मैच</string>
+    <string name="search_locate_in_tree">File tree में दिखाएँ</string>
+    <string name="search_invalid_regex">गलत regex: %1$s</string>
+    <string name="search_no_file_matches">कोई फ़ाइल नहीं मिली</string>
+    <string name="search_no_folder_matches">कोई फ़ोल्डर नहीं मिला</string>
 </resources>
