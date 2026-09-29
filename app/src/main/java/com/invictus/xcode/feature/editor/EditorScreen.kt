@@ -526,6 +526,7 @@ private fun EditorOverflowMenu(
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_save_all)) },
+                leadingIcon = { Icon(XIcons.Save, contentDescription = null) },
                 enabled = anyDirty,
                 onClick = {
                     open = false
@@ -534,6 +535,7 @@ private fun EditorOverflowMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_tab)) },
+                leadingIcon = { Icon(XIcons.Close, contentDescription = null) },
                 enabled = activePath != null,
                 onClick = {
                     open = false
@@ -542,6 +544,7 @@ private fun EditorOverflowMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_others)) },
+                leadingIcon = { Icon(XIcons.Tab, contentDescription = null) },
                 enabled = activePath != null,
                 onClick = {
                     open = false
@@ -550,6 +553,7 @@ private fun EditorOverflowMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_all)) },
+                leadingIcon = { Icon(XIcons.ClearAll, contentDescription = null) },
                 onClick = {
                     open = false
                     onEvent(EditorEvent.CloseAll)
@@ -742,10 +746,12 @@ private fun EditorTab(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_others)) },
+                leadingIcon = { Icon(XIcons.Tab, contentDescription = null) },
                 onClick = { onDismissMenu(); onCloseOthers() },
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_all)) },
+                leadingIcon = { Icon(XIcons.ClearAll, contentDescription = null) },
                 onClick = { onDismissMenu(); onCloseAll() },
             )
         }

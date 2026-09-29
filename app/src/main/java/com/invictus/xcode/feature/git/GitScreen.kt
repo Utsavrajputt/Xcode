@@ -173,6 +173,7 @@ fun GitScreen(
             onDismiss = { viewModel.onEvent(GitEvent.DismissHardResetConfirm) },
         )
     }
+    GitMergeDialogs(state = state, onEvent = viewModel::onEvent)
     GitRebaseDialogs(state = state, onEvent = viewModel::onEvent)
     if (state.pushRejected) {
         GitConfirmDialog(
@@ -220,6 +221,7 @@ fun GitScreen(
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_identity)) },
+                                leadingIcon = { Icon(XIcons.Person, contentDescription = null) },
                                 onClick = {
                                     overflowOpen = false
                                     viewModel.onEvent(GitEvent.OpenIdentity)
@@ -227,6 +229,7 @@ fun GitScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_history_title)) },
+                                leadingIcon = { Icon(XIcons.Restore, contentDescription = null) },
                                 onClick = {
                                     overflowOpen = false
                                     onOpenRoute(Routes.gitHistory(projectPath))
@@ -234,6 +237,7 @@ fun GitScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_stash_title)) },
+                                leadingIcon = { Icon(XIcons.Archive, contentDescription = null) },
                                 onClick = {
                                     overflowOpen = false
                                     onOpenRoute(Routes.gitStash(projectPath))
@@ -241,6 +245,7 @@ fun GitScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_tags_title)) },
+                                leadingIcon = { Icon(XIcons.Label, contentDescription = null) },
                                 onClick = {
                                     overflowOpen = false
                                     onOpenRoute(Routes.gitTags(projectPath))
@@ -248,6 +253,7 @@ fun GitScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.git_remotes_title)) },
+                                leadingIcon = { Icon(XIcons.Cloud, contentDescription = null) },
                                 onClick = {
                                     overflowOpen = false
                                     onOpenRoute(Routes.gitRemotes(projectPath))
@@ -256,6 +262,7 @@ fun GitScreen(
                             if (state.notARepo) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.git_setup_title)) },
+                                leadingIcon = { Icon(XIcons.Settings, contentDescription = null) },
                                     onClick = {
                                         overflowOpen = false
                                         onOpenRoute(Routes.gitOnboarding(projectPath))
@@ -346,17 +353,7 @@ private fun GitContent(
             changeSection(
                 keyPrefix = "changes",
                 titleRes = R.string.git_section_changes,
-                changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED },
-                headerActionLabelRes = R.string.git_stage_all,
-                isStagedSection = false,
-                state = state,
-                onHeaderAction = { onEvent(GitEvent.StageAll) },
-                onEvent = onEvent,
-            )
-            changeSection(
-                keyPrefix = "untracked",
-                titleRes = R.string.git_section_untracked,
-                changes = st.untracked,
+                changes = st.unstaged.filter { it.unstaged != GitWorkingState.UNTRACKED } + st.untracked,
                 headerActionLabelRes = R.string.git_stage_all,
                 isStagedSection = false,
                 state = state,
@@ -479,6 +476,9 @@ private fun ChangeRow(
                                 ),
                             )
                         },
+                        leadingIcon = {
+                            Icon(if (isStagedSection) XIcons.Remove else XIcons.Add, contentDescription = null)
+                        },
                         onClick = {
                             menuOpen = false
                             toggleStage()
@@ -486,6 +486,7 @@ private fun ChangeRow(
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.git_open_in_editor)) },
+                        leadingIcon = { Icon(XIcons.Code, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onEvent(GitEvent.OpenFile(path))
@@ -498,6 +499,9 @@ private fun ChangeRow(
                                     stringResource(R.string.git_discard),
                                     color = MaterialTheme.colorScheme.error,
                                 )
+                            },
+                            leadingIcon = {
+                                Icon(XIcons.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                             },
                             onClick = {
                                 menuOpen = false
@@ -573,6 +577,12 @@ private fun BranchCard(
             enabled = snapshot.hasCommits && !snapshot.rebaseInProgress && !snapshot.mergeInProgress,
         ) {
             Icon(XIcons.Rebase, contentDescription = stringResource(R.string.git_rebase_action))
+        }
+        IconButton(
+            onClick = { onEvent(GitEvent.OpenMerge) },
+            enabled = snapshot.hasCommits && !snapshot.rebaseInProgress && !snapshot.mergeInProgress && !state.merging,
+        ) {
+            Icon(XIcons.Merge, contentDescription = stringResource(R.string.git_merge))
         }
         Box {
             IconButton(onClick = { onEvent(GitEvent.OpenBranchMenu) }) {

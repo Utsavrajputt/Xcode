@@ -183,6 +183,30 @@ object XIcons {
             "M17,20.41L18.41,19 15,15.59 13.59,17 17,20.41zM7.5,8H11v5.59L5.59,19 7,20.41l6,-6V8h3.5L12,3.5 7.5,8z",
         )
     }
+    /** git merge (Material Symbols "merge"): two lines joining into one. */
+    val Merge: ImageVector by lazy {
+        icon(
+            "Merge",
+            "M6.41,21L5,19.59l4.83,-4.83c0.75,-0.75 1.17,-1.77 1.17,-2.83V8.83L9.41,10.41L8,9l4,-4 4,4 -1.42,1.41L13,8.83v3.09c0,1.06 0.42,2.08 1.17,2.83L19,19.59 17.59,21 12,15.41 6.41,21z",
+        )
+    }
+    val Archive: ImageVector by lazy {
+        icon(
+            "Archive",
+            "M20.54,5.23l-1.39,-1.68C18.88,3.21 18.47,3 18,3H6c-0.47,0 -0.88,0.21 -1.15,0.55L3.46,5.23C3.17,5.57 3,6.02 3,6.5V19c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V6.5c0,-0.48 -0.17,-0.93 -0.46,-1.27zM12,17.5L6.5,12H10v-2h4v2h3.5L12,17.5zM5.12,5l0.81,-1h12l0.94,1H5.12z",
+        )
+    }
+    val Label: ImageVector by lazy {
+        icon("Label", "M17.63,5.84C17.27,5.33 16.67,5 16,5L5,5.01C3.9,5.01 3,5.9 3,7v10c0,1.1 0.9,1.99 2,1.99L16,19c0.67,0 1.27,-0.33 1.63,-0.84L22,12l-4.37,-6.16z")
+    }
+    val Cloud: ImageVector by lazy {
+        icon("Cloud", "M19.35,10.04C18.67,6.59 15.64,4 12,4 9.11,4 6.6,5.64 5.35,8.04 2.34,8.36 0,10.91 0,14c0,3.31 2.69,6 6,6h13c2.76,0 5,-2.24 5,-5 0,-2.64 -2.05,-4.78 -4.65,-4.96z")
+    }
+    val Remove: ImageVector by lazy { icon("Remove", "M19,13H5v-2h14v2z") }
+    val ClearAll: ImageVector by lazy { icon("ClearAll", "M5,13h14v-2H5v2zM3,17h14v-2H3v2zM7,7v2h14V7H7z") }
+    val Tab: ImageVector by lazy {
+        icon("Tab", "M21,3H3c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h18c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM21,19H3V5h10v4h8v10z")
+    }
     val AccountTree: ImageVector by lazy {
         icon(
             "AccountTree",
