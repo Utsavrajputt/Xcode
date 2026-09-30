@@ -353,7 +353,7 @@ private fun GitContent(
             item(key = "op-banner") { GitOperationBanner(state, onEvent) }
         }
         status?.let { st ->
-            conflictSection(st.conflicts, onEvent)
+            conflictSection(st.conflicts, state.diffs, state.diffLoading, onEvent)
             changeSection(
                 keyPrefix = "changes",
                 titleRes = R.string.git_section_changes,

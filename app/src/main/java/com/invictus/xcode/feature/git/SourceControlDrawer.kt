@@ -90,7 +90,7 @@ fun SourceControlDrawerSheet(
                         )
                     }
                 }
-                conflictSection(status.conflicts, onEvent)
+                conflictSection(status.conflicts, state.diffs, state.diffLoading, onEvent)
                 drawerSection(
                     key = GitViewModel.SECTION_STAGED,
                     titleRes = R.string.git_section_staged,

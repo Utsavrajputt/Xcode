@@ -271,6 +271,7 @@ class GitViewModel(
             is GitEvent.Merge -> merge(event.branch)
             is GitEvent.ResolveConflict -> resolveConflict(event.path, event.side)
             is GitEvent.MarkResolved -> markResolved(event.path)
+            GitEvent.MarkAllResolved -> markAllResolved()
             is GitEvent.PreviewConflictSide -> previewConflictSide(event.path, event.side)
             GitEvent.DismissConflictPreview ->
                 _uiState.update { it.copy(conflictPreview = null) }
@@ -738,6 +739,23 @@ class GitViewModel(
                 is GitResult.Ok -> refresh()
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
+        }
+    }
+
+    private fun markAllResolved() {
+        val paths = _uiState.value.status?.conflicts
+            ?.map { it.repoRelativePath }?.distinct().orEmpty()
+        if (paths.isEmpty()) return
+        viewModelScope.launch(io) {
+            for (p in paths) {
+                val result = session.markConflictResolved(p)
+                if (result is GitResult.Err) {
+                    _uiState.update { it.copy(error = result.error) }
+                    refresh()
+                    return@launch
+                }
+            }
+            refresh()
         }
     }
 

@@ -2,7 +2,10 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -82,6 +87,11 @@ fun GitDiffViewer(result: GitFileDiffResult, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * One shared horizontal scroll for the whole diff (every row moves together) and a vertical
+ * LazyColumn inside it. Before, each row had its own horizontalScroll, so a swipe only moved
+ * the single line under the finger and fought with the vertical scroll.
+ */
 @Composable
 private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
     val scheme = MaterialTheme.colorScheme
@@ -91,38 +101,66 @@ private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
     val delHl = remember(scheme) { scheme.error.copy(alpha = 0.30f) }
     val gutterColor = MaterialTheme.colorScheme.onSurfaceVariant
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        itemsIndexed(result.rows, key = { i, _ -> i }) { _, row ->
-            if (sideBySide) {
-                Row(Modifier.fillMaxWidth()) {
-                    DiffCell(
-                        number = row.leftNumber, text = row.leftText.orEmpty(), type = row.leftType,
-                        ranges = row.intralineLeft, bg = delBg, highlight = delHl,
-                        gutterColor = gutterColor, modifier = Modifier.weight(1f),
-                    )
-                    VerticalDivider()
-                    DiffCell(
-                        number = row.rightNumber, text = row.rightText.orEmpty(), type = row.rightType,
-                        ranges = row.intralineRight, bg = addBg, highlight = addHl,
-                        gutterColor = gutterColor, modifier = Modifier.weight(1f),
-                    )
+    // Width of the widest line, so every row can share one content width.
+    val measurer = rememberTextMeasurer()
+    val codeStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+    val charWidth = with(LocalDensity.current) {
+        remember(codeStyle) { measurer.measure("0", codeStyle).size.width }.toDp()
+    }
+    val maxChars = remember(result) {
+        var m = 0
+        result.rows.forEach { r ->
+            m = maxOf(m, r.leftText?.length ?: 0, r.rightText?.length ?: 0)
+        }
+        m.coerceAtMost(MAX_DIFF_CHARS)
+    }
+    // gutter (36dp) + horizontal padding (12dp) + text
+    val cellWidth = 48.dp + charWidth * (maxChars + 2)
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val viewport = maxWidth
+        val contentWidth = if (sideBySide) {
+            maxOf(viewport, cellWidth * 2 + 1.dp)
+        } else {
+            maxOf(viewport, cellWidth)
+        }
+        Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
+            LazyColumn(modifier = Modifier.width(contentWidth).fillMaxHeight()) {
+                itemsIndexed(result.rows, key = { i, _ -> i }) { _, row ->
+                    if (sideBySide) {
+                        Row(Modifier.fillMaxWidth()) {
+                            DiffCell(
+                                number = row.leftNumber, text = row.leftText.orEmpty(), type = row.leftType,
+                                ranges = row.intralineLeft, bg = delBg, highlight = delHl,
+                                gutterColor = gutterColor, modifier = Modifier.weight(1f),
+                            )
+                            VerticalDivider()
+                            DiffCell(
+                                number = row.rightNumber, text = row.rightText.orEmpty(), type = row.rightType,
+                                ranges = row.intralineRight, bg = addBg, highlight = addHl,
+                                gutterColor = gutterColor, modifier = Modifier.weight(1f),
+                            )
+                        }
+                    } else {
+                        val isLeft = row.leftType == GitDiffLineType.REMOVED
+                        DiffCell(
+                            number = row.leftNumber ?: row.rightNumber,
+                            text = row.leftText ?: row.rightText.orEmpty(),
+                            type = if (isLeft) row.leftType else row.rightType,
+                            ranges = if (isLeft) row.intralineLeft else row.intralineRight,
+                            bg = if (isLeft) delBg else addBg,
+                            highlight = if (isLeft) delHl else addHl,
+                            gutterColor = gutterColor,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
-            } else {
-                val isLeft = row.leftType == GitDiffLineType.REMOVED
-                DiffCell(
-                    number = row.leftNumber ?: row.rightNumber,
-                    text = row.leftText ?: row.rightText.orEmpty(),
-                    type = if (isLeft) row.leftType else row.rightType,
-                    ranges = if (isLeft) row.intralineLeft else row.intralineRight,
-                    bg = if (isLeft) delBg else addBg,
-                    highlight = if (isLeft) delHl else addHl,
-                    gutterColor = gutterColor,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
     }
 }
+
+private const val MAX_DIFF_CHARS = 1000
 
 @Composable
 private fun DiffCell(
@@ -142,7 +180,6 @@ private fun DiffCell(
     Row(
         modifier = modifier
             .background(background)
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 6.dp, vertical = 2.dp),
     ) {
         Text(

@@ -207,9 +207,13 @@ object XIcons {
     val Tab: ImageVector by lazy {
         icon("Tab", "M21,3H3c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h18c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM21,19H3V5h10v4h8v10z")
     }
-    /** "Close others" (Material "filter_none" -- stacked windows, distinct from the tab glyph). */
+    /** "Close others": Material "layers", scaled down so it sits at the same visual size as the other menu icons. */
     val CloseOthers: ImageVector by lazy {
-        icon("CloseOthers", "M3,5H1v16c0,1.1 0.9,2 2,2h16v-2H3V5zM21,1H7c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V3c0,-1.1 -0.9,-2 -2,-2zM21,17H7V3h14v14z")
+        iconScaled(
+            "CloseOthers",
+            "M11.99,18.54l-7.37,-5.73L3,14.07l9,7 9,-7 -1.63,-1.27 -7.38,5.74zM12,16l7.36,-5.73L21,9l-9,-7 -9,7 1.63,1.27L12,16z",
+            scale = 0.8f,
+        )
     }
     val ContentCut: ImageVector by lazy {
         icon("ContentCut", "M9.64,7.64c0.23,-0.5 0.36,-1.05 0.36,-1.64 0,-2.21 -1.79,-4 -4,-4S2,3.79 2,6s1.79,4 4,4c0.59,0 1.14,-0.13 1.64,-0.36L10,12l-2.36,2.36C7.14,14.13 6.59,14 6,14c-2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4c0,-0.59 -0.13,-1.14 -0.36,-1.64L12,14l7,7h3v-1L9.64,7.64zM6,8c-1.1,0 -2,-0.89 -2,-2s0.9,-2 2,-2 2,0.89 2,2 -0.9,2 -2,2zM6,20c-1.1,0 -2,-0.89 -2,-2s0.9,-2 2,-2 2,0.89 2,2 -0.9,2 -2,2zM12,12.5c-0.28,0 -0.5,-0.22 -0.5,-0.5s0.22,-0.5 0.5,-0.5 0.5,0.22 0.5,0.5 -0.22,0.5 -0.5,0.5zM19,3l-6,6 2,2 7,-7V3z")
@@ -286,6 +290,22 @@ object XIcons {
             "M12,4l-1.41,1.41L16.17,11H4v2h12.17l-5.58,5.59L12,20l8,-8z",
         )
     }
+
+    private fun iconScaled(name: String, pathData: String, scale: Float): ImageVector =
+        ImageVector.Builder(
+            name = name,
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        )
+            .addGroup(scaleX = scale, scaleY = scale, pivotX = 12f, pivotY = 12f)
+            .addPath(
+                pathData = PathParser().parsePathString(pathData).toNodes(),
+                fill = SolidColor(Color.Black),
+            )
+            .clearGroup()
+            .build()
 
     private fun icon(name: String, pathData: String): ImageVector =
         ImageVector.Builder(

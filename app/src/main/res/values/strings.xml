@@ -304,6 +304,8 @@
     <string name="clone_done">Cloned to %1$s</string>
     <string name="clone_finish_button">Done</string>
     <string name="git_section_conflicts">Conflicts</string>
+    <string name="git_mark_all_resolved">Mark all resolved</string>
+    <string name="git_diff_close">Close diff</string>
     <string name="git_sync">Sync</string>
     <string name="git_diff_inline">Inline</string>
     <string name="git_diff_side_by_side">Side by side</string>

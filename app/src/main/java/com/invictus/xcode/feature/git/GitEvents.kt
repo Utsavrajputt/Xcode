@@ -44,6 +44,8 @@ sealed interface GitEvent {
     data class Merge(val branch: String) : GitEvent
     data class ResolveConflict(val path: String, val side: GitConflictSide) : GitEvent
     data class MarkResolved(val path: String) : GitEvent
+    /** Stage every conflicted file as-is (keeps whatever the person edited). */
+    data object MarkAllResolved : GitEvent
     data class PreviewConflictSide(val path: String, val side: GitConflictSide) : GitEvent
     data object DismissConflictPreview : GitEvent
     data object AbortMerge : GitEvent
