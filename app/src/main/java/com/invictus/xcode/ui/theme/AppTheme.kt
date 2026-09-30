@@ -19,8 +19,8 @@ internal fun mix(a: Color, b: Color, fraction: Float): Color {
 
 /**
  * App themes (ported from xmd / Aniyomi-style design).
- * Aurora is the default, with Default, Catppuccin, Nord, and Rose Pine
- * rounding out the set of five.
+ * Listed Default first; Aurora remains the initially selected theme (see ThemeSettings).
+ * Catppuccin, Nord, and Rose Pine round out the set of five.
  */
 enum class AppTheme(
     val title: String,
@@ -34,17 +34,6 @@ enum class AppTheme(
     val backgroundDark: Color,
     val isDynamic: Boolean = false,
 ) {
-    Aurora(
-        title = "Aurora",
-        primaryLight = Color(0xFF0B3FA0),
-        primaryDark = Color(0xFF5B93FF),
-        secondaryLight = Color(0xFF5C6B8C),
-        secondaryDark = Color(0xFF9FAEC9),
-        tertiaryLight = Color(0xFF3648A6),
-        tertiaryDark = Color(0xFF97A8FF),
-        backgroundLight = Color(0xFFF3F6FF),
-        backgroundDark = Color(0xFF04070F),
-    ),
     Default(
         title = "Default",
         primaryLight = Color(0xFF00658F),
@@ -55,6 +44,17 @@ enum class AppTheme(
         tertiaryDark = Color(0xFFFFB4A0),
         backgroundLight = Color(0xFFF4F6F9),
         backgroundDark = Color(0xFF0E1521),
+    ),
+    Aurora(
+        title = "Aurora",
+        primaryLight = Color(0xFF0B3FA0),
+        primaryDark = Color(0xFF5B93FF),
+        secondaryLight = Color(0xFF5C6B8C),
+        secondaryDark = Color(0xFF9FAEC9),
+        tertiaryLight = Color(0xFF3648A6),
+        tertiaryDark = Color(0xFF97A8FF),
+        backgroundLight = Color(0xFFF3F6FF),
+        backgroundDark = Color(0xFF04070F),
     ),
     Catppuccin(
         title = "Catppuccin",

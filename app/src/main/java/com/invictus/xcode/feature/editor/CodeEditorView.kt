@@ -39,6 +39,10 @@ fun interface OnEditorScroll {
 /** Also read by the settings screen to show where the font-size slider starts. */
 internal const val DEFAULT_TEXT_SIZE_SP = 14f
 
+/** Pinch-zoom bounds in px; Sora's built-in cap stopped pinch working past ~35px. */
+internal const val MIN_PINCH_TEXT_SIZE_PX = 20f
+internal const val MAX_PINCH_TEXT_SIZE_PX = 64f
+
 /**
  * Sora's [CodeEditor] inside Compose. One view per tab: callers wrap this in `key(path)` so a
  * tab switch builds a fresh view around that tab's own [TabBuffer.content] (which carries the
@@ -92,6 +96,7 @@ fun CodeEditorView(
             CodeEditor(context).apply {
                 typefaceText = Typeface.MONOSPACE
                 setTextSize(DEFAULT_TEXT_SIZE_SP)
+                setScaleTextSizes(MIN_PINCH_TEXT_SIZE_PX, MAX_PINCH_TEXT_SIZE_PX)
                 if (buffer.textSizePx > 0f) textSizePx = buffer.textSizePx
                 applyLook(this, buffer, textMate, darkTheme, highlightReady, themeId)
                 getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled

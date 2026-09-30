@@ -52,6 +52,35 @@ private fun findContentView(window: Any): View? {
     return null
 }
 
+/**
+ * Sora keeps each popup button in a named field (selectAll / cut / copy / paste). Resource ids and
+ * content descriptions are not reliable across versions (only "Copy" got a label before), so map
+ * the actual button instances by the field they are stored in.
+ */
+private fun buttonsByFieldName(window: Any): Map<View, String> {
+    val out = HashMap<View, String>()
+    var cls: Class<*>? = window.javaClass
+    while (cls != null && cls != Any::class.java) {
+        for (field in cls.declaredFields) {
+            runCatching {
+                field.isAccessible = true
+                val v = field.get(window) as? View ?: return@runCatching
+                val n = field.name.lowercase()
+                val key = when {
+                    "select" in n && "all" in n -> "all"
+                    "cut" in n -> "cut"
+                    "copy" in n -> "copy"
+                    "paste" in n -> "paste"
+                    else -> null
+                }
+                if (key != null) out[v] = key
+            }
+        }
+        cls = cls.superclass
+    }
+    return out
+}
+
 private fun collectImages(view: View, out: MutableList<ImageView>) {
     if (view is ImageView) out.add(view)
     else if (view is ViewGroup) for (i in 0 until view.childCount) collectImages(view.getChildAt(i), out)
@@ -61,10 +90,11 @@ private fun relabelAll(root: View, context: Context, window: EditorTextActionWin
     val images = ArrayList<ImageView>()
     collectImages(root, images)
     val density = context.resources.displayMetrics.density
+    val named = buttonsByFieldName(window)
     var changed = false
     images.forEach { view ->
         if (view.drawable is LabelDrawable) return@forEach
-        val label = labelFor(view, context) ?: return@forEach
+        val label = named[view]?.let { labelForKey(it, context) } ?: labelFor(view, context) ?: return@forEach
         view.scaleType = ImageView.ScaleType.CENTER
         view.minimumWidth = 0
         view.setPadding((12 * density).toInt(), view.paddingTop, (12 * density).toInt(), view.paddingBottom)
@@ -87,6 +117,13 @@ private fun fitPopupWidth(root: View, context: Context, window: EditorTextAction
     )
     val wanted = minOf(root.measuredWidth, metrics.widthPixels - (16 * metrics.density).toInt())
     if (wanted > 0 && (force || window.width != wanted)) window.setSize(wanted, window.height)
+}
+
+private fun labelForKey(key: String, context: Context): String = when (key) {
+    "all" -> context.getString(R.string.qa_select_all)
+    "cut" -> context.getString(R.string.qa_cut)
+    "copy" -> context.getString(R.string.qa_copy)
+    else -> context.getString(R.string.qa_paste)
 }
 
 private fun labelFor(view: View, context: Context): String? {

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.invictus.xcode.core.editor.ShortcutPref
 import java.io.File
 
 /**
@@ -49,6 +50,12 @@ class ProjectsViewModel(
     private val existsTick = MutableStateFlow(0)
     private var browseJob: Job? = null
 
+    /** Built-in Browse shortcuts that exist on this device, in default order. */
+    private var defaultShortcuts: List<BrowseShortcut> = emptyList()
+
+    /** The user's saved arrangement; empty until they edit it. */
+    private var savedShortcuts: List<ShortcutPref> = emptyList()
+
     private val _uiState = MutableStateFlow(ProjectsUiState())
     val uiState: StateFlow<ProjectsUiState> = _uiState.asStateFlow()
 
@@ -58,6 +65,12 @@ class ProjectsViewModel(
     init {
         viewModelScope.launch { observeRecents() }
         viewModelScope.launch { loadShortcuts() }
+        viewModelScope.launch {
+            settingsStore.browseShortcuts.collect { saved ->
+                savedShortcuts = saved
+                rebuildShortcuts()
+            }
+        }
         viewModelScope.launch {
             val stored = settingsStore.projectSheetShowHidden.first()
             _uiState.update { it.copy(showHidden = stored) }
@@ -79,6 +92,8 @@ class ProjectsViewModel(
             ProjectsEvent.DismissRename -> _uiState.update { it.copy(renaming = null) }
             is ProjectsEvent.Backup -> runBackup(event.file)
             ProjectsEvent.ToggleShowHidden -> toggleShowHidden()
+            is ProjectsEvent.SaveShortcuts ->
+                viewModelScope.launch { settingsStore.setBrowseShortcuts(event.prefs) }
         }
     }
 
@@ -111,7 +126,26 @@ class ProjectsViewModel(
                 if (projectsDir.isDirectory) add(BrowseShortcut(projectsDir, null))
             }
         }
-        _uiState.update { it.copy(shortcuts = shortcuts) }
+        defaultShortcuts = shortcuts
+        rebuildShortcuts()
+    }
+
+    /** Merges built-in shortcuts with the saved order/visibility/custom folders into UI state. */
+    private suspend fun rebuildShortcuts() {
+        val defaults = defaultShortcuts
+        val saved = savedShortcuts
+        val entries = withContext(io) {
+            val defaultPaths = defaults.map { it.file.path }.toSet()
+            val byPath = defaults.associateBy { it.file.path }
+            val order = ArrayList<ShortcutPref>(saved)
+            // New built-ins (or a never-edited list) fall in after the user's own entries, visible.
+            defaults.forEach { d -> if (order.none { it.path == d.file.path }) order.add(ShortcutPref(d.file.path, true)) }
+            order.mapNotNull { pref ->
+                val shortcut = byPath[pref.path] ?: File(pref.path).takeIf { it.isDirectory }?.let { BrowseShortcut(it, null) }
+                shortcut?.let { ShortcutEntry(it, pref.enabled, isCustom = pref.path !in defaultPaths) }
+            }
+        }
+        _uiState.update { it.copy(shortcutEntries = entries, shortcuts = entries.filter { e -> e.enabled }.map { e -> e.shortcut }) }
     }
 
     private fun browse(dir: File?) {

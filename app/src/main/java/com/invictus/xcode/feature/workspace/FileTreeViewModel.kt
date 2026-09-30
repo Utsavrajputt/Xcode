@@ -101,6 +101,9 @@ class FileTreeViewModel(
         viewModelScope.launch { observePins() }
         viewModelScope.launch { restoreLastProject() }
         viewModelScope.launch {
+            settingsStore.fileTreeShowHidden.collect { on -> publish { copy(showHidden = on) } }
+        }
+        viewModelScope.launch {
             settingsStore.searchDefaultStringsOnly.collect { on -> publish { copy(searchDefaultStringsOnly = on) } }
         }
         viewModelScope.launch {
@@ -127,7 +130,10 @@ class FileTreeViewModel(
             is FileTreeEvent.RowClicked -> onRowClicked(event.file, event.isDirectory)
             FileTreeEvent.Refresh -> refreshAll()
             FileTreeEvent.CollapseAll -> collapseAll()
-            is FileTreeEvent.SetShowHidden -> publish { copy(showHidden = event.value) }
+            is FileTreeEvent.SetShowHidden -> {
+                publish { copy(showHidden = event.value) }
+                viewModelScope.launch { settingsStore.setFileTreeShowHidden(event.value) }
+            }
             is FileTreeEvent.SetShowGitFolder -> publish { copy(showGitFolder = event.value) }
 
             is FileTreeEvent.StartCreate ->

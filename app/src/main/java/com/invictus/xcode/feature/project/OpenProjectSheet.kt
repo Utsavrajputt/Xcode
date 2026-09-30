@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -41,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -64,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.invictus.xcode.R
+import com.invictus.xcode.core.editor.ShortcutPref
 import com.invictus.xcode.core.search.FolderSearchEngine
 import com.invictus.xcode.feature.workspace.asString
 import com.invictus.xcode.ui.components.FileTypeIcon
@@ -99,6 +103,7 @@ fun OpenProjectSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { onEvent(ProjectsEvent.SheetOpened) }
+    var editingShortcuts by remember { mutableStateOf(false) }
 
     val trimmed = query.trim()
     val typedPath = trimmed.takeIf { it.startsWith("/") }
@@ -234,7 +239,13 @@ fun OpenProjectSheet(
                     }
                 }
                 if (showBrowse) {
-                item(key = "h-browse") { SectionLabel(R.string.sheet_browse) }
+                item(key = "h-browse") {
+                    // Pencil only where it applies: the shortcut list (not inside a folder / search).
+                    BrowseLabelRow(
+                        showEdit = needle.isEmpty() && state.browseDir == null,
+                        onEdit = { editingShortcuts = true },
+                    )
+                }
                 if (needle.isNotEmpty()) {
                     // Search active: poore storage se recursive results, browseDir/shortcuts ignore.
                     if (folderSearching && folderResults.isEmpty()) {
@@ -292,6 +303,127 @@ fun OpenProjectSheet(
     }
 
     state.renaming?.let { RenameProjectDialog(it, onEvent) }
+
+    if (editingShortcuts) {
+        EditShortcutsDialog(
+            entries = state.shortcutEntries,
+            onSave = { prefs ->
+                onEvent(ProjectsEvent.SaveShortcuts(prefs))
+                editingShortcuts = false
+            },
+            onDismiss = { editingShortcuts = false },
+        )
+    }
+}
+
+/** "Browse" section label with an edit pencil at the right end. */
+@Composable
+private fun BrowseLabelRow(showEdit: Boolean, onEdit: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.sheet_browse),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (showEdit) {
+            IconButton(onClick = onEdit) {
+                Icon(
+                    imageVector = XIcons.Edit,
+                    contentDescription = stringResource(R.string.sheet_browse_edit),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Show/hide, reorder (up/down) and add/remove custom folders for the Browse shortcut list. */
+@Composable
+private fun EditShortcutsDialog(
+    entries: List<ShortcutEntry>,
+    onSave: (List<ShortcutPref>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val items = remember { mutableStateListOf<ShortcutPref>().apply { addAll(entries.map { ShortcutPref(it.shortcut.file.path, it.enabled) }) } }
+    val builtIn = remember { entries.filter { !it.isCustom }.map { it.shortcut.file.path }.toSet() }
+    val names = entries.associate { it.shortcut.file.path to (it.shortcut.label?.asString() ?: it.shortcut.file.name) }
+    var newPath by remember { mutableStateOf("") }
+    var pathError by remember { mutableStateOf(false) }
+
+    val addFolder: () -> Unit = {
+        val f = File(newPath.trim())
+        if (newPath.isNotBlank() && f.isDirectory && f.canRead()) {
+            if (items.none { it.path == f.path }) items.add(ShortcutPref(f.path, true))
+            newPath = ""
+            pathError = false
+        } else {
+            pathError = true
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.sheet_browse_edit)) },
+        text = {
+            Column {
+                LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                    itemsIndexed(items = items, key = { _, pref -> pref.path }) { index, pref ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Switch(
+                                checked = pref.enabled,
+                                onCheckedChange = { items[index] = pref.copy(enabled = it) },
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = names[pref.path] ?: File(pref.path).name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(
+                                enabled = index > 0,
+                                onClick = { val t = items[index]; items[index] = items[index - 1]; items[index - 1] = t },
+                            ) { Icon(XIcons.KeyboardArrowUp, contentDescription = null) }
+                            IconButton(
+                                enabled = index < items.lastIndex,
+                                onClick = { val t = items[index]; items[index] = items[index + 1]; items[index + 1] = t },
+                            ) { Icon(XIcons.KeyboardArrowDown, contentDescription = null) }
+                            if (pref.path !in builtIn) {
+                                IconButton(onClick = { items.removeAt(index) }) {
+                                    Icon(XIcons.Close, contentDescription = null)
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = newPath,
+                    onValueChange = { newPath = it; pathError = false },
+                    singleLine = true,
+                    isError = pathError,
+                    label = { Text(stringResource(R.string.sheet_browse_add_hint)) },
+                    supportingText = if (pathError) ({ Text(stringResource(R.string.sheet_browse_invalid_path)) }) else null,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { addFolder() }),
+                    trailingIcon = {
+                        IconButton(onClick = { addFolder() }) { Icon(XIcons.Add, contentDescription = stringResource(R.string.sheet_browse_add)) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(items.toList()) }) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 private const val SHEET_HEIGHT_FRACTION = 0.9f

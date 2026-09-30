@@ -13,6 +13,9 @@ import kotlinx.coroutines.flow.map
 
 private val Context.editorSettingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "editor_settings")
 
+/** One Browse shortcut in the Open Project sheet: a folder path and whether it is shown. */
+data class ShortcutPref(val path: String, val enabled: Boolean)
+
 /**
  * Editor-wide settings that outlive any one tab: the chosen colour theme and the last font
  * size used, so a newly opened tab starts at the size the user left off at (plan tech stack:
@@ -34,6 +37,8 @@ class EditorSettingsStore(private val context: Context) {
         val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
         val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
         val SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("search_default_strings_only")
+        val FILE_TREE_SHOW_HIDDEN = booleanPreferencesKey("file_tree_show_hidden")
+        val BROWSE_SHORTCUTS = stringPreferencesKey("browse_shortcuts")
     }
 
     val themeId: Flow<String> = context.editorSettingsDataStore.data
@@ -71,6 +76,17 @@ class EditorSettingsStore(private val context: Context) {
      * sheet's ViewModel was recreated (e.g. Home vs Workspace each own one); now persisted. */
     val projectSheetShowHidden: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.PROJECT_SHEET_SHOW_HIDDEN] ?: false }
+
+    /** Workspace file tree menu's "Show hidden files" toggle -- persisted across app starts. */
+    val fileTreeShowHidden: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.FILE_TREE_SHOW_HIDDEN] ?: false }
+
+    /**
+     * Open Project sheet's Browse shortcuts as the user arranged them (order + on/off + custom
+     * folders). Empty = never edited, so the built-in defaults apply.
+     */
+    val browseShortcuts: Flow<List<ShortcutPref>> = context.editorSettingsDataStore.data
+        .map { prefs -> prefs[Keys.BROWSE_SHORTCUTS]?.let(::decodeShortcuts).orEmpty() }
 
     /** Clone screen "Parent folder" default -- empty means fall back to external storage root. */
     val cloneDefaultParent: Flow<String> = context.editorSettingsDataStore.data
@@ -131,6 +147,20 @@ class EditorSettingsStore(private val context: Context) {
     suspend fun setProjectSheetShowHidden(show: Boolean) {
         context.editorSettingsDataStore.edit { it[Keys.PROJECT_SHEET_SHOW_HIDDEN] = show }
     }
+
+    suspend fun setFileTreeShowHidden(show: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.FILE_TREE_SHOW_HIDDEN] = show }
+    }
+
+    suspend fun setBrowseShortcuts(list: List<ShortcutPref>) {
+        context.editorSettingsDataStore.edit { it[Keys.BROWSE_SHORTCUTS] = encodeShortcuts(list) }
+    }
+
+    private fun encodeShortcuts(list: List<ShortcutPref>): String =
+        list.joinToString("\n") { (if (it.enabled) "1" else "0") + it.path }
+
+    private fun decodeShortcuts(raw: String): List<ShortcutPref> =
+        raw.split("\n").filter { it.length > 1 }.map { ShortcutPref(path = it.substring(1), enabled = it[0] == '1') }
 
     companion object {
         /** \u0001 rather than a visible separator, since the symbols themselves include commas/spaces. */

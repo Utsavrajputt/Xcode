@@ -178,4 +178,8 @@
     <string name="search_invalid_regex">गलत regex: %1$s</string>
     <string name="search_no_file_matches">कोई फ़ाइल नहीं मिली</string>
     <string name="search_no_folder_matches">कोई फ़ोल्डर नहीं मिला</string>
+    <string name="sheet_browse_edit">Browse folders बदलें</string>
+    <string name="sheet_browse_add">जोड़ें</string>
+    <string name="sheet_browse_add_hint">Folder path जोड़ें (/storage/…)</string>
+    <string name="sheet_browse_invalid_path">Folder नहीं मिला</string>
 </resources>

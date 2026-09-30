@@ -42,6 +42,8 @@ import com.invictus.xcode.R
 import com.invictus.xcode.core.editor.EditorSettingsStore
 import com.invictus.xcode.core.editor.EditorThemes
 import com.invictus.xcode.feature.editor.DEFAULT_TEXT_SIZE_SP
+import com.invictus.xcode.feature.editor.MAX_PINCH_TEXT_SIZE_PX
+import com.invictus.xcode.feature.editor.MIN_PINCH_TEXT_SIZE_PX
 import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.feature.editor.SymbolBarCustomizeDialog
 import com.invictus.xcode.ui.icons.XIcons
@@ -313,9 +315,9 @@ private fun FontSizeRow(label: String, valuePx: Float, onValueChange: (Float) ->
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Slider(
-                value = valuePx,
+                value = valuePx.coerceIn(MIN_PINCH_TEXT_SIZE_PX, MAX_PINCH_TEXT_SIZE_PX),
                 onValueChange = onValueChange,
-                valueRange = 20f..100f,
+                valueRange = MIN_PINCH_TEXT_SIZE_PX..MAX_PINCH_TEXT_SIZE_PX,
                 modifier = Modifier.weight(1f),
             )
             Box(modifier = Modifier.size(width = 44.dp, height = 1.dp))
