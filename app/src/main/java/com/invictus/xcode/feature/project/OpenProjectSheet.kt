@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -171,11 +172,24 @@ fun OpenProjectSheet(
             }
         }
         Column(modifier = Modifier.fillMaxWidth().then(heightModifier).imePadding()) {
-            Text(
-                text = stringResource(R.string.sheet_title),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 24.dp),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.sheet_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                if (showBrowse) {
+                    IconButton(onClick = { editingShortcuts = true }) {
+                        Icon(
+                            imageVector = XIcons.Tune,
+                            contentDescription = stringResource(R.string.sheet_browse_settings),
+                        )
+                    }
+                }
+            }
             if (showSearch) {
                 SearchField(
                     query = query,
@@ -188,25 +202,6 @@ fun OpenProjectSheet(
                     Icon(XIcons.Commit, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.home_clone))
-                }
-            }
-            if (showBrowse) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .expressiveClickable { onEvent(ProjectsEvent.ToggleShowHidden) }
-                        .padding(horizontal = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.menu_show_hidden),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Switch(
-                        checked = state.showHidden,
-                        onCheckedChange = { onEvent(ProjectsEvent.ToggleShowHidden) },
-                    )
                 }
             }
             val listModifier = if (expandFull) Modifier.weight(1f) else Modifier
@@ -266,13 +261,7 @@ fun OpenProjectSheet(
                     }
                 }
                 if (showBrowse) {
-                item(key = "h-browse") {
-                    // Pencil only where it applies: the shortcut list (not inside a folder / search).
-                    BrowseLabelRow(
-                        showEdit = needle.isEmpty() && state.browseDir == null,
-                        onEdit = { editingShortcuts = true },
-                    )
-                }
+                item(key = "h-browse") { SectionLabel(R.string.sheet_browse) }
                 if (needle.isNotEmpty()) {
                     // Search active: poore storage se recursive results, browseDir/shortcuts ignore.
                     if (folderSearching && folderResults.isEmpty()) {
@@ -334,6 +323,8 @@ fun OpenProjectSheet(
     if (editingShortcuts) {
         EditShortcutsDialog(
             entries = state.shortcutEntries,
+            showHidden = state.showHidden,
+            onToggleHidden = { onEvent(ProjectsEvent.ToggleShowHidden) },
             onSave = { prefs ->
                 onEvent(ProjectsEvent.SaveShortcuts(prefs))
                 editingShortcuts = false
@@ -343,35 +334,12 @@ fun OpenProjectSheet(
     }
 }
 
-/** "Browse" section label with an edit pencil at the right end. */
-@Composable
-private fun BrowseLabelRow(showEdit: Boolean, onEdit: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.sheet_browse),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        if (showEdit) {
-            IconButton(onClick = onEdit) {
-                Icon(
-                    imageVector = XIcons.Edit,
-                    contentDescription = stringResource(R.string.sheet_browse_edit),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-        }
-    }
-}
-
 /** Show/hide, reorder (up/down) and add/remove custom folders for the Browse shortcut list. */
 @Composable
 private fun EditShortcutsDialog(
     entries: List<ShortcutEntry>,
+    showHidden: Boolean,
+    onToggleHidden: () -> Unit,
     onSave: (List<ShortcutPref>) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -394,10 +362,32 @@ private fun EditShortcutsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.sheet_browse_edit)) },
+        title = { Text(stringResource(R.string.sheet_browse_settings)) },
         text = {
             Column {
-                LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                // Applies immediately (not part of Save): it only changes what the browser lists.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .expressiveClickable(onClick = onToggleHidden),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.menu_show_hidden),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(checked = showHidden, onCheckedChange = { onToggleHidden() })
+                }
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                Text(
+                    text = stringResource(R.string.sheet_browse_edit),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
                     itemsIndexed(items = items, key = { _, pref -> pref.path }) { index, pref ->
                         Row(
                             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),

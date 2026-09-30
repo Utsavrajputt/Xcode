@@ -520,7 +520,8 @@
     <string name="editor_page_next">Next page</string>
     <string name="editor_page_jump">Jump to page</string>
     <string name="editor_page_jump_hint">Page (1\u2013%1$d)</string>
-    <string name="sheet_browse_edit">Edit Browse folders</string>
+    <string name="sheet_browse_edit">Browse folders</string>
+    <string name="sheet_browse_settings">Browse settings</string>
     <string name="sheet_browse_add">Add</string>
     <string name="sheet_browse_add_hint">Add folder path (/storage/…)</string>
     <string name="sheet_browse_invalid_path">Folder not found</string>

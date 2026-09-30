@@ -481,7 +481,8 @@ class GitSession(
                 .setProgressMonitor(gitProgressMonitor(onProgress))
             if (!branch.isNullOrBlank()) cmd.setRemoteBranchName(branch.trim())
             if (rebase) cmd.setRebase(true)
-            cmd.call()
+            // Pull may replay commits (rebase) or make a merge commit; give JGit our identity.
+            withCommitterIdentity(required = false) { cmd.call() }
         }
         Unit
     }
@@ -1131,7 +1132,9 @@ class GitSession(
             if (currentBranchName() == name) {
                 throw IllegalStateException("Already on '$name'.")
             }
-            git.rebase().setUpstream(onto).call().status.toOutcome()
+            withCommitterIdentity(required = true) {
+                git.rebase().setUpstream(onto).call().status.toOutcome()
+            }
         }
     }
 
@@ -1141,7 +1144,9 @@ class GitSession(
             if (!repository.repositoryState.isRebasing) {
                 throw IllegalStateException("No rebase is in progress.")
             }
-            git.rebase().setOperation(RebaseCommand.Operation.CONTINUE).call().status.toOutcome()
+            withCommitterIdentity(required = true) {
+                git.rebase().setOperation(RebaseCommand.Operation.CONTINUE).call().status.toOutcome()
+            }
         }
     }
 
@@ -1151,7 +1156,9 @@ class GitSession(
             if (!repository.repositoryState.isRebasing) {
                 throw IllegalStateException("No rebase is in progress.")
             }
-            git.rebase().setOperation(RebaseCommand.Operation.SKIP).call().status.toOutcome()
+            withCommitterIdentity(required = true) {
+                git.rebase().setOperation(RebaseCommand.Operation.SKIP).call().status.toOutcome()
+            }
         }
     }
 
@@ -1176,6 +1183,39 @@ class GitSession(
     }
 
     // ---- internals ----------------------------------------------------------
+
+    /**
+     * JGit's RebaseCommand / PullCommand create commits with `PersonIdent(repo)` and have no
+     * setCommitter(), so without a `user.name` JGit can see (Android has no ~/.gitconfig) the
+     * committer becomes the OS user ("root"). Here we put the same identity [commit] and
+     * [mergeBranch] use into the repo config *in memory only* for the duration of [block]
+     * (never saved), then restore whatever was there before.
+     *
+     * [required] = true throws [GitIdentityMissingException] when no identity is configured
+     * (rebase always creates commits); false just runs [block] as before (a pull may be a
+     * plain fast-forward).
+     */
+    private fun <T> withCommitterIdentity(required: Boolean, block: () -> T): T {
+        val identity = resolveIdentity()
+        if (identity == null) {
+            if (required) throw GitIdentityMissingException()
+            return block()
+        }
+        val cfg = repository.config
+        val user = ConfigConstants.CONFIG_USER_SECTION
+        val nameKey = ConfigConstants.CONFIG_KEY_NAME
+        val emailKey = ConfigConstants.CONFIG_KEY_EMAIL
+        val oldName = cfg.getString(user, null, nameKey)
+        val oldEmail = cfg.getString(user, null, emailKey)
+        cfg.setString(user, null, nameKey, identity.name)
+        cfg.setString(user, null, emailKey, identity.email)
+        try {
+            return block()
+        } finally {
+            if (oldName == null) cfg.unset(user, null, nameKey) else cfg.setString(user, null, nameKey, oldName)
+            if (oldEmail == null) cfg.unset(user, null, emailKey) else cfg.setString(user, null, emailKey, oldEmail)
+        }
+    }
 
     private fun resolveIdentity(): Identity? {
         val localName = repository.config.getString(
