@@ -15,6 +15,9 @@ private const val FADE_MS = 800L
 
 private val running = WeakHashMap<CodeEditor, ValueAnimator>()
 
+/** True while a search-match flash owns the selection colour (so nobody else should touch it). */
+internal fun isFlashing(editor: CodeEditor): Boolean = running.containsKey(editor)
+
 /**
  * Highlights a search match: selects it in a strong accent colour, keeps it for ~2.5s, then fades
  * the highlight out and drops the selection. Touching the editor's selection in the meantime

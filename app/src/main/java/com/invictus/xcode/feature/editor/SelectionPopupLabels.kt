@@ -27,9 +27,11 @@ internal fun applyTextLabelsToSelectionPopup(editor: CodeEditor) {
     runCatching {
         val window = editor.getComponent(EditorTextActionWindow::class.java)
         val root = findContentView(window) ?: return
-        relabelAll(root, editor.context)
-        // Sora may rebuild/refresh the buttons each time the popup shows; keep our labels on.
-        root.viewTreeObserver.addOnGlobalLayoutListener { runCatching { relabelAll(root, editor.context) } }
+        val apply = { runCatching { relabelAll(root, editor.context, window) } }
+        apply()
+        // Sora re-measures and re-sizes the popup for its icon buttons every time it shows; keep
+        // our labels on and the popup wide enough for them.
+        root.viewTreeObserver.addOnGlobalLayoutListener { apply() }
     }
 }
 
@@ -55,22 +57,36 @@ private fun collectImages(view: View, out: MutableList<ImageView>) {
     else if (view is ViewGroup) for (i in 0 until view.childCount) collectImages(view.getChildAt(i), out)
 }
 
-/** Sora's popup order is: select all, copy, paste, cut -- used when ids/descriptions don't say. */
-private val ORDER = listOf(R.string.qa_select_all, R.string.qa_copy, R.string.qa_paste, R.string.qa_cut)
-
-private fun relabelAll(root: View, context: Context) {
+private fun relabelAll(root: View, context: Context, window: EditorTextActionWindow) {
     val images = ArrayList<ImageView>()
     collectImages(root, images)
     val density = context.resources.displayMetrics.density
-    images.forEachIndexed { index, view ->
-        if (view.drawable is LabelDrawable) return@forEachIndexed
-        val label = labelFor(view, context) ?: ORDER.getOrNull(index)?.let(context::getString) ?: return@forEachIndexed
+    var changed = false
+    images.forEach { view ->
+        if (view.drawable is LabelDrawable) return@forEach
+        val label = labelFor(view, context) ?: return@forEach
         view.scaleType = ImageView.ScaleType.CENTER
         view.minimumWidth = 0
         view.setPadding((12 * density).toInt(), view.paddingTop, (12 * density).toInt(), view.paddingBottom)
         view.layoutParams = view.layoutParams?.apply { width = ViewGroup.LayoutParams.WRAP_CONTENT }
         view.setImageDrawable(LabelDrawable(label, context, view.imageTintList))
+        changed = true
     }
+    fitPopupWidth(root, context, window, force = changed)
+}
+
+/**
+ * Sora sizes the popup to min(measured width, 230dp) for 45dp icon buttons, so wider text buttons
+ * end up clipped inside its scroll view (only the first few show). Size it to the real content.
+ */
+private fun fitPopupWidth(root: View, context: Context, window: EditorTextActionWindow, force: Boolean) {
+    val metrics = context.resources.displayMetrics
+    root.measure(
+        View.MeasureSpec.makeMeasureSpec(1_000_000, View.MeasureSpec.AT_MOST),
+        View.MeasureSpec.makeMeasureSpec(100_000, View.MeasureSpec.AT_MOST),
+    )
+    val wanted = minOf(root.measuredWidth, metrics.widthPixels - (16 * metrics.density).toInt())
+    if (wanted > 0 && (force || window.width != wanted)) window.setSize(wanted, window.height)
 }
 
 private fun labelFor(view: View, context: Context): String? {

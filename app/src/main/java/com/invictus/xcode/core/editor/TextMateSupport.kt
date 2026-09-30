@@ -80,11 +80,11 @@ class TextMateSupport(private val context: Context) {
             val themeName = EditorThemes.resolve(themeId, dark)?.assetName ?: if (dark) DARK_THEME else LIGHT_THEME
             ThemeRegistry.getInstance().setTheme(themeName)
             editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance()).also { scheme ->
-                // Theme selection colours are often nearly the background; use a clear accent instead.
+                // Theme selection colours are often nearly the background; use a clear, opaque accent instead.
                 val isDark = EditorThemes.resolve(themeId, dark)?.isDark ?: dark
                 scheme.setColor(
                     io.github.rosemoe.sora.widget.schemes.EditorColorScheme.SELECTED_TEXT_BACKGROUND,
-                    if (isDark) 0x804C8DFF.toInt() else 0x664C8DFF.toInt(),
+                    if (isDark) 0xFF2E5CA8.toInt() else 0xFFA9CCFF.toInt(),
                 )
             }
             val scope = LanguageRegistry.scopeFor(file)

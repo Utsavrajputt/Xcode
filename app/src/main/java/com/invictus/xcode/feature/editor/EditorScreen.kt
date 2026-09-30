@@ -544,7 +544,7 @@ private fun EditorOverflowMenu(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_others)) },
-                leadingIcon = { Icon(XIcons.Tab, contentDescription = null) },
+                leadingIcon = { Icon(XIcons.CloseOthers, contentDescription = null) },
                 enabled = activePath != null,
                 onClick = {
                     open = false
@@ -746,7 +746,7 @@ private fun EditorTab(
             )
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.editor_close_others)) },
-                leadingIcon = { Icon(XIcons.Tab, contentDescription = null) },
+                leadingIcon = { Icon(XIcons.CloseOthers, contentDescription = null) },
                 onClick = { onDismissMenu(); onCloseOthers() },
             )
             DropdownMenuItem(

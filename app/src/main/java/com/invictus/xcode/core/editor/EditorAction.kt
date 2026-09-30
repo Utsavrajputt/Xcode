@@ -253,30 +253,57 @@ object ToggleCommentAction : EditorAction {
     override val labelRes = R.string.qa_toggle_comment
 
     override fun isAvailable(editor: CodeEditor, filePath: String?, context: Context): Boolean =
-        filePath?.let { CommentSyntax.forFile(File(it)) } != null
+        filePath?.let { CommentSyntax.styleFor(File(it)) } != null
 
     override fun perform(editor: CodeEditor, filePath: String?, context: Context) {
         try {
-            val prefix = filePath?.let { CommentSyntax.forFile(File(it)) } ?: return
+            val style = filePath?.let { CommentSyntax.styleFor(File(it)) } ?: return
             val range = selectionOrCurrentLine(editor)
             val lines = linesOf(editor)
             val block = (range.startLine..range.endLine).map { lines[it] }
-            val nonBlank = block.filter { it.isNotBlank() }
-            val trimmedPrefix = prefix.trimEnd()
-            val allCommented = nonBlank.isNotEmpty() && nonBlank.all { it.trimStart().startsWith(trimmedPrefix) }
-            val edited = block.map { rawLine ->
-                if (rawLine.isBlank()) return@map rawLine
-                val indent = rawLine.takeWhile { it == ' ' || it == '\t' }
-                val rest = rawLine.substring(indent.length)
-                when {
-                    !allCommented -> indent + prefix + rest
-                    rest.startsWith(prefix) -> indent + rest.removePrefix(prefix)
-                    else -> indent + rest.removePrefix(trimmedPrefix)
-                }
+            val edited = when (style) {
+                is CommentStyle.Line -> toggleLine(block, style.prefix)
+                is CommentStyle.Block -> toggleBlock(block, style.open, style.close)
             }
             val endCol = editor.text.getColumnCount(range.endLine)
             editor.text.replace(range.startLine, 0, range.endLine, endCol, edited.joinToString("\n"))
         } catch (_: Exception) {
+        }
+    }
+
+    private fun toggleLine(block: List<String>, prefix: String): List<String> {
+        val nonBlank = block.filter { it.isNotBlank() }
+        val trimmedPrefix = prefix.trimEnd()
+        val allCommented = nonBlank.isNotEmpty() && nonBlank.all { it.trimStart().startsWith(trimmedPrefix) }
+        return block.map { rawLine ->
+            if (rawLine.isBlank()) return@map rawLine
+            val indent = rawLine.takeWhile { it == ' ' || it == '\t' }
+            val rest = rawLine.substring(indent.length)
+            when {
+                !allCommented -> indent + prefix + rest
+                rest.startsWith(prefix) -> indent + rest.removePrefix(prefix)
+                else -> indent + rest.removePrefix(trimmedPrefix)
+            }
+        }
+    }
+
+    /** Wraps each line in its own block comment; lines already wrapped are left alone when commenting. */
+    private fun toggleBlock(block: List<String>, open: String, close: String): List<String> {
+        fun isWrapped(line: String): Boolean {
+            val t = line.trim()
+            return t.length >= open.length + close.length && t.startsWith(open) && t.endsWith(close)
+        }
+        val nonBlank = block.filter { it.isNotBlank() }
+        val allCommented = nonBlank.isNotEmpty() && nonBlank.all(::isWrapped)
+        return block.map { rawLine ->
+            if (rawLine.isBlank()) return@map rawLine
+            val indent = rawLine.takeWhile { it == ' ' || it == '\t' }
+            val rest = rawLine.substring(indent.length).trimEnd()
+            when {
+                allCommented -> indent + rest.removePrefix(open).removeSuffix(close).removePrefix(" ").removeSuffix(" ")
+                isWrapped(rest) -> rawLine
+                else -> "$indent$open $rest $close"
+            }
         }
     }
 }

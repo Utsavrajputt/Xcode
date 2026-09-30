@@ -13,6 +13,7 @@ import com.invictus.xcode.core.editor.TabBuffer
 import com.invictus.xcode.core.editor.TextMateSupport
 import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.event.ScrollEvent
+import io.github.rosemoe.sora.event.SelectionChangeEvent
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.component.EditorAutoCompletion
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
@@ -95,6 +96,10 @@ fun CodeEditorView(
                 applyLook(this, buffer, textMate, darkTheme, highlightReady, themeId)
                 getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
                 applyTextLabelsToSelectionPopup(this)
+                // TextMate schemes listen to the global ThemeRegistry and reset their colours whenever
+                // any editor switches theme, which silently wiped our selection colour. Re-assert it.
+                val selfEditor = this
+                subscribeEvent(SelectionChangeEvent::class.java) { _, _ -> enforceSelectionColor(selfEditor) }
 
                 // Same Content object as last time, so undo/redo history comes along.
                 setText(buffer.content)
@@ -139,6 +144,7 @@ fun CodeEditorView(
             if (editor.tag != Look(darkTheme, highlightReady, themeId)) {
                 applyLook(editor, buffer, textMate, darkTheme, highlightReady, themeId)
             }
+            enforceSelectionColor(editor)
             editor.getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
             val wordsVersion = textMate.userWords.version
             if (appliedWordsVersion[editor] != wordsVersion) {
@@ -200,4 +206,22 @@ private fun applyLook(
     // Plain-text fallback (grammars still loading, or TextMate failed): built-in schemes.
     if (!highlighted) editor.colorScheme = if (dark) SchemeDarcula() else EditorColorScheme()
     editor.tag = Look(dark, highlightReady, themeId)
+    val isDark = EditorThemes.resolve(themeId, dark)?.isDark ?: dark
+    selectionColors[editor] = if (isDark) SELECTION_DARK else SELECTION_LIGHT
+    enforceSelectionColor(editor)
+}
+
+/** Opaque, clearly visible selection fill per editor (TextMate themes often ship near-invisible ones). */
+private const val SELECTION_DARK = 0xFF3F6FCF.toInt()
+private const val SELECTION_LIGHT = 0xFF9CC3FF.toInt()
+private val selectionColors = java.util.WeakHashMap<CodeEditor, Int>()
+
+private fun enforceSelectionColor(editor: CodeEditor) {
+    if (isFlashing(editor)) return
+    val wanted = selectionColors[editor] ?: return
+    val scheme = editor.colorScheme
+    if (scheme.getColor(EditorColorScheme.SELECTED_TEXT_BACKGROUND) != wanted) {
+        scheme.setColor(EditorColorScheme.SELECTED_TEXT_BACKGROUND, wanted)
+        editor.invalidate()
+    }
 }

@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
@@ -310,50 +311,50 @@ private fun FileRow(
         ) {
             val close = { menuOpen = false }
             if (row.isDirectory) {
-                MenuItem(R.string.tree_menu_new_file) {
+                MenuItem(XIcons.NoteAdd, R.string.tree_menu_new_file) {
                     close()
                     onEvent(FileTreeEvent.StartCreate(row.file, isFolder = false))
                 }
-                MenuItem(R.string.tree_menu_new_folder) {
+                MenuItem(XIcons.CreateNewFolder, R.string.tree_menu_new_folder) {
                     close()
                     onEvent(FileTreeEvent.StartCreate(row.file, isFolder = true))
                 }
             }
             if (!row.isRoot) {
-                MenuItem(R.string.tree_menu_rename) {
+                MenuItem(XIcons.Edit, R.string.tree_menu_rename) {
                     close()
                     onEvent(FileTreeEvent.StartRename(row.file))
                 }
-                MenuItem(R.string.tree_menu_duplicate) {
+                MenuItem(XIcons.FileCopy, R.string.tree_menu_duplicate) {
                     close()
                     onEvent(FileTreeEvent.Duplicate(row.file))
                 }
-                MenuItem(R.string.tree_menu_cut) {
+                MenuItem(XIcons.ContentCut, R.string.tree_menu_cut) {
                     close()
                     onEvent(FileTreeEvent.Cut(row.file))
                 }
-                MenuItem(R.string.tree_menu_copy) {
+                MenuItem(XIcons.ContentCopy, R.string.tree_menu_copy) {
                     close()
                     onEvent(FileTreeEvent.Copy(row.file))
                 }
-                MenuItem(if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin) {
+                MenuItem(XIcons.Pin, if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin) {
                     close()
                     onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
                 }
             }
             if (canPaste) {
-                MenuItem(R.string.tree_menu_paste) {
+                MenuItem(XIcons.ContentPaste, R.string.tree_menu_paste) {
                     close()
                     onEvent(FileTreeEvent.PasteInto(if (row.isDirectory) row.file else row.file.parentFile ?: row.file))
                 }
             }
-            MenuItem(R.string.tree_menu_copy_path) {
+            MenuItem(XIcons.Link, R.string.tree_menu_copy_path) {
                 close()
                 onCopyPath(row.file)
             }
             if (!row.isRoot) {
                 HorizontalDivider()
-                MenuItem(R.string.tree_menu_delete) {
+                MenuItem(XIcons.Delete, R.string.tree_menu_delete) {
                     close()
                     onEvent(FileTreeEvent.RequestDelete(row.file, row.isDirectory))
                 }
@@ -447,15 +448,15 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }, offset = menuOffset) {
-            MenuItem(R.string.tree_menu_unpin) {
+            MenuItem(XIcons.Pin, R.string.tree_menu_unpin) {
                 menuOpen = false
                 onEvent(FileTreeEvent.TogglePin(file, row.item.isDirectory))
             }
-            MenuItem(R.string.tree_menu_reveal) {
+            MenuItem(XIcons.MyLocation, R.string.tree_menu_reveal) {
                 menuOpen = false
                 onEvent(FileTreeEvent.Reveal(file, isDirectory = false))
             }
-            MenuItem(R.string.tree_menu_copy_path) {
+            MenuItem(XIcons.Link, R.string.tree_menu_copy_path) {
                 menuOpen = false
                 onCopyPath(file)
             }
@@ -463,9 +464,21 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
     }
 }
 
+/** Compact menu row: icon + text, no forced 112dp minimum width (that was the empty gap on the right). */
 @Composable
-private fun MenuItem(@StringRes textRes: Int, onClick: () -> Unit) {
-    DropdownMenuItem(text = { Text(stringResource(textRes)) }, onClick = onClick)
+private fun MenuItem(icon: ImageVector, @StringRes textRes: Int, onClick: () -> Unit) {
+    val tint = if (textRes == R.string.tree_menu_delete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .heightIn(min = 44.dp)
+            .padding(start = 14.dp, end = 16.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(stringResource(textRes), style = MaterialTheme.typography.bodyLarge, color = tint, maxLines = 1)
+    }
 }
 
 @Composable
