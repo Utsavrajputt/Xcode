@@ -435,6 +435,7 @@ private fun ChangeRow(
         else -> MaterialTheme.colorScheme.primary to R.string.git_state_modified
     }
     var menuOpen by remember { mutableStateOf(false) }
+    var showDiff by remember { mutableStateOf(false) }
     val toggleStage = { onEvent(if (isStagedSection) GitEvent.Unstage(path) else GitEvent.Stage(path)) }
     val isUntracked = change.unstaged == GitWorkingState.UNTRACKED
 
@@ -489,11 +490,12 @@ private fun ChangeRow(
                         },
                     )
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.git_open_in_editor)) },
-                        leadingIcon = { Icon(XIcons.Code, contentDescription = null) },
+                        text = { Text(stringResource(R.string.git_diff)) },
+                        leadingIcon = { Icon(XIcons.Diff, contentDescription = null) },
                         onClick = {
                             menuOpen = false
-                            onEvent(GitEvent.OpenFile(path))
+                            showDiff = true
+                            onEvent(GitEvent.LoadDiff(path))
                         },
                     )
                     if (!isStagedSection) {
@@ -516,28 +518,17 @@ private fun ChangeRow(
                 }
             }
         }
-        if (diffLoading) {
-            Row(
-                Modifier.padding(start = 40.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.git_diff_loading),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-        }
-        diff?.let {
-            Box(
-                Modifier
-                    .padding(start = 28.dp, end = 8.dp, bottom = 8.dp)
-                    .heightIn(max = 360.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-            ) {
-                GitDiffViewer(result = it)
-            }
+        if (showDiff) {
+            GitFileDiffDialog(
+                name = path.substringAfterLast('/'),
+                dir = path.substringBeforeLast('/', ""),
+                diff = diff,
+                loading = diffLoading,
+                onClose = {
+                    showDiff = false
+                    onEvent(GitEvent.CloseDiff(path))
+                },
+            )
         }
     }
 }

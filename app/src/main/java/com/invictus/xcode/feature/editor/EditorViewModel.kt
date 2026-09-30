@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -123,6 +124,14 @@ class EditorViewModel(
         viewModelScope.launch { settingsStore.setAutoReloadExternalChanges(enabled) }
     }
 
+    /** Settings screen "Restore open files" toggle -- reopen last session's tabs on project open; off by default. */
+    val restoreTabsOnOpen: StateFlow<Boolean> = settingsStore.restoreTabsOnOpen
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setRestoreTabsOnOpen(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setRestoreTabsOnOpen(enabled) }
+    }
+
     /** Settings screen "Git status detection" toggle -- background status polling for the file tree stripes; off by default. */
     val gitStatusPollingEnabled: StateFlow<Boolean> = settingsStore.gitStatusPollingEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -210,7 +219,16 @@ class EditorViewModel(
         _uiState.update { it.copy(loading = true) }
         viewModelScope.launch {
             val session = withContext(io) { sessionStore.load(path) }
-            restoreSession(session)
+            // Read straight from the store (not the stateIn mirror): on cold start the mirror still
+            // holds its default until DataStore emits. When off, only tabs carrying unsaved edits
+            // come back, so nothing typed is lost.
+            val restoreAll = settingsStore.restoreTabsOnOpen.first()
+            val effective = if (restoreAll || session == null) {
+                session
+            } else {
+                session.copy(tabs = session.tabs.filter { it.pendingEditSnapshot != null })
+            }
+            restoreSession(effective)
             loading.remove(SESSION_LOAD_KEY)
             _uiState.update { it.copy(loading = loading.isNotEmpty()) }
         }

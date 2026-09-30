@@ -202,7 +202,7 @@ internal fun ConflictCard(
     val name = path.substringAfterLast('/')
     val dir = path.substringBeforeLast('/', "")
     if (showDiff) {
-        ConflictDiffDialog(
+        GitFileDiffDialog(
             name = name,
             dir = dir,
             diff = diff,
@@ -275,9 +275,9 @@ internal fun ConflictCard(
     }
 }
 
-/** Full-screen diff for one conflicted file (long-press on its name). */
+/** Full-screen diff for one file (long-press menu "Diff", or long-press on a conflicted file). */
 @Composable
-private fun ConflictDiffDialog(
+internal fun GitFileDiffDialog(
     name: String,
     dir: String,
     diff: GitFileDiffResult?,

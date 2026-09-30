@@ -33,6 +33,7 @@ class EditorSettingsStore(private val context: Context) {
         val PAIR_CURSOR_ENABLED = booleanPreferencesKey("editor_pair_cursor_enabled")
         val AUTO_RELOAD_EXTERNAL = booleanPreferencesKey("editor_auto_reload_external")
         val AUTO_PREVIEW_ENABLED = booleanPreferencesKey("editor_auto_preview_enabled")
+        val RESTORE_TABS_ON_OPEN = booleanPreferencesKey("editor_restore_tabs_on_open")
         val PROJECT_SHEET_SHOW_HIDDEN = booleanPreferencesKey("project_sheet_show_hidden")
         val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
         val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
@@ -71,6 +72,14 @@ class EditorSettingsStore(private val context: Context) {
     /** Settings screen "Auto-preview" toggle -- md/html tabs jump straight to SPLIT on open; off by default. */
     val autoPreviewEnabled: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.AUTO_PREVIEW_ENABLED] ?: false }
+
+    /**
+     * Settings "Restore open files" toggle -- reopen last session's tabs when a project opens
+     * (cold start or folder switch). Off by default; tabs with unsaved edits are still restored
+     * so nothing typed is lost.
+     */
+    val restoreTabsOnOpen: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.RESTORE_TABS_ON_OPEN] ?: false }
 
     /** Open Project sheet's "Show hidden files" toggle -- was in-memory only, reset every time the
      * sheet's ViewModel was recreated (e.g. Home vs Workspace each own one); now persisted. */
@@ -142,6 +151,10 @@ class EditorSettingsStore(private val context: Context) {
 
     suspend fun setAutoPreviewEnabled(enabled: Boolean) {
         context.editorSettingsDataStore.edit { it[Keys.AUTO_PREVIEW_ENABLED] = enabled }
+    }
+
+    suspend fun setRestoreTabsOnOpen(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.RESTORE_TABS_ON_OPEN] = enabled }
     }
 
     suspend fun setProjectSheetShowHidden(show: Boolean) {

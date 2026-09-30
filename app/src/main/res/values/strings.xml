@@ -181,6 +181,8 @@
     <string name="settings_category_appearance_desc">Theme, editor theme, font size, symbol bar</string>
     <string name="settings_category_editing_desc">Autocomplete and pair cursor</string>
     <string name="settings_category_behavior_desc">What happens when a file changes on disk</string>
+    <string name="settings_restore_tabs">Restore open files</string>
+    <string name="settings_restore_tabs_desc">Reopen the tabs from last time when a project opens. Off by default; files with unsaved edits are always restored.</string>
     <string name="settings_git_status_polling">Git status detection</string>
     <string name="settings_git_status_polling_desc">Track file changes against the last commit in the background. Turn off to save battery and CPU on large repos.</string>
     <string name="settings_search_default_strings">Search: default strings only</string>
@@ -305,6 +307,7 @@
     <string name="clone_finish_button">Done</string>
     <string name="git_section_conflicts">Conflicts</string>
     <string name="git_mark_all_resolved">Mark all resolved</string>
+    <string name="git_diff">Diff</string>
     <string name="git_diff_close">Close diff</string>
     <string name="git_sync">Sync</string>
     <string name="git_diff_inline">Inline</string>

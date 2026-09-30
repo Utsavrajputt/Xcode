@@ -33,6 +33,7 @@ fun SettingsBehaviorScreen(
 ) {
     val autoReloadExternal by viewModel.autoReloadExternalChanges.collectAsStateWithLifecycle()
     val gitStatusPollingEnabled by viewModel.gitStatusPollingEnabled.collectAsStateWithLifecycle()
+    val restoreTabsOnOpen by viewModel.restoreTabsOnOpen.collectAsStateWithLifecycle()
     val searchDefaultStringsOnly by viewModel.searchDefaultStringsOnly.collectAsStateWithLifecycle()
 
     Scaffold(
@@ -68,6 +69,17 @@ fun SettingsBehaviorScreen(
                     subtitle = stringResource(R.string.settings_external_changes_auto_desc),
                     selected = autoReloadExternal,
                     onClick = { viewModel.setAutoReloadExternalChanges(true) },
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            SettingsSectionCard {
+                SwitchSettingRow(
+                    title = stringResource(R.string.settings_restore_tabs),
+                    subtitle = stringResource(R.string.settings_restore_tabs_desc),
+                    checked = restoreTabsOnOpen,
+                    onCheckedChange = viewModel::setRestoreTabsOnOpen,
                 )
             }
 

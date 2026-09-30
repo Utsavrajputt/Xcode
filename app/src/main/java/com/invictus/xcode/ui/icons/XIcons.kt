@@ -176,11 +176,20 @@ object XIcons {
                 "c0,-2.66 -5.33,-4 -8,-4z",
         )
     }
-    /** git rebase entry point (Material "call_merge" — a branch folding back into the trunk). */
+    /** git rebase entry point: a short commit chain with an arrow moving it up onto a new base (distinct from [Merge]). */
     val Rebase: ImageVector by lazy {
         icon(
             "Rebase",
-            "M17,20.41L18.41,19 15,15.59 13.59,17 17,20.41zM7.5,8H11v5.59L5.59,19 7,20.41l6,-6V8h3.5L12,3.5 7.5,8z",
+            "M12,2.5L17.5,8.5H6.5z M11.25,8V21H12.75V8z " +
+                "M9.6,13.5a2.4,2.4 0 1,0 4.8,0a2.4,2.4 0 1,0 -4.8,0z " +
+                "M9.6,19a2.4,2.4 0 1,0 4.8,0a2.4,2.4 0 1,0 -4.8,0z",
+        )
+    }
+    /** Material "compare": two panels side by side -- used for "Diff". */
+    val Diff: ImageVector by lazy {
+        icon(
+            "Diff",
+            "M10,3H5c-1.1,0 -2,0.9 -2,2v14c0,1.1 0.9,2 2,2h5v2h2V1h-2v2zM10,18H5l5,-6v6zM19,3h-5v2h5v13l-5,-6v9h5c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2z",
         )
     }
     /** git merge (Material Symbols "merge"): two lines joining into one. */
