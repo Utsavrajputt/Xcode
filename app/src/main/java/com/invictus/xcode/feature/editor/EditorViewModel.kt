@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
@@ -87,11 +88,16 @@ class EditorViewModel(
 
     /** Settings screen "Font size" slider; also the last size the user zoomed to anywhere. */
     val fontSizePx: StateFlow<Float> = settingsStore.fontSizePx
+        .map(::clampFontPx)
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0f)
 
     fun setFontSizePx(px: Float) {
-        viewModelScope.launch { settingsStore.setFontSizePx(px) }
+        viewModelScope.launch { settingsStore.setFontSizePx(clampFontPx(px)) }
     }
+
+    /** 0 = "use built-in default"; anything else stays inside the range Sora's pinch-zoom allows. */
+    private fun clampFontPx(px: Float): Float =
+        if (px > 0f) px.coerceIn(MIN_PINCH_TEXT_SIZE_PX, MAX_PINCH_TEXT_SIZE_PX) else px
 
     /** Settings screen "Autocomplete" toggle. */
     val autocompleteEnabled: StateFlow<Boolean> = settingsStore.autocompleteEnabled
@@ -144,7 +150,7 @@ class EditorViewModel(
     init {
         // Grammars load while the user is still browsing the tree; editors upgrade when ready.
         viewModelScope.launch { textMate.ensureLoaded() }
-        viewModelScope.launch { settingsStore.fontSizePx.collect { defaultFontSizePx = it } }
+        viewModelScope.launch { settingsStore.fontSizePx.collect { defaultFontSizePx = clampFontPx(it) } }
         viewModelScope.launch { settingsStore.autoReloadExternalChanges.collect { autoReloadExternal = it } }
         viewModelScope.launch { settingsStore.autoPreviewEnabled.collect { autoPreview = it } }
     }

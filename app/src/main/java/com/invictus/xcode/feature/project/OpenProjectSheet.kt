@@ -35,12 +35,15 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -60,6 +63,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -142,7 +147,29 @@ fun OpenProjectSheet(
     val expandFull = state.browseDir != null || needle.isNotEmpty()
     val heightModifier = if (expandFull) Modifier.fillMaxHeight(SHEET_HEIGHT_FRACTION) else Modifier
 
+    // Swiping/backing out of the sheet while the search field is focused left the keyboard to
+    // hide and then pop back up over Home. Drop focus + keyboard in the sheet's own window as soon
+    // as it starts closing, and once more in the host window when the sheet leaves composition.
+    val hostFocus = LocalFocusManager.current
+    val hostKeyboard = LocalSoftwareKeyboardController.current
+    DisposableEffect(Unit) {
+        onDispose {
+            hostFocus.clearFocus(force = true)
+            hostKeyboard?.hide()
+        }
+    }
+
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        val sheetFocus = LocalFocusManager.current
+        val sheetKeyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(sheetState) {
+            snapshotFlow { sheetState.targetValue }.collect { target ->
+                if (target == SheetValue.Hidden) {
+                    sheetFocus.clearFocus(force = true)
+                    sheetKeyboard?.hide()
+                }
+            }
+        }
         Column(modifier = Modifier.fillMaxWidth().then(heightModifier).imePadding()) {
             Text(
                 text = stringResource(R.string.sheet_title),

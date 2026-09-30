@@ -3,7 +3,6 @@ package com.invictus.xcode.feature.editor
 import android.animation.ValueAnimator
 import android.graphics.Color
 import io.github.rosemoe.sora.widget.CodeEditor
-import io.github.rosemoe.sora.widget.component.EditorTextActionWindow
 import io.github.rosemoe.sora.widget.schemes.EditorColorScheme
 import java.util.WeakHashMap
 
@@ -33,9 +32,10 @@ internal fun flashMatch(editor: CodeEditor, line: Int, column: Int, length: Int)
         val end = (start + length).coerceIn(start, lineLen)
         if (end <= start) return
 
-        editor.setSelectionRegion(line, start, line, end)
         // Programmatic selection must not pop the cut/copy toolbar over the match.
-        runCatching { editor.getComponent(EditorTextActionWindow::class.java).dismiss() }
+        suppressSelectionPopup(editor)
+        editor.setSelectionRegion(line, start, line, end)
+        suppressSelectionPopup(editor)
 
         val scheme = editor.colorScheme
         val original = scheme.getColor(EditorColorScheme.SELECTED_TEXT_BACKGROUND)

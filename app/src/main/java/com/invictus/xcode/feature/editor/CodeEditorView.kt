@@ -100,7 +100,7 @@ fun CodeEditorView(
                 if (buffer.textSizePx > 0f) textSizePx = buffer.textSizePx
                 applyLook(this, buffer, textMate, darkTheme, highlightReady, themeId)
                 getComponent(EditorAutoCompletion::class.java).isEnabled = autocompleteEnabled
-                applyTextLabelsToSelectionPopup(this)
+                installSelectionPopup(this)
                 // TextMate schemes listen to the global ThemeRegistry and reset their colours whenever
                 // any editor switches theme, which silently wiped our selection colour. Re-assert it.
                 val selfEditor = this
