@@ -143,6 +143,24 @@ class EditorViewModel(
     val searchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.searchDefaultStringsOnly
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    fun clearRecentFiles() {
+        viewModelScope.launch { settingsStore.clearRecentFiles() }
+    }
+
+    val searchExtraExcludes: StateFlow<String> = settingsStore.searchExtraExcludes
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    fun setSearchExtraExcludes(value: String) {
+        viewModelScope.launch { settingsStore.setSearchExtraExcludes(value) }
+    }
+
+    val searchMaxFileMb: StateFlow<Int> = settingsStore.searchMaxFileMb
+        .stateIn(viewModelScope, SharingStarted.Eagerly, EditorSettingsStore.DEFAULT_SEARCH_MAX_FILE_MB)
+
+    fun setSearchMaxFileMb(mb: Int) {
+        viewModelScope.launch { settingsStore.setSearchMaxFileMb(mb) }
+    }
+
     fun setSearchDefaultStringsOnly(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setSearchDefaultStringsOnly(enabled) }
     }
@@ -370,6 +388,7 @@ class EditorViewModel(
             return
         }
         val path = file.path
+        viewModelScope.launch { settingsStore.addRecentFile(path) } // file search: recent list
         if (path in buffers) {
             _uiState.update { it.copy(activePath = path) }
             jumpToLine?.let { _jumpToLine.tryEmit(JumpRequest(path, it, matchColumn, matchLength)) }

@@ -24,12 +24,15 @@ class FileSearchEngine {
         extensionFilter: String = "",
         folderFilter: String = "",
         defaultValuesOnly: Boolean = false,
+        excludeGlobs: List<String> = emptyList(),
     ): List<Result> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
         val extensions = extensionFilter.lowercase()
             .split(',', ' ').map { it.trim().removePrefix(".") }.filter { it.isNotEmpty() }.toSet()
         val folders = folderFilter.lowercase()
             .split(',', ' ').map { it.trim() }.filter { it.isNotEmpty() }
+        val excluders = excludeGlobs.map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
+            .map { CodeSearchEngine().globToRegex(it) }
         val rootPath = root.canonicalPath
         val results = ArrayList<Result>()
 
@@ -49,6 +52,7 @@ class FileSearchEngine {
                     val m = FuzzyMatcher.match(query, name) ?: continue
                     val rel = child.canonicalPath.removePrefix(rootPath)
                     if (folders.isNotEmpty() && folders.none { rel.lowercase().contains(it) }) continue
+                    if (excluders.isNotEmpty() && excluders.any { it.matches(rel) }) continue
                     results.add(Result(child, name, rel, m.score, m.indices))
                 }
             }

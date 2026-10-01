@@ -25,6 +25,11 @@ class SearchHistoryStore(private val db: AppDatabase) {
     suspend fun clear(kind: SearchKind) =
         withContext(Dispatchers.IO) { db.searchHistoryDao().clear(kind.key) }
 
+    suspend fun clearAll() {
+        clear(SearchKind.FILE)
+        clear(SearchKind.CODE)
+    }
+
     companion object {
         const val KEEP = 50
     }

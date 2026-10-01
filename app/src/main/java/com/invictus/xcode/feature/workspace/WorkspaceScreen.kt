@@ -59,6 +59,7 @@ import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
 import com.invictus.xcode.core.git.GitOnboardingPrefs
 import com.invictus.xcode.feature.project.OpenProjectSheet
+import com.invictus.xcode.feature.search.FileSearchOverlay
 import com.invictus.xcode.feature.search.SearchBus
 import com.invictus.xcode.feature.project.ProjectsEffect
 import com.invictus.xcode.feature.project.ProjectsEvent
@@ -97,6 +98,7 @@ fun WorkspaceScreen(
         value = withContext(Dispatchers.IO) { File(state.root, ".git").isDirectory }
     }
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
+    var showFileSearch by rememberSaveable { mutableStateOf(false) }
     var filterQuery by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val context = LocalContext.current
@@ -188,6 +190,7 @@ fun WorkspaceScreen(
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
                 onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
                 onOpenCodeSearch = { onOpenCodeSearch(state.root) },
+                onGoToFile = { showFileSearch = true },
                 onOpenSettings = onOpenSettings,
             )
         },
@@ -236,6 +239,18 @@ fun WorkspaceScreen(
 
     TreeDialogHost(dialog = state.dialog, onEvent = viewModel::onEvent)
 
+    if (showFileSearch) {
+        FileSearchOverlay(
+            root = state.root,
+            onOpen = { file ->
+                showFileSearch = false
+                onOpenFile?.invoke(file)
+            },
+            onDismiss = { showFileSearch = false },
+        )
+        androidx.activity.compose.BackHandler { showFileSearch = false }
+    }
+
     if (showProjectSheet) {
         OpenProjectSheet(
             state = projectsState,
@@ -269,6 +284,7 @@ private fun WorkspaceTopBar(
     onBackup: () -> Unit,
     onOpenGit: (() -> Unit)? = null,
     onOpenCodeSearch: () -> Unit = {},
+    onGoToFile: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -332,6 +348,14 @@ private fun WorkspaceTopBar(
                             },
                         )
                     }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search_go_to_file)) },
+                        leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onGoToFile()
+                        },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_collapse_all)) },
                         leadingIcon = { Icon(XIcons.UnfoldLess, contentDescription = null) },

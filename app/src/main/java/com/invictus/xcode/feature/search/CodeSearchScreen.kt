@@ -26,6 +26,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -149,7 +150,12 @@ class CodeSearchViewModel(
         )
         searchJob = viewModelScope.launch {
             delay(300)
-            val options = base.copy(defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first())
+            val extra = settingsStore.searchExtraExcludes.first()
+            val options = base.copy(
+                defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first(),
+                maxFileSizeBytes = settingsStore.searchMaxFileMb.first() * 1024L * 1024L,
+                excludeGlob = listOf(base.excludeGlob, extra).filter { it.isNotBlank() }.joinToString(","),
+            )
             _uiState.update { it.copy(searching = true) }
             val found = mutableListOf<CodeSearchEngine.FileResult>()
             // Stream: results dheere dheere dikhte rahen; naya query -> collect cancel.
@@ -165,7 +171,7 @@ class CodeSearchViewModel(
     private var allFound: List<CodeSearchEngine.FileResult> = emptyList()
 
     private fun publishVisible(found: List<CodeSearchEngine.FileResult>) {
-        allFound = found.toList()
+        allFound = found.sortedBy { it.relativePath }
         val visible = allFound.filter { it.file.path !in dismissedPaths }
         _uiState.update {
             it.copy(results = visible, fileCount = visible.size, matchCount = visible.sumOf { r -> r.matches.size })
@@ -211,6 +217,10 @@ class CodeSearchViewModel(
 
     fun removeHistory(query: String) {
         viewModelScope.launch { history.delete(SearchKind.CODE, query) }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { history.clear(SearchKind.CODE) }
     }
 
     companion object {
@@ -385,12 +395,22 @@ fun CodeSearchScreen(
             ) {
                 if (state.query.isBlank()) {
                     item(key = "history_header") {
-                        Text(
-                            text = stringResource(R.string.search_history),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.search_history),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 8.dp),
+                            )
+                            if (state.history.isNotEmpty()) {
+                                TextButton(onClick = viewModel::clearHistory) {
+                                    Text(stringResource(R.string.search_clear_history))
+                                }
+                            }
+                        }
                     }
                     items(state.history, key = { it.id }) { entry ->
                         Surface(
@@ -408,9 +428,10 @@ fun CodeSearchScreen(
                                 Icon(XIcons.Search, contentDescription = null)
                                 Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                                     Text(entry.query, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    if (entry.optionsJson != "{}") {
+                                    val summary = historyOptionsSummary(entry.optionsJson)
+                                    if (summary.isNotEmpty()) {
                                         Text(
-                                            text = entry.optionsJson,
+                                            text = summary,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
@@ -551,3 +572,19 @@ private fun highlightedSnippet(m: CodeSearchEngine.LineMatch): AnnotatedString =
         }
         if (cursor < m.text.length) append(m.text.substring(cursor))
     }
+
+/** "Regex · Aa · Word · *.kt · !build/" -- human readable snapshot of a saved code-search history entry. */
+@Composable
+private fun historyOptionsSummary(optionsJson: String): String {
+    val o = runCatching { JSONObject(optionsJson) }.getOrNull() ?: return ""
+    val regex = stringResource(R.string.search_regex)
+    val case = stringResource(R.string.search_case_sensitive)
+    val word = stringResource(R.string.search_whole_word)
+    return buildList {
+        if (o.optBoolean("regex")) add(regex)
+        if (o.optBoolean("case")) add(case)
+        if (o.optBoolean("word")) add(word)
+        o.optString("include").takeIf { it.isNotBlank() }?.let { add(it) }
+        o.optString("exclude").takeIf { it.isNotBlank() }?.let { add("!$it") }
+    }.joinToString(" · ")
+}

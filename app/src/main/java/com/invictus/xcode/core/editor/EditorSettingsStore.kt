@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,9 @@ class EditorSettingsStore(private val context: Context) {
         val CLONE_DEFAULT_PARENT = stringPreferencesKey("clone_default_parent")
         val GIT_STATUS_POLLING_ENABLED = booleanPreferencesKey("git_status_polling_enabled")
         val SEARCH_DEFAULT_STRINGS_ONLY = booleanPreferencesKey("search_default_strings_only")
+        val SEARCH_EXTRA_EXCLUDES = stringPreferencesKey("search_extra_excludes")
+        val SEARCH_MAX_FILE_MB = intPreferencesKey("search_max_file_mb")
+        val RECENT_FILES = stringPreferencesKey("recent_files")
         val FILE_TREE_SHOW_HIDDEN = booleanPreferencesKey("file_tree_show_hidden")
         val BROWSE_SHORTCUTS = stringPreferencesKey("browse_shortcuts")
     }
@@ -113,6 +117,37 @@ class EditorSettingsStore(private val context: Context) {
         context.editorSettingsDataStore.edit { it[Keys.SEARCH_DEFAULT_STRINGS_ONLY] = enabled }
     }
 
+    /** Settings "Search" > default excludes: comma/newline separated globs, applied to file AND code search. */
+    val searchExtraExcludes: Flow<String> = context.editorSettingsDataStore.data
+        .map { it[Keys.SEARCH_EXTRA_EXCLUDES].orEmpty() }
+
+    suspend fun setSearchExtraExcludes(value: String) {
+        context.editorSettingsDataStore.edit { it[Keys.SEARCH_EXTRA_EXCLUDES] = value }
+    }
+
+    /** Settings "Search" > max file size (MB) that code search will open. */
+    val searchMaxFileMb: Flow<Int> = context.editorSettingsDataStore.data
+        .map { (it[Keys.SEARCH_MAX_FILE_MB] ?: DEFAULT_SEARCH_MAX_FILE_MB).coerceIn(1, 100) }
+
+    suspend fun setSearchMaxFileMb(mb: Int) {
+        context.editorSettingsDataStore.edit { it[Keys.SEARCH_MAX_FILE_MB] = mb.coerceIn(1, 100) }
+    }
+
+    /** Most recently opened files (newest first) -- shown by file search while the query is empty. */
+    val recentFiles: Flow<List<String>> = context.editorSettingsDataStore.data
+        .map { prefs -> prefs[Keys.RECENT_FILES].orEmpty().split('\n').filter { it.isNotBlank() } }
+
+    suspend fun addRecentFile(path: String) {
+        context.editorSettingsDataStore.edit { prefs ->
+            val current = prefs[Keys.RECENT_FILES].orEmpty().split('\n').filter { it.isNotBlank() && it != path }
+            prefs[Keys.RECENT_FILES] = (listOf(path) + current).take(MAX_RECENT_FILES).joinToString("\n")
+        }
+    }
+
+    suspend fun clearRecentFiles() {
+        context.editorSettingsDataStore.edit { it.remove(Keys.RECENT_FILES) }
+    }
+
     suspend fun setCloneDefaultParent(path: String) {
         context.editorSettingsDataStore.edit { it[Keys.CLONE_DEFAULT_PARENT] = path }
     }
@@ -176,6 +211,9 @@ class EditorSettingsStore(private val context: Context) {
         raw.split("\n").filter { it.length > 1 }.map { ShortcutPref(path = it.substring(1), enabled = it[0] == '1') }
 
     companion object {
+        const val DEFAULT_SEARCH_MAX_FILE_MB = 2
+        private const val MAX_RECENT_FILES = 30
+
         /** \u0001 rather than a visible separator, since the symbols themselves include commas/spaces. */
         private const val SYMBOL_SEPARATOR = "\u0001"
 

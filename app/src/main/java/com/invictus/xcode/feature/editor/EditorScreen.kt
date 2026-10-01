@@ -131,6 +131,7 @@ fun EditorScreen(
         ?: kotlinx.coroutines.flow.MutableStateFlow(GitViewModel.UiState())
     val gitState by gitStateFlow.collectAsStateWithLifecycle()
     var showGitSheet by remember { mutableStateOf(false) }
+    var showFileSearch by remember { mutableStateOf(false) }
     // Bumped whenever the editor content/undo stack changes, so undo/redo enabled-state recomputes.
     var historyTick by remember { mutableIntStateOf(0) }
 
@@ -260,6 +261,7 @@ fun EditorScreen(
                         anyDirty = state.tabs.any { it.dirty },
                         onEvent = viewModel::onEvent,
                         onOpenSettings = onOpenSettings,
+                        onGoToFile = if (projectRoot != null) ({ showFileSearch = true }) else null,
                     )
                 },
             )
@@ -434,6 +436,18 @@ fun EditorScreen(
         }
     }
 
+    if (showFileSearch && projectRoot != null) {
+        com.invictus.xcode.feature.search.FileSearchOverlay(
+            root = projectRoot,
+            onOpen = { file ->
+                showFileSearch = false
+                viewModel.onEvent(EditorEvent.Open(file))
+            },
+            onDismiss = { showFileSearch = false },
+        )
+        androidx.activity.compose.BackHandler { showFileSearch = false }
+    }
+
     if (showGitSheet && gitViewModel != null && projectRoot != null) {
         ModalBottomSheet(
             onDismissRequest = { showGitSheet = false },
@@ -517,6 +531,7 @@ private fun EditorOverflowMenu(
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
     onOpenSettings: () -> Unit,
+    onGoToFile: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -524,6 +539,16 @@ private fun EditorOverflowMenu(
             Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (onGoToFile != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.search_go_to_file)) },
+                    leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        onGoToFile()
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_save_all)) },
                 leadingIcon = { Icon(XIcons.Save, contentDescription = null) },

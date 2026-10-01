@@ -5,7 +5,9 @@ import java.util.regex.Pattern
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.flow.flowOn
 import kotlin.coroutines.coroutineContext
 
@@ -24,14 +26,19 @@ class CodeSearchEngine {
     data class LineMatch(val line: Int, val text: String, val ranges: List<IntRange>)
     data class FileResult(val file: File, val relativePath: String, val matches: List<LineMatch>)
 
-    fun search(root: File, query: String, options: Options): Flow<FileResult> = flow {
-        if (query.isBlank()) return@flow
+    /**
+     * Walk is sequential (cheap), but the per-file scan runs in parallel on IO (bounded by
+     * [PARALLELISM]); results are streamed as each file finishes, so order is not guaranteed.
+     */
+    fun search(root: File, query: String, options: Options): Flow<FileResult> = channelFlow {
+        if (query.isBlank()) return@channelFlow
         val pattern = buildPattern(query, options)
         val include = options.includeGlob.takeIf { it.isNotBlank() }?.let { globToRegex(it) }
         val userExcludes = options.excludeGlob
             .split(',', '\n').map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
         val excludes = (DEFAULT_EXCLUDES + userExcludes).map { globToRegex(it) }
         val rootPath = root.canonicalPath
+        val gate = Semaphore(PARALLELISM)
         val stack = ArrayDeque<File>()
         stack.add(root)
         while (stack.isNotEmpty()) {
@@ -52,8 +59,15 @@ class CodeSearchEngine {
                 if (include != null && !include.matches(rel)) continue
                 if (excludes.any { it.matches(rel) }) continue
                 if (child.length() > options.maxFileSizeBytes || isBinary(child)) continue
-                val matches = scan(child, pattern)
-                if (matches.isNotEmpty()) emit(FileResult(child, rel, matches))
+                gate.acquire()
+                launch {
+                    try {
+                        val matches = scan(child, pattern)
+                        if (matches.isNotEmpty()) send(FileResult(child, rel, matches))
+                    } finally {
+                        gate.release()
+                    }
+                }
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -130,5 +144,6 @@ class CodeSearchEngine {
             "*.gif", "*.class", "*.dex", "*.so", "*.ttf", "*.otf", "*.woff", "*.woff2",
         )
         const val MAX_MATCHES_PER_FILE = 200
+        private const val PARALLELISM = 4
     }
 }

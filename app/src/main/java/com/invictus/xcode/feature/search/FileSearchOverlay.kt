@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -78,6 +81,11 @@ class FileSearchViewModel(
         val results: List<FileSearchEngine.Result> = emptyList(),
         val searching: Boolean = false,
         val history: List<SearchQueryEntity> = emptyList(),
+        val recent: List<File> = emptyList(),
+        val showFilters: Boolean = false,
+        val extFilter: String = "",
+        val folderFilter: String = "",
+        val includeIgnored: Boolean = false,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -90,6 +98,23 @@ class FileSearchViewModel(
                 _uiState.update { it.copy(history = items) }
             }
         }
+        viewModelScope.launch {
+            settingsStore.recentFiles.collect { paths ->
+                // Drop files that vanished or live outside the current project.
+                val rootPath = root.path
+                val files = paths.map(::File).filter { it.isFile && it.path.startsWith(rootPath) }
+                _uiState.update { it.copy(recent = files) }
+            }
+        }
+    }
+
+    fun toggleFilters() = _uiState.update { it.copy(showFilters = !it.showFilters) }
+    fun setExtFilter(v: String) { _uiState.update { it.copy(extFilter = v) }; onQueryChange(_uiState.value.query) }
+    fun setFolderFilter(v: String) { _uiState.update { it.copy(folderFilter = v) }; onQueryChange(_uiState.value.query) }
+    fun setIncludeIgnored(v: Boolean) { _uiState.update { it.copy(includeIgnored = v) }; onQueryChange(_uiState.value.query) }
+
+    fun clearHistory() {
+        viewModelScope.launch { history.clear(SearchKind.FILE) }
     }
 
     fun onQueryChange(query: String) {
@@ -102,9 +127,14 @@ class FileSearchViewModel(
         searchJob = viewModelScope.launch {
             delay(250) // debounce; naya query aane par purana cancel
             _uiState.update { it.copy(searching = true) }
+            val s = _uiState.value
             val found = engine.search(
                 root, query,
+                includeIgnored = s.includeIgnored,
+                extensionFilter = s.extFilter,
+                folderFilter = s.folderFilter,
                 defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first(),
+                excludeGlobs = settingsStore.searchExtraExcludes.first().split(',', '\n'),
             )
             _uiState.update { it.copy(results = found, searching = false) }
         }
@@ -218,6 +248,46 @@ fun FileSearchOverlay(
                         }
                     }
                 }
+                IconButton(onClick = viewModel::toggleFilters) {
+                    Icon(
+                        XIcons.Tune,
+                        contentDescription = stringResource(R.string.search_filters),
+                        tint = if (state.showFilters || state.extFilter.isNotBlank() || state.folderFilter.isNotBlank() || state.includeIgnored) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+
+            if (state.showFilters) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = state.extFilter,
+                            onValueChange = viewModel::setExtFilter,
+                            modifier = Modifier.weight(1f),
+                            label = { Text(stringResource(R.string.search_filter_ext)) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                        OutlinedTextField(
+                            value = state.folderFilter,
+                            onValueChange = viewModel::setFolderFilter,
+                            modifier = Modifier.weight(1f),
+                            label = { Text(stringResource(R.string.search_filter_folder)) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                        )
+                    }
+                    FilterChip(
+                        selected = state.includeIgnored,
+                        onClick = { viewModel.setIncludeIgnored(!state.includeIgnored) },
+                        label = { Text(stringResource(R.string.search_include_ignored)) },
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
 
             if (state.query.isBlank()) {
@@ -226,13 +296,57 @@ fun FileSearchOverlay(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    if (state.recent.isNotEmpty()) {
+                        item(key = "recent_header") {
+                            Text(
+                                text = stringResource(R.string.search_recent_files),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                            )
+                        }
+                        items(state.recent, key = { "recent:" + it.path }) { file ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onOpen(file) }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    FileTypeIcon(name = file.name, isDirectory = false)
+                                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                                        Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(
+                                            text = file.path.removePrefix(root.path),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     item(key = "history_header") {
-                        Text(
-                            text = stringResource(R.string.search_history),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
-                        )
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = stringResource(R.string.search_history),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 8.dp),
+                            )
+                            if (state.history.isNotEmpty()) {
+                                TextButton(onClick = viewModel::clearHistory) {
+                                    Text(stringResource(R.string.search_clear_history))
+                                }
+                            }
+                        }
                     }
                     items(state.history, key = { it.id }) { entry ->
                         Surface(

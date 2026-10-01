@@ -928,17 +928,19 @@ class GitSession(
                             val isTarget = c.name == target.name
                             if (!isTarget && c.parents.none { mapping.containsKey(it.name) }) continue
                             val b = org.eclipse.jgit.lib.CommitBuilder()
-                            b.treeId = c.tree.id
+                            b.setTreeId(c.tree.id)
                             b.setParentIds(c.parents.map { mapping[it.name] ?: it.id })
                             val old = c.authorIdent
-                            b.author = if (isTarget) {
-                                org.eclipse.jgit.lib.PersonIdent(name.trim(), email.trim(), old.`when`, old.timeZone)
-                            } else {
-                                old
-                            }
-                            b.committer = c.committerIdent
-                            c.encoding?.let { b.encoding = it }
-                            b.message = c.fullMessage
+                            b.setAuthor(
+                                if (isTarget) {
+                                    org.eclipse.jgit.lib.PersonIdent(name.trim(), email.trim(), old.`when`, old.timeZone)
+                                } else {
+                                    old
+                                },
+                            )
+                            b.setCommitter(c.committerIdent)
+                            b.setEncoding(c.encoding)
+                            b.setMessage(c.fullMessage)
                             mapping[c.name] = inserter.insert(b)
                         }
                         inserter.flush()
