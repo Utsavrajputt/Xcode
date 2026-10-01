@@ -62,6 +62,17 @@ data class GitCommitSummary(
     val message: String,
     val author: String,
     val timeMs: Long,
+    val authorEmail: String = "",
+)
+
+/** How a file changed inside one commit (commit-detail file list). */
+enum class GitCommitFileChange { ADDED, MODIFIED, DELETED, RENAMED, COPIED }
+
+/** One changed file of a commit; [oldPath] is only set for renames/copies. */
+data class GitCommitFile(
+    val path: String,
+    val oldPath: String?,
+    val change: GitCommitFileChange,
 )
 
 /** Everything the interactive error dialog shows; one-click copy serializes this. */

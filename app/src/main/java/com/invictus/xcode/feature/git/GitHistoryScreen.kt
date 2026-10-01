@@ -1,6 +1,24 @@
 package com.invictus.xcode.feature.git
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import com.invictus.xcode.core.git.model.GitCommitFile
+import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.GitTrigger
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.Arrangement
@@ -94,6 +112,15 @@ class GitHistoryViewModel(
         val resetTarget: GitCommitSummary? = null,
         val resetHardPending: Boolean = false,
         val resetting: Boolean = false,
+        // commit detail screen
+        val files: List<GitCommitFile> = emptyList(),
+        val filesLoading: Boolean = false,
+        val selectedFile: GitCommitFile? = null,
+        val fileDiff: GitFileDiffResult? = null,
+        val diffLoading: Boolean = false,
+        // "Change author"
+        val authorTarget: GitCommitSummary? = null,
+        val rewriting: Boolean = false,
     )
 
     private val _ui = MutableStateFlow(UiState())
@@ -158,8 +185,64 @@ class GitHistoryViewModel(
         if (_ui.value.query.isNotBlank()) onQueryChange(_ui.value.query) else reload()
     }
 
-    fun openDetail(c: GitCommitSummary) = _ui.update { it.copy(detail = c) }
-    fun dismissDetail() = _ui.update { it.copy(detail = null) }
+    fun showMessage(msg: String) { _messages.value = msg }
+
+    fun openDetail(c: GitCommitSummary) {
+        _ui.update {
+            it.copy(
+                detail = c, files = emptyList(), filesLoading = true,
+                selectedFile = null, fileDiff = null, diffLoading = false,
+            )
+        }
+        viewModelScope.launch(io + GitTrigger("commit-files")) {
+            when (val r = session.commitFiles(c.id)) {
+                is GitResult.Ok -> _ui.update {
+                    if (it.detail?.id == c.id) it.copy(files = r.value, filesLoading = false) else it
+                }
+                is GitResult.Err -> _ui.update { it.copy(filesLoading = false, error = r.error) }
+            }
+        }
+    }
+
+    fun dismissDetail() = _ui.update {
+        it.copy(detail = null, files = emptyList(), selectedFile = null, fileDiff = null, diffLoading = false)
+    }
+
+    fun openFile(f: GitCommitFile) {
+        val c = _ui.value.detail ?: return
+        _ui.update { it.copy(selectedFile = f, fileDiff = null, diffLoading = true) }
+        viewModelScope.launch(io + GitTrigger("commit-file-diff")) {
+            when (val r = session.commitFileDiff(c.id, f.path)) {
+                is GitResult.Ok -> _ui.update {
+                    if (it.selectedFile == f) it.copy(fileDiff = r.value, diffLoading = false) else it
+                }
+                is GitResult.Err -> _ui.update { it.copy(diffLoading = false, selectedFile = null, error = r.error) }
+            }
+        }
+    }
+
+    fun closeFile() = _ui.update { it.copy(selectedFile = null, fileDiff = null, diffLoading = false) }
+
+    // ---- change author ------------------------------------------------------
+
+    fun openChangeAuthor(c: GitCommitSummary) = _ui.update { it.copy(authorTarget = c) }
+    fun dismissChangeAuthor() = _ui.update { it.copy(authorTarget = null) }
+
+    fun changeAuthor(name: String, email: String) {
+        val target = _ui.value.authorTarget ?: return
+        viewModelScope.launch(io + GitTrigger("change-author")) {
+            _ui.update { it.copy(rewriting = true) }
+            when (val r = session.changeAuthor(target.id, name, email)) {
+                is GitResult.Ok -> {
+                    _ui.update { it.copy(authorTarget = null) }
+                    _messages.value = "Author changed"
+                    reload()
+                }
+                is GitResult.Err -> _ui.update { it.copy(error = r.error) }
+            }
+            _ui.update { it.copy(rewriting = false) }
+        }
+    }
 
     fun cherryPick(id: String) {
         viewModelScope.launch(io) {
@@ -224,7 +307,55 @@ class GitHistoryViewModel(
 
 private val historyTimeFormat = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault())
 
-@OptIn(ExperimentalMaterial3Api::class)
+private sealed interface HistoryRow {
+    data class Header(val author: String, val count: Int) : HistoryRow
+    data class Item(val commit: GitCommitSummary) : HistoryRow
+}
+
+/** Author chip: commits grouped by author (first-appearance order); other chips: flat list. */
+private fun buildRows(commits: List<GitCommitSummary>, grouped: Boolean): List<HistoryRow> =
+    if (!grouped) {
+        commits.map { HistoryRow.Item(it) }
+    } else {
+        buildList {
+            commits.groupBy { it.author }.forEach { (author, list) ->
+                add(HistoryRow.Header(author, list.size))
+                list.forEach { add(HistoryRow.Item(it)) }
+            }
+        }
+    }
+
+/**
+ * Tap / very-short long-press detector for the hash text. Long-press fires after [timeoutMs]
+ * (shorter than the system 400ms). It consumes the gesture so the row's own click / long-press
+ * menu does not also fire; a quick tap is forwarded to [onTap].
+ */
+private fun Modifier.quickLongPress(
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    timeoutMs: Long = 250L,
+): Modifier = pointerInput(onTap, onLongPress) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        down.consume()
+        var finished = false
+        val up = withTimeoutOrNull(timeoutMs) {
+            val u = waitForUpOrCancellation()
+            finished = true
+            u
+        }
+        when {
+            finished && up != null -> { up.consume(); onTap() }
+            finished -> Unit // cancelled (scroll)
+            else -> {
+                onLongPress()
+                waitForUpOrCancellation()?.consume()
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -> Unit) {
     val vm: GitHistoryViewModel = viewModel(
@@ -233,11 +364,21 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
     )
     val ui by vm.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    val clipboard = LocalClipboardManager.current
+    val haptic = LocalHapticFeedback.current
+    val hashCopiedMsg = stringResource(R.string.git_history_hash_copied)
+    val rows = remember(ui.commits, ui.mode) { buildRows(ui.commits, ui.mode == GitLogSearchMode.AUTHOR) }
+    var menuFor by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         vm.messages.collect { msg -> msg?.let { snackbar.showSnackbar(it); vm.messageHandled() } }
     }
 
+    BackHandler(enabled = ui.detail != null) {
+        if (ui.selectedFile != null) vm.closeFile() else vm.dismissDetail()
+    }
+
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -290,37 +431,92 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
                 }
             }
             LazyColumn(Modifier.fillMaxSize()) {
-                items(ui.commits, key = { it.id }) { c ->
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable { vm.openDetail(c) }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Row {
-                            Text(
-                                c.shortId,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                historyTimeFormat.format(Date(c.timeMs)),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                items(
+                    rows,
+                    key = { r ->
+                        when (r) {
+                            is HistoryRow.Header -> "author:${r.author}"
+                            is HistoryRow.Item -> r.commit.id
                         }
-                        Text(
-                            c.message.lineSequence().firstOrNull().orEmpty(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.bodyMedium,
+                    },
+                ) { row ->
+                    when (row) {
+                        is HistoryRow.Header -> Text(
+                            stringResource(R.string.git_history_author_group, row.author, row.count),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 2.dp),
                         )
-                        Text(
-                            c.author,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        is HistoryRow.Item -> {
+                            val c = row.commit
+                            Box {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .combinedClickable(
+                                            onClick = { vm.openDetail(c) },
+                                            onLongClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                menuFor = c.id
+                                            },
+                                        )
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            c.shortId,
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontFamily = if (ui.mode == GitLogSearchMode.HASH) FontFamily.Monospace else null,
+                                                fontWeight = if (ui.mode == GitLogSearchMode.HASH) FontWeight.Bold else null,
+                                            ),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .quickLongPress(
+                                                    onTap = { vm.openDetail(c) },
+                                                    onLongPress = {
+                                                        clipboard.setText(AnnotatedString(c.id))
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        vm.showMessage(hashCopiedMsg)
+                                                    },
+                                                )
+                                                .padding(end = 16.dp, top = 4.dp, bottom = 4.dp),
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            historyTimeFormat.format(Date(c.timeMs)),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(
+                                        c.message.lineSequence().firstOrNull().orEmpty(),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Text(
+                                        c.author,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = menuFor == c.id,
+                                    onDismissRequest = { menuFor = null },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.git_change_author)) },
+                                        leadingIcon = { Icon(XIcons.Person, contentDescription = null) },
+                                        onClick = {
+                                            menuFor = null
+                                            vm.openChangeAuthor(c)
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 if (ui.hasMore && ui.query.isBlank()) {
@@ -350,37 +546,37 @@ fun GitHistoryScreen(projectPath: String, filePath: String? = null, onBack: () -
     }
 
     ui.detail?.let { c ->
-        AlertDialog(
-            onDismissRequest = vm::dismissDetail,
-            title = { Text(c.shortId) },
-            text = {
-                Column {
-                    Text(c.message)
-                    Spacer(Modifier.padding(4.dp))
-                    Text(
-                        "${c.author} · ${historyTimeFormat.format(Date(c.timeMs))}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { vm.openReset(c) }) {
-                            Icon(XIcons.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(stringResource(R.string.git_reset_here))
-                        }
-                    }
-                }
+        GitCommitDetailScreen(
+            commit = c,
+            files = ui.files,
+            filesLoading = ui.filesLoading,
+            selectedFile = ui.selectedFile,
+            fileDiff = ui.fileDiff,
+            diffLoading = ui.diffLoading,
+            picking = ui.picking,
+            onOpenFile = vm::openFile,
+            onCloseFile = vm::closeFile,
+            onCherryPick = { vm.cherryPick(c.id) },
+            onReset = { vm.openReset(c) },
+            onCancel = vm::dismissDetail,
+        )
+    }
+    }
+
+    ui.authorTarget?.let { target ->
+        GitFieldsDialog(
+            title = stringResource(R.string.git_change_author),
+            fields = listOf(
+                stringResource(R.string.git_author_name) to target.author,
+                stringResource(R.string.git_author_email) to target.authorEmail,
+            ),
+            confirmLabel = stringResource(R.string.git_change_author_confirm),
+            onConfirm = { values, _ ->
+                val name = values[0].trim()
+                val email = values[1].trim()
+                if (name.isNotEmpty() && email.isNotEmpty() && !ui.rewriting) vm.changeAuthor(name, email)
             },
-            confirmButton = {
-                TextButton(onClick = { vm.cherryPick(c.id) }, enabled = !ui.picking) {
-                    Text(stringResource(R.string.git_cherry_pick))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = vm::dismissDetail) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            onDismiss = vm::dismissChangeAuthor,
         )
     }
     ui.resetTarget?.let { target ->

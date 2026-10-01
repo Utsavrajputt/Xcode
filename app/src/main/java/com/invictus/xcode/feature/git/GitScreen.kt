@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -571,13 +572,13 @@ private fun BranchCard(
             onClick = { onEvent(GitEvent.OpenRebasePicker) },
             enabled = snapshot.hasCommits && !snapshot.rebaseInProgress && !snapshot.mergeInProgress,
         ) {
-            Icon(XIcons.Rebase, contentDescription = stringResource(R.string.git_rebase_action))
+            Icon(XIcons.Rebase, contentDescription = stringResource(R.string.git_rebase_action), modifier = Modifier.graphicsLayer { scaleY = -1f })
         }
         IconButton(
             onClick = { onEvent(GitEvent.OpenMerge) },
             enabled = snapshot.hasCommits && !snapshot.rebaseInProgress && !snapshot.mergeInProgress && !state.merging,
         ) {
-            Icon(XIcons.Merge, contentDescription = stringResource(R.string.git_merge))
+            Icon(XIcons.Merge, contentDescription = stringResource(R.string.git_merge), modifier = Modifier.graphicsLayer { scaleY = -1f })
         }
         Box {
             IconButton(onClick = { onEvent(GitEvent.OpenBranchMenu) }) {

@@ -343,6 +343,14 @@
     <string name="git_history_empty">No commits found.</string>
     <string name="git_history_load_more">Load more</string>
     <string name="git_cherry_pick">Cherry-pick</string>
+    <string name="git_history_hash_copied">Hash copied</string>
+    <string name="git_history_author_group">%1$s · %2$d</string>
+    <string name="git_change_author">Change author</string>
+    <string name="git_change_author_confirm">Change</string>
+    <string name="git_author_name">Name</string>
+    <string name="git_author_email">Email</string>
+    <string name="git_commit_changed_files">Changed files (%1$d)</string>
+    <string name="git_commit_no_files">No file changes in this commit.</string>
     <string name="git_stash_title">Stash</string>
     <string name="git_stash_create">Stash</string>
     <string name="git_stash_message_hint">Stash message (optional)</string>

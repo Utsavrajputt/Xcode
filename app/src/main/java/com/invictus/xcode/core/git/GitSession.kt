@@ -7,6 +7,8 @@ import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitBranchInfo
 import com.invictus.xcode.core.git.model.GitDiffLineType
 import com.invictus.xcode.core.git.model.GitDiffRow
+import com.invictus.xcode.core.git.model.GitCommitFile
+import com.invictus.xcode.core.git.model.GitCommitFileChange
 import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitLogSearchMode
@@ -811,7 +813,154 @@ class GitSession(
         message = fullMessage,
         author = authorIdent.name,
         timeMs = authorIdent.`when`.time,
+        authorEmail = authorIdent.emailAddress.orEmpty(),
     )
+
+    // ---- commit detail: changed files + per-file diff ---------------------------
+
+    /** Files touched by [commitId] versus its first parent (or the empty tree for a root commit). */
+    suspend fun commitFiles(commitId: String): GitResult<List<GitCommitFile>> = ioOp(TITLE_DIFF) {
+        readOnly {
+            withCommitTrees(commitId) { oldIt, newIt ->
+                git.diff()
+                    .setOldTree(oldIt)
+                    .setNewTree(newIt)
+                    .setShowNameAndStatusOnly(true)
+                    .call()
+                    .map { e ->
+                        val change = when (e.changeType) {
+                            org.eclipse.jgit.diff.DiffEntry.ChangeType.ADD -> GitCommitFileChange.ADDED
+                            org.eclipse.jgit.diff.DiffEntry.ChangeType.DELETE -> GitCommitFileChange.DELETED
+                            org.eclipse.jgit.diff.DiffEntry.ChangeType.RENAME -> GitCommitFileChange.RENAMED
+                            org.eclipse.jgit.diff.DiffEntry.ChangeType.COPY -> GitCommitFileChange.COPIED
+                            else -> GitCommitFileChange.MODIFIED
+                        }
+                        val path = if (change == GitCommitFileChange.DELETED) e.oldPath else e.newPath
+                        val old = if (change == GitCommitFileChange.RENAMED || change == GitCommitFileChange.COPIED) e.oldPath else null
+                        GitCommitFile(path, old, change)
+                    }
+                    .sortedBy { it.path }
+            }
+        }
+    }
+
+    /** Parsed diff of a single [path] inside [commitId] (parent -> commit). */
+    suspend fun commitFileDiff(commitId: String, path: String): GitResult<GitFileDiffResult> =
+        ioOp(TITLE_DIFF) {
+            readOnly {
+                val rel = path.normalized()
+                val raw = withCommitTrees(commitId) { oldIt, newIt ->
+                    val out = java.io.ByteArrayOutputStream()
+                    git.diff()
+                        .setOldTree(oldIt)
+                        .setNewTree(newIt)
+                        .setPathFilter(PathFilter.create(rel))
+                        .setOutputStream(out)
+                        .call()
+                    out.toString("UTF-8")
+                }
+                DiffParser.parse(raw, rel, File(workTree, rel).absolutePath)
+            }
+        }
+
+    private fun <T> withCommitTrees(
+        commitId: String,
+        block: (AbstractTreeIterator, AbstractTreeIterator) -> T,
+    ): T {
+        val id = repository.resolve(commitId.trim())
+            ?: throw IllegalArgumentException("Can't resolve '$commitId'.")
+        repository.newObjectReader().use { reader ->
+            RevWalk(repository).use { walk ->
+                val commit = walk.parseCommit(id)
+                val newIt = CanonicalTreeParser().apply { reset(reader, commit.tree) }
+                val oldIt: AbstractTreeIterator = if (commit.parentCount > 0) {
+                    val parent = walk.parseCommit(commit.getParent(0).id)
+                    CanonicalTreeParser().apply { reset(reader, parent.tree) }
+                } else {
+                    EmptyTreeIterator()
+                }
+                return block(oldIt, newIt)
+            }
+        }
+    }
+
+    // ---- change author (history rewrite, keeps every later commit) ---------------
+
+    /**
+     * Rewrites [commitId] with a new author and re-creates every commit after it on top, so the
+     * branch keeps ALL its commits (no reset). Trees are reused as-is, which means the branch tip's
+     * content, the index and the working tree stay exactly the same; only the hashes from
+     * [commitId] upwards change. Committer, dates and messages are preserved.
+     */
+    suspend fun changeAuthor(commitId: String, name: String, email: String): GitResult<Unit> =
+        ioOp(TITLE_LOG) {
+            require(name.isNotBlank()) { "Author name is empty." }
+            require(email.isNotBlank()) { "Author email is empty." }
+            timedLock {
+                if (repository.repositoryState != org.eclipse.jgit.lib.RepositoryState.SAFE) {
+                    throw IllegalStateException("Finish the merge/rebase in progress first.")
+                }
+                val branchRef = repository.fullBranch
+                if (branchRef == null || !branchRef.startsWith(Constants.R_HEADS)) {
+                    throw IllegalStateException("Checkout a branch first (detached HEAD).")
+                }
+                val targetId = repository.resolve(commitId.trim())
+                    ?: throw IllegalArgumentException("Can't resolve '$commitId'.")
+                val headId = repository.resolve(Constants.HEAD)
+                    ?: throw IllegalStateException("No commits yet.")
+
+                RevWalk(repository).use { check ->
+                    if (!check.isMergedInto(check.parseCommit(targetId), check.parseCommit(headId))) {
+                        throw IllegalStateException("Commit is not part of the current branch.")
+                    }
+                }
+
+                val mapping = HashMap<String, ObjectId>()
+                repository.newObjectInserter().use { inserter ->
+                    RevWalk(repository).use { walk ->
+                        walk.sort(org.eclipse.jgit.revwalk.RevSort.TOPO)
+                        walk.sort(org.eclipse.jgit.revwalk.RevSort.REVERSE, true)
+                        walk.markStart(walk.parseCommit(headId))
+                        val target = walk.parseCommit(targetId)
+                        target.parents.forEach { walk.markUninteresting(walk.parseCommit(it.id)) }
+
+                        for (c in walk) {
+                            val isTarget = c.name == target.name
+                            if (!isTarget && c.parents.none { mapping.containsKey(it.name) }) continue
+                            val b = org.eclipse.jgit.lib.CommitBuilder()
+                            b.treeId = c.tree.id
+                            b.setParentIds(c.parents.map { mapping[it.name] ?: it.id })
+                            val old = c.authorIdent
+                            b.author = if (isTarget) {
+                                org.eclipse.jgit.lib.PersonIdent(name.trim(), email.trim(), old.`when`, old.timeZone)
+                            } else {
+                                old
+                            }
+                            b.committer = c.committerIdent
+                            c.encoding?.let { b.encoding = it }
+                            b.message = c.fullMessage
+                            mapping[c.name] = inserter.insert(b)
+                        }
+                        inserter.flush()
+                    }
+                }
+
+                val newHead = mapping[headId.name] ?: throw IllegalStateException("Nothing was rewritten.")
+                val ru = repository.updateRef(branchRef)
+                ru.setNewObjectId(newHead)
+                ru.setExpectedOldObjectId(headId)
+                ru.setForceUpdate(true)
+                ru.setRefLogMessage("rewrite: change author", false)
+                val res = ru.update()
+                if (res != org.eclipse.jgit.lib.RefUpdate.Result.FORCED &&
+                    res != org.eclipse.jgit.lib.RefUpdate.Result.FAST_FORWARD &&
+                    res != org.eclipse.jgit.lib.RefUpdate.Result.NEW
+                ) {
+                    throw IllegalStateException("Updating the branch failed: $res")
+                }
+            }
+            Unit
+        }
 
     // ---- M8: stash --------------------------------------------------------------
 

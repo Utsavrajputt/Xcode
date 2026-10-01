@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -84,7 +85,7 @@ internal fun GitOperationBanner(state: GitViewModel.UiState, onEvent: (GitEvent)
                     if (rebase) XIcons.Rebase else XIcons.Merge,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(24.dp).graphicsLayer { scaleY = -1f },
                 )
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
