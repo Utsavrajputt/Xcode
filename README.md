@@ -152,13 +152,17 @@ Or open the project in Android Studio and run normally.
 
 ### CI
 
-`.github/workflows/android-build.yml` runs on every push to `main`, on pull
-requests, and on manual dispatch:
+`.github/workflows/android-build.yml` runs on pushes to `main`, pull requests,
+manual dispatch, and `v*` tags:
 
-- **`lint`** — `ktlintCheck` + `lintDebug`, lint report uploaded as an artifact.
-- **`build`** — builds `assembleDebug` and uploads the APK as an artifact.
-  If the repo secrets below are set, the debug build is signed with them;
-  otherwise it falls back to Gradle's default debug keystore (e.g. on fork PRs).
+- **`build`** — `assembleRelease` (R8 on) produces one APK per ABI (`arm64-v8a`,
+  `armeabi-v7a`, `x86`, `x86_64`, each with only its own native libs) plus a `universal` APK.
+  Each is signed with `apksigner` when the repo secrets below are set (fork PRs fall back to
+  unsigned) and uploaded as its own artifact (`xcode-<abi>-<sha>`).
+- **`release`** (tags only, e.g. `git tag v1.0.0 && git push origin v1.0.0`) — publishes a
+  GitHub Release with all five `xcode-<tag>-<abi>.apk` files + `SHA256SUMS.txt`. Tag builds fail if signing secrets are
+  missing. `v1.2.3` sets `versionName 1.2.3`; `versionCode` = workflow run number. Tags with a
+  `-` (e.g. `v1.0.0-beta.1`) are marked pre-release.
 
 | Secret | Purpose |
 |---|---|

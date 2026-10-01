@@ -13,8 +13,9 @@ android {
         applicationId = "com.invictus.xcode"
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes these on tag builds (v1.2.3 -> name 1.2.3, code = run number).
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.1.0"
     }
 
     buildTypes {
@@ -22,10 +23,9 @@ android {
             applicationIdSuffix = ".debug"
         }
         release {
-            // Off for now while the app is still early (M1) -- flip these
-            // back on once the shape of the codebase has settled, so R8
-            // isn't fighting churn every milestone.
-            isMinifyEnabled = false
+            // R8 code shrinking + obfuscation. Keep rules live in proguard-rules.pro
+            // (JGit, Sora/tm4e, Room, WebView). Resource shrinking stays off for now.
+            isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -42,6 +42,17 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // One APK per ABI (each contains only that ABI's native libs) + a universal APK.
+    // Only for release builds so local debug installs stay a single APK.
+    splits {
+        abi {
+            isEnable = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
     }
 
     buildFeatures {
