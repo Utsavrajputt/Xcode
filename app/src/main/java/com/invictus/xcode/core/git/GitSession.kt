@@ -21,6 +21,7 @@ import com.invictus.xcode.core.git.model.GitStashInfo
 import com.invictus.xcode.core.git.model.GitTagInfo
 import com.invictus.xcode.core.git.model.GitTrackingInfo
 import com.invictus.xcode.core.git.model.GitWorkingState
+import com.invictus.xcode.core.git.model.GitStatusPatch
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
 import com.invictus.xcode.core.git.model.RebaseOutcome
 import kotlinx.coroutines.CancellationException
@@ -180,6 +181,13 @@ class GitSession(
             timedLock { Triple(doSnapshot(), doStatus(), readRemotes()) }
         }
 
+    /**
+     * Path-filtered status for [paths] (e.g. files just saved in the editor). Runs WITHOUT
+     * [mutex] like other read-only queries, so it isn't stuck behind a long full-status walk.
+     */
+    suspend fun statusFor(paths: List<String>): GitResult<GitStatusPatch> =
+        ioOp(TITLE_STATUS) { readOnly { statusForPaths(paths.map { it.normalized() }) } }
+
     suspend fun status(): GitResult<GitWorkingTreeStatus> =
         ioOp(TITLE_STATUS) { timedLock { doStatus() } }
 
@@ -316,6 +324,68 @@ class GitSession(
         Unit
     }
 
+    /**
+     * "Stage all" for a known list of changed [paths] (what the Changes list is showing):
+     * one DirCache lock, one batched edit, no treewalk. `stageAll()`'s two `git add .` calls
+     * each walk the whole working tree, which is what made it crawl on big repos; this
+     * costs only as much as the changed files. Conflicted paths, symlinks and gitlinks go
+     * through the slower `git add` since they need JGit's tree-aware handling.
+     */
+    suspend fun stagePaths(
+        paths: List<String>,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): GitResult<Unit> = ioOp(TITLE_STAGE) {
+        val ps = paths.map { it.normalized() }.distinct()
+        timedLock {
+            val slow = ArrayList<String>()
+            val dc = repository.lockDirCache()
+            var success = false
+            try {
+                val editor = dc.editor()
+                val inserter = repository.newObjectInserter()
+                try {
+                    ps.forEachIndexed { i, p ->
+                        val file = File(workTree, p)
+                        val first = dc.findEntry(p)
+                        val conflicted = first >= 0 && dc.getEntry(first).stage != 0
+                        when {
+                            conflicted || file.isDirectory ||
+                                java.nio.file.Files.isSymbolicLink(file.toPath()) -> slow += p
+                            !file.exists() -> editor.add(DirCacheEditor.DeletePath(p))
+                            else -> {
+                                val length = file.length()
+                                val id = FileInputStream(file).use {
+                                    inserter.insert(Constants.OBJ_BLOB, length, it)
+                                }
+                                val mode =
+                                    if (file.canExecute()) FileMode.EXECUTABLE_FILE else FileMode.REGULAR_FILE
+                                val mtime = file.lastModified()
+                                editor.add(object : DirCacheEditor.PathEdit(p) {
+                                    override fun apply(ent: DirCacheEntry) {
+                                        ent.fileMode = mode
+                                        ent.lastModified = mtime
+                                        ent.length = length.toInt()
+                                        ent.setObjectId(id)
+                                    }
+                                })
+                            }
+                        }
+                        if ((i + 1) % 25 == 0 || i + 1 == ps.size) onProgress(i + 1, ps.size)
+                    }
+                    inserter.flush()
+                } finally {
+                    inserter.close()
+                }
+                editor.commit()
+                success = true
+            } finally {
+                if (!success) dc.unlock()
+            }
+            slow.forEach { git.add().addFilepattern(it).call() }
+        }
+        Unit
+    }
+
     suspend fun unstageAll(): GitResult<Unit> = ioOp(TITLE_STAGE) {
         timedLock { git.reset().setMode(ResetCommand.ResetType.MIXED).call() }
         Unit
@@ -392,6 +462,7 @@ class GitSession(
                     .setAuthor(identity.name, identity.email)
                     .setCommitter(identity.name, identity.email)
                     .call()
+                lastStatus = lastStatus?.afterCommit()
                 GitCommitSummary(
                     id = commit.name,
                     shortId = commit.abbreviate(7).name(),
@@ -1204,12 +1275,14 @@ class GitSession(
                     throw IllegalStateException("No merge is in progress.")
                 }
                 val identity = resolveIdentity() ?: throw GitIdentityMissingException()
-                git.commit()
+                val summary = git.commit()
                     .setMessage(msg)
                     .setAuthor(identity.name, identity.email)
                     .setCommitter(identity.name, identity.email)
                     .call()
                     .toSummary()
+                lastStatus = lastStatus?.afterCommit()
+                summary
             }
         }
 
@@ -1237,6 +1310,115 @@ class GitSession(
         timedLock { git.add().addFilepattern(path.normalized()).call() }
         Unit
     }
+
+    /**
+     * Resolves every path in [paths] in ONE index rewrite, then returns a path-filtered status.
+     *
+     * The old per-path route (`git.add()` / `checkout` + `add`, once per file, each followed by a
+     * full `status()` walk) cost N whole-repo walks on a large repo. Here the DirCache is locked
+     * once, the conflicted ranges (stages 1-3) are dropped and a single stage-0 entry per path
+     * is written back with [DirCacheBuilder] (`keep()` copies the untouched ranges in bulk).
+     *
+     * [side] null = "mark resolved": keep the working-tree file exactly as edited. OURS/THEIRS
+     * = write that stage's blob into the working tree first. A side that deleted the file
+     * deletes it here too. Symlinks/gitlinks fall back to the slower JGit commands.
+     * No autocrlf/clean filters are applied (same as [fastAddSingle]).
+     */
+    suspend fun resolveConflicts(
+        paths: List<String>,
+        side: GitConflictSide?,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): GitResult<GitStatusPatch> = ioOp(TITLE_MERGE) {
+        val ps = paths.map { it.normalized() }.distinct()
+        timedLock {
+            val special = ArrayList<String>()
+            val dc = repository.lockDirCache()
+            var success = false
+            try {
+                val wantStage = if (side == GitConflictSide.OURS) DirCacheEntry.STAGE_2 else DirCacheEntry.STAGE_3
+                data class Range(val path: String, val first: Int, val next: Int)
+                val ranges = ps.mapNotNull { p ->
+                    val f = dc.findEntry(p)
+                    if (f < 0) null else Range(p, f, dc.nextEntry(f))
+                }.sortedBy { it.first }
+
+                val added = ArrayList<DirCacheEntry>()
+                val inserter = repository.newObjectInserter()
+                try {
+                    ranges.forEachIndexed { i, r ->
+                        val file = File(workTree, r.path)
+                        val stageEntry = if (side == null) null
+                        else (r.first until r.next).map { dc.getEntry(it) }.firstOrNull { it.stage == wantStage }
+                        val sideDeleted = side != null && stageEntry == null
+                        val rawMode = stageEntry?.fileMode
+                        if (rawMode == FileMode.SYMLINK || rawMode == FileMode.GITLINK ||
+                            (side == null && (file.isDirectory || java.nio.file.Files.isSymbolicLink(file.toPath())))
+                        ) {
+                            special += r.path
+                        } else if (sideDeleted) {
+                            file.delete()
+                        } else {
+                            if (stageEntry != null) {
+                                file.parentFile?.mkdirs()
+                                java.io.FileOutputStream(file).use { out ->
+                                    repository.open(stageEntry.objectId).copyTo(out)
+                                }
+                                file.setExecutable(stageEntry.fileMode == FileMode.EXECUTABLE_FILE)
+                            }
+                            if (file.exists()) {
+                                val ent = DirCacheEntry(r.path)
+                                ent.fileMode =
+                                    if (file.canExecute()) FileMode.EXECUTABLE_FILE else FileMode.REGULAR_FILE
+                                val length = file.length()
+                                ent.length = length.toInt()
+                                ent.lastModified = file.lastModified()
+                                ent.setObjectId(
+                                    FileInputStream(file).use {
+                                        inserter.insert(Constants.OBJ_BLOB, length, it)
+                                    },
+                                )
+                                added += ent
+                            }
+                            // file gone + side == null: resolved by deletion, just drop the stages.
+                        }
+                        onProgress(i + 1, ranges.size)
+                    }
+                    inserter.flush()
+                } finally {
+                    inserter.close()
+                }
+
+                // special paths keep their conflicted ranges for the fallback below.
+                val specialSet = special.toSet()
+                val drop = ranges.filter { it.path !in specialSet }
+                val b = dc.builder()
+                var pos = 0
+                for (r in drop) {
+                    if (r.first > pos) b.keep(pos, r.first - pos)
+                    pos = r.next
+                }
+                if (pos < dc.entryCount) b.keep(pos, dc.entryCount - pos)
+                added.forEach { b.add(it) }
+                b.commit()
+                success = true
+            } finally {
+                if (!success) dc.unlock()
+            }
+            for (p in special) {
+                if (side != null) {
+                    git.checkout()
+                        .setStage(
+                            if (side == GitConflictSide.OURS) CheckoutCommand.Stage.OURS
+                            else CheckoutCommand.Stage.THEIRS,
+                        )
+                        .addPath(p).call()
+                }
+                git.add().addFilepattern(p).call()
+            }
+            statusForPaths(ps)
+        }
+    }
+
 
     /** Stage-2 (ours) / stage-3 (theirs) content of a conflicted path, for preview. */
     suspend fun conflictSideContent(
@@ -1440,6 +1622,27 @@ class GitSession(
 
     private fun buildStatus(): GitWorkingTreeStatus {
         val s = git.status().call()
+        return GitWorkingTreeStatus(
+            changes = statusToChanges(s),
+            hasUnmerged = s.conflicting.isNotEmpty(),
+        )
+    }
+
+    /**
+     * Status limited to [paths] (JGit prunes the tree walk with a path filter), so cost scales
+     * with the touched files instead of the whole repo. Also folds the result into [lastStatus].
+     */
+    private fun statusForPaths(paths: Collection<String>): GitStatusPatch {
+        val touched = paths.toSet()
+        if (touched.isEmpty()) return GitStatusPatch(touched, emptyList())
+        val cmd = git.status()
+        touched.forEach { cmd.addPath(it) }
+        val fresh = statusToChanges(cmd.call()).filter { it.repoRelativePath in touched }
+        lastStatus = lastStatus?.patched(touched, fresh)
+        return GitStatusPatch(touched, fresh)
+    }
+
+    private fun statusToChanges(s: org.eclipse.jgit.api.Status): List<GitPathChange> {
         val staged = HashMap<String, GitStageState>()
         val unstaged = HashMap<String, GitWorkingState>()
         s.added.forEach { staged[it] = GitStageState.ADDED }
@@ -1461,16 +1664,13 @@ class GitSession(
             val dupes = rawAll.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
             android.util.Log.w("XcodeGit", "doStatus: duplicate repoRelativePath(s) found: $dupes")
         }
-        return GitWorkingTreeStatus(
-            changes = all.map {
-                GitPathChange(
-                    repoRelativePath = it,
-                    staged = staged[it] ?: GitStageState.NONE,
-                    unstaged = unstaged[it] ?: GitWorkingState.NONE,
-                )
-            },
-            hasUnmerged = s.conflicting.isNotEmpty(),
-        )
+        return all.map {
+            GitPathChange(
+                repoRelativePath = it,
+                staged = staged[it] ?: GitStageState.NONE,
+                unstaged = unstaged[it] ?: GitWorkingState.NONE,
+            )
+        }
     }
 
     private suspend fun <T> ioOp(title: String, block: suspend () -> T): GitResult<T> {

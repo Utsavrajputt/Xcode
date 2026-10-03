@@ -52,6 +52,8 @@ sealed interface GitEvent {
     data object ConfirmAbortMerge : GitEvent
     data object DismissAbortMerge : GitEvent
     data object CompleteMerge : GitEvent
+    /** Dialog's "Commit merge" button: actually commits (CompleteMerge only opens the dialog). */
+    data object ConfirmCompleteMerge : GitEvent
     data class CompleteMergeMessageChange(val text: String) : GitEvent
     data object DismissCompleteMerge : GitEvent
     // Reset (soft/mixed/hard) — HEAD, a remote-tracking ref, or any picked commit.

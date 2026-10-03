@@ -698,6 +698,7 @@ class EditorViewModel(
     /** Saves each buffer; returns true only if every one succeeded. */
     private suspend fun saveBuffers(paths: List<String>): Boolean {
         var allOk = true
+        val savedFiles = ArrayList<File>()
         for (path in paths) {
             val buffer = buffers[path] ?: continue
             // Snapshot on the main thread (the editor mutates Content there), write on IO. For a
@@ -721,6 +722,7 @@ class EditorViewModel(
             }
             val ok = hash != null
             if (ok) {
+                savedFiles += buffer.file
                 buffer.pagedSession?.markSaved()
                 buffer.savedRevision = revision
                 buffer.diskContentHash = hash
@@ -735,6 +737,13 @@ class EditorViewModel(
             }
         }
         if (allOk) schedulePersist()
+        if (savedFiles.isNotEmpty()) {
+            projectPath?.let { root ->
+                viewModelScope.launch(io) {
+                    runCatching { com.invictus.xcode.feature.git.GitViewModel.onFilesSaved(root, savedFiles) }
+                }
+            }
+        }
         return allOk
     }
 

@@ -13,11 +13,19 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,6 +39,7 @@ import com.invictus.xcode.core.git.model.GitPathChange
 /** Hosts every M10 dialog; rides along wherever the drawer sheet is composed. */
 @Composable
 internal fun GitMergeDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    state.opProgress?.let { GitOpProgressDialog(it) }
     if (state.mergeDialog) {
         AlertDialog(
             onDismissRequest = { onEvent(GitEvent.DismissMerge) },
@@ -124,7 +133,7 @@ internal fun GitMergeDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) ->
             },
             confirmButton = {
                 TextButton(
-                    onClick = { onEvent(GitEvent.CompleteMerge) },
+                    onClick = { onEvent(GitEvent.ConfirmCompleteMerge) },
                     enabled = state.completeMergeMessage.isNotBlank() && !state.completingMerge,
                 ) { Text(stringResource(R.string.git_complete_confirm)) }
             },
@@ -262,4 +271,47 @@ internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -
             },
         )
     }
+}
+
+
+/**
+ * Non-dismissible "working…" dialog for long local git ops (resolve, commit, merge, rebase,
+ * reset, stage all). Appears only after 300ms so fast ops on small repos never flash it.
+ * Shows a determinate bar when the op reports a total (e.g. resolving N conflicted files).
+ */
+@Composable
+internal fun GitOpProgressDialog(progress: GitViewModel.GitOpProgress) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(300)
+        visible = true
+    }
+    if (!visible) return
+    AlertDialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+        title = { Text(stringResource(progress.titleRes)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (progress.total > 0) {
+                    LinearProgressIndicator(
+                        progress = { progress.done.toFloat() / progress.total },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        stringResource(R.string.git_progress_count, progress.done, progress.total),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                Text(
+                    stringResource(R.string.git_progress_wait),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {},
+    )
 }

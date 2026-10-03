@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.git
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import com.invictus.xcode.core.git.GitTrigger
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -27,6 +28,7 @@ import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.git.model.GitRepoSnapshot
 import com.invictus.xcode.core.git.model.GitResetMode
 import com.invictus.xcode.core.git.model.GitStageState
+import com.invictus.xcode.core.git.model.GitStatusPatch
 import com.invictus.xcode.core.git.model.GitTrackingInfo
 import com.invictus.xcode.core.git.model.GitWorkingState
 import com.invictus.xcode.core.git.model.GitWorkingTreeStatus
@@ -35,6 +37,7 @@ import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.feature.workspace.UiText
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,6 +109,8 @@ class GitViewModel(
         val status: GitWorkingTreeStatus? = null,
         val remotes: List<GitRemoteInfo> = emptyList(),
         val networkOp: GitPendingAction? = null,
+        /** Generic "working…" dialog for long local git ops; null when idle. */
+        val opProgress: GitOpProgress? = null,
         val committing: Boolean = false,
         val progressTask: String = "",
         val commitMessage: String = "",
@@ -147,6 +152,8 @@ class GitViewModel(
         val branchMenuItems: List<String> = emptyList(),
     )
 
+    data class GitOpProgress(@StringRes val titleRes: Int, val done: Int = 0, val total: Int = 0)
+
     data class DiscardConfirmState(val path: String, val isUntracked: Boolean)
 
     sealed interface Effect {
@@ -187,6 +194,10 @@ class GitViewModel(
             }
             refresh("screen-open")
             viewModelScope.launch { debounceExternalChanges() }
+            // Editor saves while this screen/drawer is alive: show the change right away.
+            viewModelScope.launch {
+                statusPatches.collect { (path, patch) -> if (path == projectPath) applyStatusPatch(patch) }
+            }
             // Follows Settings > Behavior > "Git status detection": OFF = no .git watcher at all.
             viewModelScope.launch {
                 settingsStore.gitStatusPollingEnabled.collect { enabled ->
@@ -213,6 +224,8 @@ class GitViewModel(
             externalChangeEvents.receive()
             delay(EXTERNAL_CHANGE_DEBOUNCE_MS)
             while (externalChangeEvents.tryReceive().isSuccess) { /* drain the rest of the burst */ }
+            // Our own index/ref writes fire the watcher too; the op already patched the UI itself.
+            if (System.currentTimeMillis() < ownActivityUntil || _uiState.value.opProgress != null) continue
             refresh("watcher")
         }
     }
@@ -279,6 +292,7 @@ class GitViewModel(
             GitEvent.ConfirmAbortMerge -> abortMerge()
             GitEvent.DismissAbortMerge -> _uiState.update { it.copy(abortConfirm = false) }
             GitEvent.CompleteMerge -> openCompleteMerge()
+            GitEvent.ConfirmCompleteMerge -> completeMerge()
             is GitEvent.CompleteMergeMessageChange ->
                 _uiState.update { it.copy(completeMergeMessage = event.text) }
             GitEvent.DismissCompleteMerge ->
@@ -311,8 +325,42 @@ class GitViewModel(
 
     // ---- refresh -----------------------------------------------------------
 
+    @Volatile private var ownActivityUntil = 0L
+    @Volatile private var lastFullStatusAt = 0L
+    @Volatile private var refreshQueued = false
+    @Volatile private var refreshJob: Job? = null
+
+    private fun touchOwnActivity() {
+        ownActivityUntil = System.currentTimeMillis() + OWN_ACTIVITY_GRACE_MS
+    }
+
+    /**
+     * Full status walks are the slow part on big repos (16-50s in the logs), so they are
+     * coalesced: resume/screen-open show the cached status immediately and only re-walk when
+     * the last walk is older than [PASSIVE_REFRESH_MIN_MS]; a refresh never stacks behind
+     * another one — an op/watcher/user request that arrives mid-walk queues exactly one re-run.
+     */
     private fun refresh(trigger: String = "after-op") {
-        viewModelScope.launch(io + GitTrigger(trigger)) {
+        val passive = trigger == "resume" || trigger == "screen-open"
+        if (passive && _uiState.value.status != null &&
+            System.currentTimeMillis() - lastFullStatusAt < PASSIVE_REFRESH_MIN_MS
+        ) return
+        if (refreshJob?.isActive == true) {
+            if (!passive) refreshQueued = true
+            return
+        }
+        val job = viewModelScope.launch(io + GitTrigger(trigger)) { doRefresh() }
+        refreshJob = job
+        job.invokeOnCompletion {
+            if (refreshQueued) {
+                refreshQueued = false
+                refresh("after-op")
+            }
+        }
+    }
+
+    private suspend fun doRefresh() {
+        run {
             _uiState.update { it.copy(loading = it.snapshot == null) }
             when (val result = session.refreshFull()) {
                 is GitResult.Ok -> {
@@ -320,6 +368,7 @@ class GitViewModel(
                     val cached = CachedStatus(snapshot, status, remotes)
                     statusCache[projectPath] = cached
                     saveDiskCache(projectPath, cached)
+                    lastFullStatusAt = System.currentTimeMillis()
                     val conflicts = status.conflicts.size
                     _uiState.update {
                         it.copy(
@@ -341,6 +390,67 @@ class GitViewModel(
         }
     }
 
+    // ---- op progress + path-scoped status patches ---------------------------------
+
+    private suspend fun <T> withOpProgress(@StringRes titleRes: Int, block: suspend () -> T): T {
+        _uiState.update { it.copy(opProgress = GitOpProgress(titleRes)) }
+        try {
+            return block()
+        } finally {
+            _uiState.update { it.copy(opProgress = null) }
+            touchOwnActivity()
+        }
+    }
+
+    private fun reportProgress(done: Int, total: Int) {
+        _uiState.update { s -> s.opProgress?.let { s.copy(opProgress = it.copy(done = done, total = total)) } ?: s }
+    }
+
+    /** Folds a path-filtered status into the shown status: no whole-repo walk. */
+    private fun applyStatusPatch(patch: GitStatusPatch) {
+        if (_uiState.value.status == null) {
+            refresh()
+            return
+        }
+        _uiState.update { st -> st.copy(status = st.status?.patched(patch.touched, patch.fresh)) }
+        val conflicts = _uiState.value.status?.conflicts?.size ?: 0
+        val snap = _uiState.value.snapshot
+        if (snap != null && (snap.mergeInProgress || snap.rebaseInProgress) &&
+            lastConflictCount > 0 && conflicts == 0
+        ) {
+            message(R.string.git_msg_all_conflicts_resolved)
+        }
+        lastConflictCount = conflicts
+        persistCache()
+    }
+
+    /** After a commit the index equals HEAD: derive the status locally, re-read only the snapshot. */
+    private suspend fun applyCommitted() {
+        _uiState.update { st -> st.status?.let { st.copy(status = it.afterCommit()) } ?: st }
+        lastConflictCount = 0
+        refreshSnapshotOnly()
+    }
+
+    /** Push/fetch/commit never change the working tree, so skip the status walk entirely. */
+    private suspend fun refreshSnapshotOnly() {
+        when (val r = session.snapshot()) {
+            is GitResult.Ok -> {
+                _uiState.update { it.copy(snapshot = r.value) }
+                persistCache()
+            }
+            is GitResult.Err -> refresh()
+        }
+    }
+
+    private fun persistCache() {
+        val st = _uiState.value
+        val snap = st.snapshot ?: return
+        val status = st.status ?: return
+        val cached = CachedStatus(snap, status, st.remotes)
+        statusCache[projectPath] = cached
+        saveDiskCache(projectPath, cached)
+    }
+
     // ---- stage ---------------------------------------------------------------
 
     /**
@@ -356,7 +466,17 @@ class GitViewModel(
     private fun stage(path: String?) {
         viewModelScope.launch(io) {
             if (path == null) {
-                when (val result = session.stageAll()) {
+                // Stage exactly what the Changes list shows via one batched index write; only
+                // fall back to the whole-tree `git add .` when there's no status to go on yet.
+                val pending = _uiState.value.status?.changes
+                    ?.filter { it.unstaged != GitWorkingState.NONE }
+                    ?.map { it.repoRelativePath }
+                if (pending != null && pending.isEmpty()) return@launch
+                val staged = withOpProgress(R.string.git_progress_staging) {
+                    if (pending == null) session.stageAll()
+                    else session.stagePaths(pending) { done, total -> reportProgress(done, total) }
+                }
+                when (val result = staged) {
                     is GitResult.Ok -> applyLocalStageAll()
                     is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
                 }
@@ -372,7 +492,7 @@ class GitViewModel(
     private fun unstage(path: String?) {
         viewModelScope.launch(io) {
             if (path == null) {
-                when (val result = session.unstageAll()) {
+                when (val result = withOpProgress(R.string.git_progress_staging) { session.unstageAll() }) {
                     is GitResult.Ok -> applyLocalUnstageAll()
                     is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
                 }
@@ -510,11 +630,11 @@ class GitViewModel(
         if (message.isEmpty() && !amend) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(committing = true) }
-            when (val result = session.commit(message, amend)) {
+            when (val result = withOpProgress(R.string.git_progress_committing) { session.commit(message, amend) }) {
                 is GitResult.Ok -> {
                     _uiState.update { it.copy(commitMessage = "", amend = false) }
                     message(R.string.git_msg_committed)
-                    refresh()
+                    applyCommitted()
                 }
                 is GitResult.Err -> {
                     when {
@@ -620,7 +740,7 @@ class GitViewModel(
             if (allOk) {
                 lastFetchAt = System.currentTimeMillis()
                 message(R.string.git_msg_fetched)
-                refresh()
+                refreshSnapshotOnly()
             }
         }
     }
@@ -652,7 +772,7 @@ class GitViewModel(
                             else -> R.string.git_msg_fetched
                         },
                     )
-                    refresh()
+                    if (action == GitPendingAction.PUSH) refreshSnapshotOnly() else refresh()
                 }
                 true
             }
@@ -679,6 +799,7 @@ class GitViewModel(
             }
         }
         _uiState.update { it.copy(networkOp = null, progressTask = "") }
+        touchOwnActivity()
         return ok
     }
 
@@ -708,7 +829,7 @@ class GitViewModel(
     private fun merge(branch: String) {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(merging = true, mergeDialog = false) }
-            when (val result = session.mergeBranch(branch)) {
+            when (val result = withOpProgress(R.string.git_merging) { session.mergeBranch(branch) }) {
                 is GitResult.Ok -> message(
                     when (result.value) {
                         MergeOutcome.FAST_FORWARD -> R.string.git_msg_merged_ff
@@ -724,38 +845,30 @@ class GitViewModel(
         }
     }
 
-    private fun resolveConflict(path: String, side: GitConflictSide) {
-        viewModelScope.launch(io) {
-            when (val result = session.checkoutConflictSide(path, side)) {
-                is GitResult.Ok -> refresh()
-                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
-            }
-        }
-    }
+    private fun resolveConflict(path: String, side: GitConflictSide) = resolvePaths(listOf(path), side)
 
-    private fun markResolved(path: String) {
-        viewModelScope.launch(io) {
-            when (val result = session.markConflictResolved(path)) {
-                is GitResult.Ok -> refresh()
-                is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
-            }
-        }
-    }
+    private fun markResolved(path: String) = resolvePaths(listOf(path), null)
 
     private fun markAllResolved() {
         val paths = _uiState.value.status?.conflicts
             ?.map { it.repoRelativePath }?.distinct().orEmpty()
         if (paths.isEmpty()) return
+        resolvePaths(paths, null)
+    }
+
+    /** One batched index rewrite + path-filtered status; progress dialog while it runs. */
+    private fun resolvePaths(paths: List<String>, side: GitConflictSide?) {
         viewModelScope.launch(io) {
-            for (p in paths) {
-                val result = session.markConflictResolved(p)
-                if (result is GitResult.Err) {
+            val result = withOpProgress(R.string.git_progress_resolving) {
+                session.resolveConflicts(paths, side) { done, total -> reportProgress(done, total) }
+            }
+            when (result) {
+                is GitResult.Ok -> applyStatusPatch(result.value)
+                is GitResult.Err -> {
                     _uiState.update { it.copy(error = result.error) }
                     refresh()
-                    return@launch
                 }
             }
-            refresh()
         }
     }
 
@@ -773,7 +886,7 @@ class GitViewModel(
     private fun abortMerge() {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(abortConfirm = false) }
-            when (val result = session.abortMerge()) {
+            when (val result = withOpProgress(R.string.git_progress_aborting) { session.abortMerge() }) {
                 is GitResult.Ok -> {
                     message(R.string.git_msg_merge_aborted)
                     refresh()
@@ -801,11 +914,11 @@ class GitViewModel(
         if (message.isEmpty()) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(completingMerge = true) }
-            when (val result = session.completeMerge(message)) {
+            when (val result = withOpProgress(R.string.git_progress_committing) { session.completeMerge(message) }) {
                 is GitResult.Ok -> {
                     _uiState.update { it.copy(completeMergeDialog = false) }
                     message(R.string.git_msg_committed)
-                    refresh()
+                    applyCommitted()
                 }
                 is GitResult.Err -> {
                     when {
@@ -825,7 +938,7 @@ class GitViewModel(
 
     private fun continueRebase() {
         viewModelScope.launch(io) {
-            when (val result = session.continueRebase()) {
+            when (val result = withOpProgress(R.string.git_progress_continuing) { session.continueRebase() }) {
                 is GitResult.Ok -> {
                     message(rebaseOutcomeMessage(result.value))
                     refresh()
@@ -843,7 +956,7 @@ class GitViewModel(
 
     private fun skipRebaseCommit() {
         viewModelScope.launch(io) {
-            when (val result = session.skipRebaseCommit()) {
+            when (val result = withOpProgress(R.string.git_progress_continuing) { session.skipRebaseCommit() }) {
                 is GitResult.Ok -> {
                     message(rebaseOutcomeMessage(result.value))
                     refresh()
@@ -856,7 +969,7 @@ class GitViewModel(
     private fun abortRebase() {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(abortRebaseConfirm = false) }
-            when (val result = session.abortRebase()) {
+            when (val result = withOpProgress(R.string.git_progress_aborting) { session.abortRebase() }) {
                 is GitResult.Ok -> {
                     message(R.string.git_msg_rebase_aborted)
                     refresh()
@@ -911,7 +1024,7 @@ class GitViewModel(
     private fun rebaseOnto(branch: String) {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(rebasing = true) }
-            when (val result = session.rebaseOnto(branch)) {
+            when (val result = withOpProgress(R.string.git_rebasing) { session.rebaseOnto(branch) }) {
                 is GitResult.Ok -> message(rebaseOutcomeMessage(result.value))
                 is GitResult.Err -> _uiState.update { it.copy(error = result.error) }
             }
@@ -964,7 +1077,7 @@ class GitViewModel(
     private fun performReset(ref: String, label: String, mode: GitResetMode) {
         viewModelScope.launch(io) {
             _uiState.update { it.copy(resetting = true) }
-            when (val result = session.resetTo(ref, mode)) {
+            when (val result = withOpProgress(R.string.git_progress_resetting) { session.resetTo(ref, mode) }) {
                 is GitResult.Ok -> {
                     _uiState.update {
                         it.copy(resetSheetOpen = false, resetCommits = emptyList())
@@ -1068,6 +1181,39 @@ class GitViewModel(
     companion object {
         private const val DEFAULT_USERNAME = "x-access-token"
         private const val EXTERNAL_CHANGE_DEBOUNCE_MS = 400L
+        private const val PASSIVE_REFRESH_MIN_MS = 5_000L
+
+        private val statusPatches =
+            kotlinx.coroutines.flow.MutableSharedFlow<Pair<String, GitStatusPatch>>(extraBufferCapacity = 16)
+
+        /**
+         * Called by the editor after it saves [files]: patches just those paths into the cached
+         * status (and any live Git screen), so opening Source Control shows the edit instantly
+         * instead of only after the full status walk finishes. No-op outside a git repo.
+         */
+        suspend fun onFilesSaved(projectPath: String, files: List<File>) {
+            val root = File(projectPath)
+            val rels = files.mapNotNull { f ->
+                runCatching { f.absoluteFile.relativeTo(root.absoluteFile).invariantSeparatorsPath }.getOrNull()
+                    ?.takeIf { it.isNotEmpty() && !it.startsWith("..") && !it.startsWith(".git/") }
+            }
+            if (rels.isEmpty() || !File(root, ".git").exists()) return
+            val session = GitSessionRegistry.acquire(root)
+            try {
+                val result = session.statusFor(rels)
+                if (result !is GitResult.Ok) return
+                val patch = result.value
+                statusCache[projectPath]?.let { cached ->
+                    val updated = cached.copy(status = cached.status.patched(patch.touched, patch.fresh))
+                    statusCache[projectPath] = updated
+                    saveDiskCache(projectPath, updated)
+                }
+                statusPatches.tryEmit(projectPath to patch)
+            } finally {
+                GitSessionRegistry.release(root)
+            }
+        }
+        private const val OWN_ACTIVITY_GRACE_MS = 1_500L
 
         /** A fetch newer than this is considered fresh; merge/rebase pickers skip re-fetching. */
         private const val FETCH_FRESH_MS = 5 * 60 * 1000L

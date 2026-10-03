@@ -34,7 +34,36 @@ data class GitWorkingTreeStatus(
     val conflicts: List<GitPathChange> get() = changes.filter {
         it.staged == GitStageState.CONFLICT || it.unstaged == GitWorkingState.CONFLICT
     }
+
+    /**
+     * Swaps in freshly computed state for just [touched] paths (a path-filtered status),
+     * leaving every other entry as-is. A [touched] path absent from [fresh] is now clean
+     * and drops out. This is what lets resolve/commit skip a whole-repo status walk.
+     */
+    fun patched(touched: Set<String>, fresh: List<GitPathChange>): GitWorkingTreeStatus {
+        val merged = (changes.filter { it.repoRelativePath !in touched } + fresh)
+            .distinctBy { it.repoRelativePath }
+            .sortedBy { it.repoRelativePath }
+        return GitWorkingTreeStatus(
+            changes = merged,
+            hasUnmerged = merged.any {
+                it.staged == GitStageState.CONFLICT || it.unstaged == GitWorkingState.CONFLICT
+            },
+        )
+    }
+
+    /** What the status looks like right after a commit: the index now equals HEAD. */
+    fun afterCommit(): GitWorkingTreeStatus = GitWorkingTreeStatus(
+        changes = changes.mapNotNull {
+            if (it.unstaged == GitWorkingState.NONE) null
+            else it.copy(staged = GitStageState.NONE)
+        },
+        hasUnmerged = false,
+    )
 }
+
+/** Result of a path-filtered status: [fresh] holds only entries for [touched] that still differ. */
+data class GitStatusPatch(val touched: Set<String>, val fresh: List<GitPathChange>)
 
 /** One repo-relative path and how it differs from HEAD/index in both directions. */
 data class GitPathChange(

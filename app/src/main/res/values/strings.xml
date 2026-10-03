@@ -549,4 +549,12 @@
     <string name="sheet_browse_add">Add</string>
     <string name="sheet_browse_add_hint">Add folder path (/storage/…)</string>
     <string name="sheet_browse_invalid_path">Folder not found</string>
+    <string name="git_progress_resolving">Resolving conflicts…</string>
+    <string name="git_progress_committing">Committing…</string>
+    <string name="git_progress_staging">Updating index…</string>
+    <string name="git_progress_continuing">Continuing rebase…</string>
+    <string name="git_progress_aborting">Aborting…</string>
+    <string name="git_progress_resetting">Resetting…</string>
+    <string name="git_progress_count">%1$d / %2$d</string>
+    <string name="git_progress_wait">Large repos can take a moment. Please wait.</string>
 </resources>
