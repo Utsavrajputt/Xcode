@@ -223,46 +223,6 @@ fun OpenProjectSheet(
                         TypedPathRow(path = typedPath, isFolder = pathIsFolder, onOpen = { onOpen(File(typedPath)) })
                     }
                 }
-                if (!showBrowse && typedPath == null) {
-                    // Trimmed (in-workspace) sheet: a tiny Browse section above Recent -- just
-                    // Internal storage by default; tapping it browses in place.
-                    item(key = "h-browse-lite") { SectionLabel(R.string.sheet_browse) }
-                    val liteDir = state.browseDir
-                    if (liteDir == null) {
-                        item(key = "browse-internal") {
-                            FolderRow(
-                                name = stringResource(R.string.workspace_root_internal),
-                                file = storageRoot,
-                                onEnter = { onEvent(ProjectsEvent.Browse(storageRoot)) },
-                                onOpen = { onOpen(storageRoot) },
-                                onCopyPath = onCopyPath,
-                            )
-                        }
-                    } else {
-                        item(key = "browse-lite-head") {
-                            BrowseHeader(
-                                dir = liteDir,
-                                onUp = { onEvent(ProjectsEvent.BrowseUp) },
-                                onOpen = { onOpen(liteDir) },
-                            )
-                        }
-                        val liteError = state.browseError
-                        if (liteError != null) {
-                            item(key = "browse-lite-error") { HintText(liteError.asString(), isError = true) }
-                        } else if (entries.isEmpty()) {
-                            item(key = "browse-lite-empty") { HintText(stringResource(R.string.sheet_no_subfolders)) }
-                        }
-                        items(items = entries, key = { "bl:" + it.path }) { dir ->
-                            FolderRow(
-                                name = dir.name,
-                                file = dir,
-                                onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
-                                onOpen = { onOpen(dir) },
-                                onCopyPath = onCopyPath,
-                            )
-                        }
-                    }
-                }
                 if (recents.isNotEmpty() && showRecent && (showBrowse || state.browseDir == null)) {
                     item(key = "h-recent") { SectionLabel(R.string.sheet_recent) }
                     items(items = recents, key = { "r:" + it.file.path }) { item ->

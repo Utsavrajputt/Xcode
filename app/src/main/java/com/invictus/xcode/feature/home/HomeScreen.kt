@@ -90,6 +90,7 @@ import com.invictus.xcode.feature.project.ProjectsViewModel
 import com.invictus.xcode.feature.workspace.FileTreeEvent
 import com.invictus.xcode.feature.workspace.FileTreeViewModel
 import com.invictus.xcode.ui.icons.XIcons
+import com.invictus.xcode.ui.theme.BrandFontFamily
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -179,13 +180,24 @@ fun HomeScreen(
                         InlineSearchField(query = query, onQueryChange = { query = it })
                     } else {
                         Column {
+                            val brand = MaterialTheme.colorScheme
                             Text(
                                 text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 32.sp, fontWeight = FontWeight.SemiBold),
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontFamily = BrandFontFamily,
+                                    fontSize = 34.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = (-0.8).sp,
+                                    brush = Brush.linearGradient(listOf(brand.onSurface, brand.primary)),
+                                ),
                             )
                             Text(
                                 text = stringResource(R.string.home_tagline),
-                                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.5.sp),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 9.sp,
+                                    letterSpacing = 3.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -224,7 +236,8 @@ fun HomeScreen(
                 }
                 item(key = "actions") {
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
+                        // top = bottom + Recent header's own inset, so hero->button gap == button->"Recent Projects" gap
+                        Modifier.fillMaxWidth().padding(top = 34.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

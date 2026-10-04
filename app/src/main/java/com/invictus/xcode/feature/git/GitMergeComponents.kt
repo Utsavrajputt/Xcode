@@ -1,5 +1,6 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,59 +42,20 @@ import com.invictus.xcode.core.git.model.GitPathChange
 internal fun GitMergeDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
     state.opProgress?.let { GitOpProgressDialog(it) }
     if (state.mergeDialog) {
-        AlertDialog(
-            onDismissRequest = { onEvent(GitEvent.DismissMerge) },
-            title = { Text(stringResource(R.string.git_merge_title)) },
-            text = {
-                if (state.merging) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    ) {
-                        CircularProgressIndicator(Modifier.width(18.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            stringResource(R.string.git_merging),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                } else if (state.mergeCandidates.isEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                    ) {
-                        CircularProgressIndicator(Modifier.width(18.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            stringResource(R.string.git_loading),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                } else {
-                    Column(
-                        Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
-                    ) {
-                        state.mergeCandidates.forEach { branch ->
-                            Text(
-                                branch,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onEvent(GitEvent.Merge(branch)) }
-                                    .padding(vertical = 10.dp),
-                            )
-                        }
-                    }
-                }
+        BranchPickerDialog(
+            title = stringResource(R.string.git_merge_title),
+            description = null,
+            phase = when {
+                state.merging -> BranchPickerPhase.BUSY
+                state.mergeCandidates.isEmpty() -> BranchPickerPhase.LOADING
+                else -> BranchPickerPhase.LIST
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { onEvent(GitEvent.DismissMerge) }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            branches = state.mergeCandidates,
+            busyText = stringResource(R.string.git_merging),
+            emptyText = "",
+            dismissible = true,
+            onPick = { onEvent(GitEvent.Merge(it)) },
+            onDismiss = { onEvent(GitEvent.DismissMerge) },
         )
     }
 
@@ -181,73 +143,21 @@ internal fun GitMergeDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) ->
 @Composable
 internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
     if (state.rebasePicker) {
-        AlertDialog(
-            onDismissRequest = { if (!state.rebasing) onEvent(GitEvent.DismissRebasePicker) },
-            title = { Text(stringResource(R.string.git_rebase_picker_title)) },
-            text = {
-                Column(
-                    Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
-                ) {
-                    Text(
-                        stringResource(R.string.git_rebase_picker_desc),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    if (state.rebasing) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        ) {
-                            CircularProgressIndicator(Modifier.width(18.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                stringResource(R.string.git_rebasing),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else if (state.rebaseLoading) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        ) {
-                            CircularProgressIndicator(Modifier.width(18.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                stringResource(R.string.git_loading),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else if (state.rebaseCandidates.isEmpty()) {
-                        Text(
-                            stringResource(R.string.git_rebase_no_branches),
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(8.dp),
-                        )
-                    } else {
-                        state.rebaseCandidates.forEach { branch ->
-                            Text(
-                                branch,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onEvent(GitEvent.RebaseOnto(branch)) }
-                                    .padding(vertical = 10.dp),
-                            )
-                        }
-                    }
-                }
+        BranchPickerDialog(
+            title = stringResource(R.string.git_rebase_picker_title),
+            description = stringResource(R.string.git_rebase_picker_desc),
+            phase = when {
+                state.rebasing -> BranchPickerPhase.BUSY
+                state.rebaseLoading -> BranchPickerPhase.LOADING
+                state.rebaseCandidates.isEmpty() -> BranchPickerPhase.EMPTY
+                else -> BranchPickerPhase.LIST
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(
-                    onClick = { onEvent(GitEvent.DismissRebasePicker) },
-                    enabled = !state.rebasing,
-                ) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            },
+            branches = state.rebaseCandidates,
+            busyText = stringResource(R.string.git_rebasing),
+            emptyText = stringResource(R.string.git_rebase_no_branches),
+            dismissible = !state.rebasing,
+            onPick = { onEvent(GitEvent.RebaseOnto(it)) },
+            onDismiss = { onEvent(GitEvent.DismissRebasePicker) },
         )
     }
 
@@ -276,32 +186,46 @@ internal fun GitRebaseDialogs(state: GitViewModel.UiState, onEvent: (GitEvent) -
 
 /**
  * Non-dismissible "working…" dialog for long local git ops (resolve, commit, merge, rebase,
- * reset, stage all). Appears only after 300ms so fast ops on small repos never flash it.
+ * reset, stage all). Appears only after 1.5s so fast ops never flash it.
  * Shows a determinate bar when the op reports a total (e.g. resolving N conflicted files).
  */
 @Composable
 internal fun GitOpProgressDialog(progress: GitViewModel.GitOpProgress) {
+    // Quick ops (stage a few files, small commit) finish well inside this window, so they never
+    // flash a dialog; only genuinely long ones get one.
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(300)
+        delay(PROGRESS_DIALOG_DELAY_MS)
         visible = true
     }
     if (!visible) return
+    val determinate = progress.total > 0
+    val fraction = if (determinate) (progress.done.toFloat() / progress.total).coerceIn(0f, 1f) else 0f
+    val animated by animateFloatAsState(fraction, label = "gitOpProgress")
     AlertDialog(
         onDismissRequest = {},
         properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
         title = { Text(stringResource(progress.titleRes)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (progress.total > 0) {
+                if (determinate) {
                     LinearProgressIndicator(
-                        progress = { progress.done.toFloat() / progress.total },
+                        progress = { animated },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Text(
-                        stringResource(R.string.git_progress_count, progress.done, progress.total),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.git_progress_count, progress.done, progress.total),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "${(fraction * 100).toInt()}%",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 } else {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
@@ -315,3 +239,5 @@ internal fun GitOpProgressDialog(progress: GitViewModel.GitOpProgress) {
         confirmButton = {},
     )
 }
+
+private const val PROGRESS_DIALOG_DELAY_MS = 1500L
