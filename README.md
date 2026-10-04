@@ -1,49 +1,74 @@
-# Xcode — Lite Git + Editor
-
-**A native Android source control + code editor.** No bundled build system, no SDK
-manager, no terminal, no Ubuntu environment — just Git and a fast code editor,
-built from scratch.
-
-<p align="left">
-  <img src="https://img.shields.io/badge/Platform-Android-brightgreen.svg" />
-  <img src="https://img.shields.io/badge/Min%20SDK-30-blue.svg" />
-  <img src="https://img.shields.io/badge/Kotlin-Compose%20%2F%20Material%203-7F52FF.svg?logo=kotlin" />
+<p align="center">
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="140" height="140" />
 </p>
 
-<p align="left">
-  <a href="https://github.com/utsavrajputt/xcode/actions/workflows/android-build.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/utsavrajputt/xcode/android-build.yml?branch=main&logo=github&label=Build" />
+<h1 align="center">Xcode — Code · Edit · Build</h1>
+
+<p align="center">
+  <b>A native Android code editor with real Git — fast editing, source control and previews, with no bundled toolchain.</b>
+  <br>
+  <i>No SDK manager, no terminal, no Ubuntu rootfs — just your project folder, a fast editor and Git.</i>
+</p>
+
+> [!IMPORTANT]
+> Xcode is under active development and has no stable release yet. Every change lands in
+> [CHANGELOG.md](CHANGELOG.md) under **Unreleased** until the first tag is cut.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Android%2011%2B-brightgreen.svg" />
+  <img src="https://img.shields.io/badge/Kotlin-Compose%20%2F%20Material%203-7F52FF.svg?logo=kotlin&logoColor=white" />
+  <img src="https://img.shields.io/github/v/release/Utsavrajputt/xcode.svg?logo=github&label=Release&include_prereleases&cacheSeconds=3600" />
+  <img src="https://img.shields.io/github/downloads/Utsavrajputt/xcode/total?logo=github&cacheSeconds=3600" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/android-build.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/android-build.yml?branch=main&logo=github&label=Build" />
+  </a>
+  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/release.yml?logo=github&label=Release%20Build" />
+  </a>
+  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/prerelease.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/prerelease.yml?logo=github&label=Pre-release%20Build" />
   </a>
 </p>
 
-> [!NOTE]
-> Early development (**M3: Editor core** in progress). Most features below are the project's
-> planned scope, not yet built — see [Milestones](#-milestones) for what's actually done.
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Utsavrajputt/xcode?style=flat&logo=github&color=gold" />
+  <img src="https://img.shields.io/github/forks/Utsavrajputt/xcode?style=flat&logo=github&color=blue" />
+  <img src="https://img.shields.io/github/last-commit/Utsavrajputt/xcode?style=flat&logo=github" />
+  <img src="https://img.shields.io/github/issues/Utsavrajputt/xcode?style=flat&logo=github&color=orange" />
+</p>
+
+<p align="center">
+  <sub>⭐ • 🍴 • 🕓 • 🐛 &nbsp;—&nbsp; if Xcode's useful to you, a star helps more than you'd think</sub>
+</p>
 
 ---
 
-## Why
+## 💡 Why Xcode?
 
-[ACSIDE](https://play.google.com/store/apps) covers this niche but is closed
-source. Xcode is a from-scratch, open reference implementation focused purely
-on **source control + editing** — no on-device build/run, since that's a
-different (and much heavier) problem best left to GitHub Actions / a PC.
-.
+Closed-source editors cover this niche already. Xcode is an open, from-scratch take on the part that
+matters on a phone: **editing code and managing it with Git**. Building and running is deliberately
+left to GitHub Actions or a PC — that is a different (and much heavier) problem.
+
 ---
 
-## ✨ Planned features
+## ✨ Features
 
 <details>
-<summary><b>📂 File manager & projects</b></summary>
+<summary><b>📂 Projects & files</b></summary>
 
 | Feature | Description |
 |---|---|
-| File tree | Expand/collapse, lazy load, state preserved across sessions |
-| File ops | Create, rename, delete, move, copy, duplicate (numbered), long-press context menu |
-| Git status stripe | Colored indicator per file/folder — modified / added / untracked / conflicted |
-| Open Project sheet | Search, manual path entry, browsable folders |
-| Recent workspaces | Long-press actions: backup as ZIP, copy path, rename, delete |
-| Safety | Binary/large-file open warning, hidden files toggle |
+| **File tree** | Expand/collapse with lazy loading; expansion state is kept across sessions |
+| **File operations** | Create, rename, delete, move, copy and numbered duplicate, all from a long-press menu |
+| **Git status stripe** | Coloured marker per file/folder — modified, added, untracked, conflicted |
+| **Open Project sheet** | Search, type a path by hand, or browse folders with editable shortcuts |
+| **Recent projects** | Home and *All projects* lists with search and sort. Per-project menu: **pin to top**, **rename**, **delete** (with confirmation), **project info** (size, files, last modified/opened, Git branch), copy path, remove from recents |
+| **Backup as ZIP** | One-tap project backup from the recents menu |
+| **Pinned files** | Pin files and folders to the top of a project's tree |
+| **Safety** | Binary/large-file open warning, hidden-files toggle, and device root, Documents and Downloads can never be deleted from the app |
 
 </details>
 
@@ -52,33 +77,35 @@ different (and much heavier) problem best left to GitHub Actions / a PC.
 
 | Feature | Description |
 |---|---|
-| Engine | [Sora Editor](https://github.com/Rosemoe/sora-editor) wrapped in Compose via `AndroidView` |
-| Tabs | Multi-tab, reorder, unsaved indicator, close others/all, per-tab state (zoom, cursor, scroll, undo stack) preserved on switch |
-| Editing | Find/replace (case, whole word, regex), go to line, undo/redo, auto-indent, bracket + pair matching, word wrap, font zoom |
-| Autocomplete | Keyword + word-based (no LSP) |
-| Symbol bar | User-customizable, add/remove/reorder |
-| Quick actions | Duplicate/delete/move line, comment toggle, select line |
-| External changes | "Reload / keep my edits" prompt when a file changes outside the app |
-| Large files | Paged loading, read-only fallback |
+| **Engine** | [Sora Editor](https://github.com/Rosemoe/sora-editor) wrapped in Compose, with TextMate syntax highlighting |
+| **Tabs** | Multi-tab with reorder, unsaved indicator and close others/all; zoom, cursor, scroll and undo stack are kept per tab |
+| **Editing** | Find/replace (case, whole word, regex), go to line, undo/redo, auto-indent, bracket matching, word wrap, font zoom |
+| **Autocomplete** | Keyword and word based — no language server needed |
+| **Symbol bar** | Customisable, add/remove/reorder |
+| **Quick actions** | Duplicate/delete/move line, comment toggle, select line |
+| **External changes** | "Reload / keep my edits" prompt when a file changes outside the app |
+| **Large files** | Paged loading with a read-only fallback |
+| **Languages** | C, C++, CSS, Dart, Groovy, HTML, Java, JavaScript, JSON, Kotlin, Markdown, Properties, Python, Shell, Smali, TOML, XML, YAML — everything else opens as plain text |
 
 </details>
 
 <details>
-<summary><b>🌳 Git (JGit, HTTPS + token only)</b></summary>
+<summary><b>🌳 Git (JGit — HTTPS + token)</b></summary>
 
 | Feature | Description |
 |---|---|
-| Core ops | Clone, status, stage/unstage, commit (+ amend), push/pull/fetch, force push with confirmation |
-| Branches | List, create, checkout, delete, rename — including before the first commit (unborn branch) |
-| History | Log, commit detail, file history, search by message/author/hash |
-| Diff | Inline + side-by-side toggle, image diff preview |
-| Merge & cherry-pick | Fast-forward + normal merge, cherry-pick from history |
-| Stash & tags | Save/list/apply/pop/drop, tag list/create/delete |
-| Guided onboarding | Step-by-step wizard for init → identity → remote → first commit → upstream, skippable |
-| Multi-remote | Per-remote token credentials manager |
-| Conflicts | Inline accept ours/theirs/both, abort/complete merge |
+| **Core operations** | Clone, status, stage/unstage, commit (+ amend), push/pull/fetch, force push behind a confirmation |
+| **Branches** | List, create, checkout, delete, rename — also before the first commit |
+| **History** | Log, commit detail, file history, search by message/author/hash |
+| **Diff** | Inline and side-by-side, image diff preview |
+| **Merge & cherry-pick** | Fast-forward and normal merge, cherry-pick from history |
+| **Conflicts** | Inline accept ours/theirs/both, abort or complete the merge |
+| **Stash & tags** | Save/list/apply/pop/drop and tag list/create/delete |
+| **Guided onboarding** | Step-by-step wizard: init → identity → remote → first commit → upstream (skippable) |
+| **Multi-remote** | Per-remote token manager; tokens live in an AES/GCM vault backed by the Android Keystore |
+| **GitHub settings** | Per-host token and profile management |
 
-Not planned: GPG commit signing, submodules, rebase conflict flow.
+Not planned: GPG commit signing, submodules, rebase conflict flow, SSH auth.
 
 </details>
 
@@ -87,10 +114,22 @@ Not planned: GPG commit signing, submodules, rebase conflict flow.
 
 | Feature | Description |
 |---|---|
-| Preview | Markdown (theme toggle), HTML (split mode, JS off by default), SVG, images — in-editor media tabs |
-| File search | Fuzzy filename match, recents, extension/folder filters |
-| Code search | Full workspace content search, regex/case/whole word, include/exclude globs, streamed grouped results |
-| Search history | Separate history for file vs. code search |
+| **Preview** | Markdown (theme toggle), HTML (split mode, JS off by default), SVG, images and video as in-editor tabs |
+| **File search** | Fuzzy filename match, recents, extension/folder filters |
+| **Code search** | Whole-workspace content search with regex/case/whole word, include/exclude globs and streamed, grouped results |
+| **Search history** | Separate history for file and code search |
+
+</details>
+
+<details>
+<summary><b>🎨 Themes & diagnostics</b></summary>
+
+| Feature | Description |
+|---|---|
+| **Material 3 Expressive UI** | Jetpack Compose throughout, with expressive motion and pill-shaped components |
+| **5 app themes** | Default, Aurora, Catppuccin, Nord and Rose Pine, plus an **AMOLED** true-black toggle |
+| **Editor themes** | Light/dark pairs including One Dark Pro, GitHub, Solarized, Monokai, Ayu, Darcula, VS Code and Xcode |
+| **Crash & Git logs** | On-device crash log and Git log viewers under Settings → Diagnostics |
 
 </details>
 
@@ -102,67 +141,90 @@ Not planned: GPG commit signing, submodules, rebase conflict flow.
 |---|---|
 | Language | Kotlin |
 | UI | Jetpack Compose + Material 3, Navigation Compose |
-| Editor | `io.github.Rosemoe.sora-editor` |
-| Git | `org.eclipse.jgit` |
+| Editor | [`io.github.Rosemoe:editor`](https://github.com/Rosemoe/sora-editor) + TextMate grammars |
+| Git | [`org.eclipse.jgit`](https://www.eclipse.org/jgit/) |
 | Async | Coroutines + Flow |
-| Storage | DataStore (settings), Room (recent projects) |
-| Token security | Android Keystore / `EncryptedSharedPreferences` |
-| Lint | [ktlint](https://github.com/pinterest/ktlint) via the [jlleitschuh/ktlint-gradle](https://github.com/JLLeitschuh/ktlint-gradle) plugin, rules in [`.editorconfig`](.editorconfig) |
+| Storage | Room (recent projects, pins, search history), DataStore (settings) |
+| Token security | Android Keystore (AES/GCM) |
+| Images | Coil |
 
 ---
 
 ## 📁 Project structure
 
 ```
-app/
+app/src/main/java/com/invictus/xcode/
  ├─ core/
- │   ├─ fs/          # file ops, permission helper
- │   ├─ git/         # JGit wrapper (GitRepository, GitAuth, GitOps, ConflictParser)
- │   ├─ editor/      # Sora wrapper, language registry, theme loader
- │   ├─ preview/     # markdown/html/svg/image renderers
- │   ├─ search/      # FileSearchEngine (fuzzy), CodeSearchEngine (grep), SearchHistoryStore
- │   └─ security/    # credentials store (per-remote tokens)
+ │   ├─ fs/          # file operations, directory/external-change watchers, storage permission
+ │   ├─ git/         # JGit session, auth, cloner, conflict parser
+ │   ├─ github/      # GitHub profile lookups
+ │   ├─ editor/      # tab buffers, language registry, TextMate + editor settings
+ │   ├─ preview/     # preview helpers
+ │   ├─ search/      # fuzzy file search, code search, search history
+ │   ├─ project/     # recents + pins repository, ZIP backup
+ │   ├─ security/    # per-remote token vault
+ │   ├─ data/        # Room database, DAOs, entities
+ │   └─ diagnostics/ # crash + Git logs
  ├─ feature/
- │   ├─ workspace/   # file tree, recent projects
- │   ├─ search/      # file search overlay, code search screen, history UI
- │   ├─ editor/      # tabs, editor screen, inline conflict bar, preview toggle
- │   ├─ git/         # status, commit, branches, diff, log, stash, remotes
- │   └─ settings/
- ├─ ui/              # theme, common components, navigation
+ │   ├─ home/        # home, all-projects list, project card menu
+ │   ├─ project/     # Open Project sheet
+ │   ├─ workspace/   # file tree, workspace screen
+ │   ├─ editor/      # tabs, editor screen, find/replace, symbol bar
+ │   ├─ git/         # status, commit, branches, diff, history, stash, remotes, onboarding
+ │   ├─ preview/     # Markdown / HTML / SVG / image / video
+ │   ├─ search/      # file search overlay, code search screen
+ │   ├─ settings/    # appearance, editing, behaviour, GitHub, diagnostics
+ │   ├─ permission/  # onboarding + storage permission flow
+ │   └─ diagnostics/
+ ├─ ui/              # theme, shared components, navigation
  └─ MainActivity
 ```
 
-**Pattern**: MVVM + UDF (`UiState` / `UiEvent`), repository layer through JGit.
-All JGit calls run on `Dispatchers.IO`, never the main thread.
+**Pattern:** MVVM + unidirectional data flow (`UiState` / events / effects). All file-system and JGit
+work runs on `Dispatchers.IO`, never the main thread.
 
 ---
 
-## 🚀 Building
+## 🧩 APK variants
 
-Requires JDK 17.
+Xcode ships one app, split per CPU architecture so you only download the native libraries your phone
+can actually use:
+
+| APK | For |
+|---|---|
+| `xcode-<tag>-arm64-v8a.apk` | Almost every phone from the last decade — **pick this one** |
+| `xcode-<tag>-armeabi-v7a.apk` | Older 32-bit ARM devices |
+| `xcode-<tag>-universal.apk` | Both ARM ABIs in one file — larger, use it if you're unsure |
+
+x86 / x86_64 builds are intentionally not produced.
+
+---
+
+## 🔨 Building
+
+Requires JDK 17 and the Android SDK (compileSdk 36, minSdk 30).
 
 ```bash
-./gradlew assembleDebug      # debug APK
-./gradlew assembleRelease    # minified/shrunk release APK
-./gradlew ktlintCheck        # style check (ktlintFormat to auto-fix)
+./gradlew assembleDebug      # debug APK (installs next to release as com.invictus.xcode.debug)
+./gradlew assembleRelease    # unsigned release APKs, one per ABI + universal (sign with apksigner)
 ./gradlew lintDebug          # Android lint
 ```
 
-Or open the project in Android Studio and run normally.
+Or open the project in Android Studio and run it normally.
 
-### CI
+### Signing a release build
 
-`.github/workflows/android-build.yml` runs on pushes to `main`, pull requests,
-manual dispatch, and `v*` tags:
+Release builds are intentionally unsigned by Gradle — `assembleRelease` produces unsigned APKs which
+you sign explicitly with `apksigner`:
 
-- **`build`** — `assembleRelease` (R8 on) produces one APK per ABI (`arm64-v8a`,
-  `armeabi-v7a`, `x86`, `x86_64`, each with only its own native libs) plus a `universal` APK.
-  Each is signed with `apksigner` when the repo secrets below are set (fork PRs fall back to
-  unsigned) and uploaded as its own artifact (`xcode-<abi>-<sha>`).
-- **`release`** (tags only, e.g. `git tag v1.0.0 && git push origin v1.0.0`) — publishes a
-  GitHub Release with all five `xcode-<tag>-<abi>.apk` files + `SHA256SUMS.txt`. Tag builds fail if signing secrets are
-  missing. `v1.2.3` sets `versionName 1.2.3`; `versionCode` = workflow run number. Tags with a
-  `-` (e.g. `v1.0.0-beta.1`) are marked pre-release.
+```bash
+apksigner sign --ks your-release.jks --ks-key-alias <alias> \
+  --out xcode-arm64-v8a.apk app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+```
+
+CI does this for you through [`.github/scripts/sign-apks.sh`](.github/scripts/sign-apks.sh). Every push
+to `main` runs `.github/workflows/android-build.yml` and uploads the signed APKs as build artifacts
+(fork PRs have no secrets, so their APKs stay unsigned). It needs these repository secrets:
 
 | Secret | Purpose |
 |---|---|
@@ -173,25 +235,60 @@ manual dispatch, and `v*` tags:
 
 ---
 
-## 🗺️ Milestones
+## 🚀 Releases
 
-- [x] **M1: Skeleton** — project setup, Compose theme, navigation, permission flow
-- [x] **M2: Files** — file tree, CRUD, workspace open *(part 1: file tree core; part 2: Open Project sheet, recents, backup ZIP, pins — done)*
-- [ ] **M3: Editor core** — Sora embed, tabs, save, TextMate highlighting *(part 1: Sora editor, tabs, save, unsaved dialog — done; part 2: TextMate syntax highlighting — done)*
-- [ ] **M4: Editor extras** — find/replace, symbol bar, autocomplete, settings
-- [ ] **M5: Preview** — Markdown, HTML, SVG, Image preview + toggle
-- [ ] **M6: Git basics** — credentials store, clone, status, stage, commit, push, pull
-- [ ] **M7: Source Control drawer** — drawer UI, changes list, diff viewer
-- [ ] **M8: Git advanced** — branches, log, stash, tags, multi-remote
-- [ ] **M9: Guided onboarding** — init / identity / remote / first commit wizard
-- [ ] **M10: Merge + conflicts** — conflict parser, inline resolution, abort/complete merge
-- [ ] **M11: Search** — file search (fuzzy), code search (grep, regex, globs), history
-- [ ] **M12: Polish** — perf, large files, error states, dark theme, release CI
-- [ ] **M13 (optional)**: Windows 11 Fluent 2 theme
+Two tag-triggered workflows build signed APKs and publish them to GitHub Releases, with SHA-256
+checksums and notes pulled from `CHANGELOG.md`:
+
+- **`.github/workflows/release.yml`** — stable releases, tags matching `vX.Y.Z` (e.g. `v1.0.0`).
+- **`.github/workflows/prerelease.yml`** — pre-releases, tags matching `vX.Y.Z-suffix` (e.g.
+  `v1.0.0-beta.1`, `v1.0.0-rc.2`). The GitHub Release is flagged **Pre-release** automatically.
+
+Both fail if any signing secret is missing — a release is never published unsigned.
+
+To cut a release:
+
+1. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` (pre-releases may keep
+   `[x.y.z]` or stay under `[Unreleased]`), then commit and push to `main`.
+2. Tag the commit and push the tag:
+
+   ```bash
+   # stable
+   git tag v1.0.0
+   git push origin v1.0.0
+
+   # pre-release
+   git tag v1.0.0-beta.1
+   git push origin v1.0.0-beta.1
+   ```
+
+3. The matching job publishes the GitHub Release with all three APKs attached.
+
+There is nothing to bump in Gradle: the tag sets `versionName` (`v1.2.3` → `1.2.3`) and
+[`.github/scripts/version-from-tag.sh`](.github/scripts/version-from-tag.sh) derives a `versionCode`
+that always increases (`alpha` < `beta` < `rc` < stable of the same version), so a beta updates
+cleanly into its final release.
+
+You can also run either workflow by hand from **Actions → Make release / Make pre-release →
+Run workflow** and typing the tag name, without pushing a tag first.
 
 ---
 
-## Out of scope
+## 🔐 Permissions
 
-On-device build/run, SDK/Gradle/JDK, terminal, SSH auth, LSP servers, AI agent/MCP,
-plugin system, Compose/XML layout/Flutter real preview, rebase conflict flow.
+- `MANAGE_EXTERNAL_STORAGE` — "All files access", so Xcode can work directly on your project folders
+- `INTERNET` — Git clone/push/pull over HTTPS and GitHub profile lookups
+- `POST_NOTIFICATIONS` — clone and sync progress
+
+---
+
+## 🚫 Out of scope
+
+On-device build/run, SDK/Gradle/JDK management, a terminal, SSH auth, LSP servers, AI agents/MCP,
+a plugin system, a real Compose/XML/Flutter layout preview, and the rebase conflict flow.
+
+---
+
+<div align="center">
+  <sub>Built with ⚡ by <a href="https://github.com/Utsavrajputt">Utsav</a></sub>
+</div>

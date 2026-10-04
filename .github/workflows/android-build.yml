@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
   workflow_dispatch: {}
 
@@ -30,17 +28,7 @@ jobs:
 
       - name: Generate build metadata
         shell: bash
-        run: |
-          set -euo pipefail
-          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag="${GITHUB_REF#refs/tags/}"
-            echo "IS_TAG=true" >> "$GITHUB_ENV"
-            echo "VERSION_ARGS=-PappVersionName=${tag#v} -PappVersionCode=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
-          else
-            echo "IS_TAG=false" >> "$GITHUB_ENV"
-            echo "VERSION_ARGS=" >> "$GITHUB_ENV"
-          fi
+        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -56,78 +44,19 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      - name: Build unsigned release APK
-        shell: bash
-        run: ./gradlew assembleRelease $VERSION_ARGS --stacktrace --no-daemon
+      - name: Build unsigned release APKs
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
 
+      # Each ABI gets its own APK with only its own native libs, plus a universal one.
+      # Fork PRs have no secrets, so those APKs are simply left unsigned.
       - name: Sign release APKs
         shell: bash
-        run: |
-          set -euo pipefail
-          build_tools_dir=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
-          apksigner="$ANDROID_HOME/build-tools/$build_tools_dir/apksigner"
-          test -x "$apksigner"
-
-          out=app/build/outputs/apk/signed
-          mkdir -p "$out"
-
-          shopt -s nullglob
-          unsigned=(app/build/outputs/apk/release/*-unsigned.apk)
-          if [[ ${#unsigned[@]} -eq 0 ]]; then
-            echo "Missing expected unsigned release APKs"
-            find app/build/outputs/apk -type f -name '*.apk' -print || true
-            exit 1
-          fi
-
-          # app-arm64-v8a-release-unsigned.apk -> arm64-v8a ; app-universal-... -> universal
-          abi_of() { basename "$1" | sed -E 's/^app-(.*)-release-unsigned\.apk$/\1/'; }
-
-          if [[ -z "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
-            if [[ "$IS_TAG" == "true" ]]; then
-              echo "Tag builds must be signed: KEYSTORE_BASE64 is not set."
-              exit 1
-            fi
-            echo "KEYSTORE_BASE64 is not set (expected for fork PRs); leaving APKs unsigned."
-            for apk in "${unsigned[@]}"; do
-              cp "$apk" "$out/xcode-$(abi_of "$apk")-unsigned.apk"
-            done
-            exit 0
-          fi
-
-          if [[ -z "${{ secrets.KEY_ALIAS }}" || -z "${{ secrets.KEYSTORE_PASSWORD }}" || -z "${{ secrets.KEY_PASSWORD }}" ]]; then
-            echo "KEYSTORE_BASE64 is set but KEY_ALIAS / KEYSTORE_PASSWORD / KEY_PASSWORD are missing."
-            exit 1
-          fi
-
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.jks
-
-          for apk in "${unsigned[@]}"; do
-            "$apksigner" sign \
-              --ks release.jks \
-              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
-              --ks-pass "pass:${{ secrets.KEYSTORE_PASSWORD }}" \
-              --key-pass "pass:${{ secrets.KEY_PASSWORD }}" \
-              --out "$out/xcode-$(abi_of "$apk").apk" \
-              "$apk"
-          done
-          rm -f release.jks
-          ls -l "$out"
-
-      - name: Verify APK signatures
-        shell: bash
-        run: |
-          set -euo pipefail
-          build_tools_dir=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n1)
-          apksigner="$ANDROID_HOME/build-tools/$build_tools_dir/apksigner"
-          shopt -s nullglob
-          signed=(app/build/outputs/apk/signed/*.apk)
-          if [[ ${#signed[@]} -eq 0 ]]; then
-            echo "No APKs found."; exit 1
-          fi
-          for apk in "${signed[@]}"; do
-            [[ "$apk" == *-unsigned.apk ]] && continue
-            "$apksigner" verify --verbose --print-certs "$apk"
-          done
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: bash .github/scripts/sign-apks.sh
 
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
@@ -145,22 +74,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload x86_64 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcode-x86_64-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/signed/xcode-x86_64*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload x86 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: xcode-x86-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/signed/xcode-x86[-.]*.apk
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
@@ -168,47 +81,3 @@ jobs:
           path: app/build/outputs/apk/signed/xcode-universal*.apk
           if-no-files-found: error
           retention-days: 14
-
-  release:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-
-    steps:
-      - name: Download signed APK
-        uses: actions/download-artifact@v4
-        with:
-          pattern: xcode-*
-          merge-multiple: true
-          path: dist
-
-      - name: Prepare release assets
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF#refs/tags/}"
-          shopt -s nullglob
-          apks=(dist/xcode-*.apk)
-          test ${#apks[@]} -eq 5   # arm64-v8a, armeabi-v7a, x86, x86_64, universal
-          for apk in "${apks[@]}"; do
-            abi=$(basename "$apk" .apk); abi=${abi#xcode-}
-            mv "$apk" "dist/xcode-${tag}-${abi}.apk"
-          done
-          (cd dist && sha256sum xcode-*.apk > "xcode-${tag}-SHA256SUMS.txt")
-          ls -l dist
-
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF#refs/tags/}"
-          flags=(--generate-notes --title "Xcode ${tag}")
-          # v1.2.0-beta.1 etc. -> pre-release
-          if [[ "$tag" == *-* ]]; then flags+=(--prerelease); fi
-          gh release create "$tag" dist/* "${flags[@]}" --repo "$GITHUB_REPOSITORY"

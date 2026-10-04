@@ -109,6 +109,9 @@ sealed interface FileTreeEvent {
     /** A project folder was renamed on disk (from recents): follow it if it is the open one. */
     data class ProjectMoved(val old: File, val new: File) : FileTreeEvent
 
+    /** A project folder was deleted from disk (from recents): leave it if it is the open one. */
+    data class ProjectDeleted(val dir: File) : FileTreeEvent
+
     data class TogglePin(val file: File, val isDirectory: Boolean) : FileTreeEvent
 
     /** Expand down to [file] and scroll to it (a directory is expanded too). */

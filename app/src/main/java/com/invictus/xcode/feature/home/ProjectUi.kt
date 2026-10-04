@@ -1,5 +1,8 @@
 package com.invictus.xcode.feature.home
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +19,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,12 +27,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +47,7 @@ import com.invictus.xcode.feature.workspace.FileTreeViewModel
 import com.invictus.xcode.ui.components.expressiveClickable
 import com.invictus.xcode.ui.icons.XIcons
 import java.io.File
+import kotlinx.coroutines.launch
 
 /** Fixed palette for project folder tiles; a project's color comes from a hash of its name. */
 private val ProjectPalette = listOf(
@@ -96,12 +103,34 @@ internal fun rememberProjectOpener(
     }
 }
 
-/** Card row for one recent project: colored folder tile, name, path and a remove menu. */
+/** Copies a path to the clipboard; below Android 13 (no system toast) confirms via the snackbar. */
+@Composable
+internal fun rememberCopyPath(snackbarHostState: SnackbarHostState): (File) -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    return { file ->
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText(file.name, file.path))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.msg_path_copied)) }
+        }
+    }
+}
+
+/**
+ * Card row for one recent project: colored folder tile, name, path and an actions menu
+ * (pin, info, copy path, rename, delete, remove from recents).
+ */
 @Composable
 internal fun ProjectCardRow(
     item: RecentItem,
     onOpen: () -> Unit,
     onRemove: () -> Unit,
+    onTogglePin: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onInfo: () -> Unit,
+    onCopyPath: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -127,12 +156,24 @@ internal fun ProjectCardRow(
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = item.file.name,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.file.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (item.pinned) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(
+                            XIcons.Pin,
+                            contentDescription = stringResource(R.string.tree_menu_unpin),
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp),
+                        )
+                    }
+                }
                 Text(
                     text = item.file.path,
                     maxLines = 1,
@@ -146,10 +187,58 @@ internal fun ProjectCardRow(
                     Icon(XIcons.MoreVert, contentDescription = null)
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    val close = { menuOpen = false }
+                    val canModify = item.exists && !item.isDeviceStorage
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (item.pinned) R.string.tree_menu_unpin else R.string.tree_menu_pin)) },
+                        onClick = {
+                            close()
+                            onTogglePin()
+                        },
+                    )
+                    if (item.exists) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.recent_menu_info)) },
+                            onClick = {
+                                close()
+                                onInfo()
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tree_menu_copy_path)) },
+                        onClick = {
+                            close()
+                            onCopyPath()
+                        },
+                    )
+                    if (canModify) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.tree_menu_rename)) },
+                            onClick = {
+                                close()
+                                onRename()
+                            },
+                        )
+                    }
+                    if (item.exists && !item.isProtected) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.tree_menu_delete),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = {
+                                close()
+                                onDelete()
+                            },
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.recent_menu_remove)) },
                         onClick = {
-                            menuOpen = false
+                            close()
                             onRemove()
                         },
                     )

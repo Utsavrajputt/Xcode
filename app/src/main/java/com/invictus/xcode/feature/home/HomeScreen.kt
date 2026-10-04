@@ -1,8 +1,5 @@
 package com.invictus.xcode.feature.home
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.os.Build
 import android.os.Environment
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -141,19 +138,14 @@ fun HomeScreen(
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
                 is ProjectsEffect.ProjectMoved ->
                     fileTreeViewModel.onEvent(FileTreeEvent.ProjectMoved(effect.old, effect.new))
+                is ProjectsEffect.ProjectDeleted ->
+                    fileTreeViewModel.onEvent(FileTreeEvent.ProjectDeleted(effect.dir))
                 is ProjectsEffect.ProjectCreated -> latestOpen(effect.dir)
             }
         }
     }
 
-    val copyPath: (File) -> Unit = { file ->
-        val clipboard = context.getSystemService(ClipboardManager::class.java)
-        clipboard.setPrimaryClip(ClipData.newPlainText(file.name, file.path))
-        // Android 13+ shows its own "copied" confirmation.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            scope.launch { snackbarHostState.showSnackbar(context.getString(R.string.msg_path_copied)) }
-        }
-    }
+    val copyPath = rememberCopyPath(snackbarHostState)
 
     val closeSearch = {
         searching = false
@@ -283,11 +275,23 @@ fun HomeScreen(
                         item = item,
                         onOpen = { openProject(item.file) },
                         onRemove = { projectsViewModel.onEvent(ProjectsEvent.RemoveRecent(item.file.path)) },
+                        onTogglePin = { projectsViewModel.onEvent(ProjectsEvent.TogglePin(item.file.path, !item.pinned)) },
+                        onRename = { projectsViewModel.onEvent(ProjectsEvent.StartRename(item.file)) },
+                        onDelete = { projectsViewModel.onEvent(ProjectsEvent.StartDelete(item.file)) },
+                        onInfo = { projectsViewModel.onEvent(ProjectsEvent.ShowInfo(item.file)) },
+                        onCopyPath = { copyPath(item.file) },
                     )
                 }
             }
         }
     }
+
+    // The Open Project sheet draws its own rename dialog, so Home's copy steps aside while it is up.
+    ProjectActionDialogs(
+        state = projectsState,
+        onEvent = projectsViewModel::onEvent,
+        showRename = !showProjectSheet,
+    )
 
     if (showProjectSheet) {
         OpenProjectSheet(

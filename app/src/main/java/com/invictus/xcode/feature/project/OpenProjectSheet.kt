@@ -737,7 +737,7 @@ private fun RecentRow(
 }
 
 @Composable
-private fun RenameProjectDialog(state: RenameProject, onEvent: (ProjectsEvent) -> Unit) {
+internal fun RenameProjectDialog(state: RenameProject, onEvent: (ProjectsEvent) -> Unit) {
     var text by rememberSaveable(state.file.path) { mutableStateOf(state.file.name) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }

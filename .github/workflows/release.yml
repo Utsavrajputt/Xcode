@@ -1,0 +1,115 @@
+name: Make release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Tag to release (for example v1.0.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.tag_name || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-for-github:
+    name: Release for GitHub
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve and validate stable release tag
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version_tag="${GITHUB_REF#refs/tags/}"
+          else
+            version_tag="$INPUT_TAG"
+          fi
+
+          if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid stable release tag: $version_tag"
+            exit 1
+          fi
+          echo "VERSION_TAG=$version_tag" >> "$GITHUB_ENV"
+
+          # Sets VERSION_NAME / VERSION_CODE (see the script for how the code is derived).
+          bash .github/scripts/version-from-tag.sh "$version_tag"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build unsigned release APKs
+        shell: bash
+        run: |
+          ./gradlew assembleRelease \
+            -PappVersionName="$VERSION_NAME" \
+            -PappVersionCode="$VERSION_CODE" \
+            --stacktrace --no-daemon
+
+      - name: Sign and verify release APKs
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: bash .github/scripts/sign-apks.sh --require-secrets
+
+      - name: Stage release assets and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          mkdir -p release-assets
+          apks=(app/build/outputs/apk/signed/xcode-*.apk)
+          # arm64-v8a, armeabi-v7a, universal
+          test ${#apks[@]} -eq 3
+
+          for src in "${apks[@]}"; do
+            abi="$(basename "$src" .apk)"; abi="${abi#xcode-}"
+            cp "$src" "release-assets/xcode-${VERSION_TAG}-${abi}.apk"
+          done
+
+          (cd release-assets && sha256sum *.apk | tee ../checksums.txt)
+
+      - name: Prepare release notes
+        run: python3 .github/scripts/release-notes.py "$VERSION_TAG" checksums.txt
+
+      - name: Create GitHub stable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION_TAG }}
+          name: Xcode ${{ env.VERSION_TAG }}
+          body_path: release-notes.md
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: release-assets/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

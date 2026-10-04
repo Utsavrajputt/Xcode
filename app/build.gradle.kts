@@ -13,7 +13,8 @@ android {
         applicationId = "com.invictus.xcode"
         minSdk = 30
         targetSdk = 36
-        // CI passes these on tag builds (v1.2.3 -> name 1.2.3, code = run number).
+        // CI passes these on tag builds (v1.2.3 -> name 1.2.3, code derived from the tag
+        // by .github/scripts/version-from-tag.sh so pre-releases always sort below the stable).
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
         versionName = (project.findProperty("appVersionName") as String?) ?: "0.1.0"
     }
@@ -33,8 +34,8 @@ android {
             )
             // No signingConfig here on purpose: this build type produces an
             // unsigned APK (app-release-unsigned.apk). Signing is done
-            // explicitly with apksigner in .github/workflows/android-build.yml
-            // (or manually for local release testing), keeping build and
+            // explicitly with apksigner (.github/scripts/sign-apks.sh, called from the
+            // build / release workflows) or manually for local release testing), keeping build and
             // sign as separate, visible steps.
         }
     }
@@ -44,13 +45,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    // One APK per ABI (each contains only that ABI's native libs) + a universal APK.
+    // One APK per ABI (arm64-v8a, armeabi-v7a; each contains only that ABI's native libs)
+    // + a universal APK. x86 / x86_64 are intentionally not built.
     // Only for release builds so local debug installs stay a single APK.
     splits {
         abi {
             isEnable = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            include("arm64-v8a", "armeabi-v7a")
             isUniversalApk = true
         }
     }

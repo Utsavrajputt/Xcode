@@ -166,6 +166,8 @@ fun WorkspaceScreen(
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
                 is ProjectsEffect.ProjectMoved ->
                     viewModel.onEvent(FileTreeEvent.ProjectMoved(effect.old, effect.new))
+                is ProjectsEffect.ProjectDeleted ->
+                    viewModel.onEvent(FileTreeEvent.ProjectDeleted(effect.dir))
                 // Only the home screen creates projects.
                 is ProjectsEffect.ProjectCreated -> Unit
             }

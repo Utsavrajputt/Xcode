@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class RecentProjectDao {
-    @Query("SELECT * FROM recent_projects ORDER BY lastOpenedAt DESC")
+    @Query("SELECT * FROM recent_projects ORDER BY pinned DESC, lastOpenedAt DESC")
     abstract fun observeAll(): Flow<List<RecentProjectEntity>>
 
     @Query("SELECT * FROM recent_projects ORDER BY lastOpenedAt DESC LIMIT 1")
@@ -19,8 +19,20 @@ abstract class RecentProjectDao {
     @Query("SELECT * FROM recent_projects")
     abstract suspend fun getAll(): List<RecentProjectEntity>
 
+    @Query("SELECT * FROM recent_projects WHERE path = :path")
+    abstract suspend fun get(path: String): RecentProjectEntity?
+
     @Upsert
     abstract suspend fun upsert(item: RecentProjectEntity)
+
+    /** Bumps [path] to the top of the unpinned recents without losing its pinned flag. */
+    @Transaction
+    open suspend fun touch(path: String, now: Long) {
+        upsert(get(path)?.copy(lastOpenedAt = now) ?: RecentProjectEntity(path, now))
+    }
+
+    @Query("UPDATE recent_projects SET pinned = :pinned WHERE path = :path")
+    abstract suspend fun setPinned(path: String, pinned: Boolean)
 
     @Upsert
     abstract suspend fun upsertAll(items: List<RecentProjectEntity>)
@@ -31,12 +43,19 @@ abstract class RecentProjectDao {
     @Query("DELETE FROM recent_projects WHERE path = :path")
     abstract suspend fun deleteByPath(path: String)
 
-    /** Keeps only the [keep] most recently opened entries. */
+    /** Keeps only the [keep] most recently opened unpinned entries; pinned ones are never trimmed. */
     @Query(
-        "DELETE FROM recent_projects WHERE path NOT IN " +
-            "(SELECT path FROM recent_projects ORDER BY lastOpenedAt DESC LIMIT :keep)",
+        "DELETE FROM recent_projects WHERE pinned = 0 AND path NOT IN " +
+            "(SELECT path FROM recent_projects WHERE pinned = 0 ORDER BY lastOpenedAt DESC LIMIT :keep)",
     )
     abstract suspend fun trim(keep: Int)
+
+    /** A folder was deleted: drop every recent at or below it. */
+    @Transaction
+    open suspend fun deleteUnder(path: String) {
+        val affected = getAll().filter { PathUtil.isSameOrUnder(it.path, path) }
+        if (affected.isNotEmpty()) deleteAll(affected)
+    }
 
     /** A folder moved: fix every recent at or below it. */
     @Transaction

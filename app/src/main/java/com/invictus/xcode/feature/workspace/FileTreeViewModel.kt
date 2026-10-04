@@ -161,6 +161,7 @@ class FileTreeViewModel(
 
             is FileTreeEvent.OpenProject -> openProject(event.dir)
             is FileTreeEvent.ProjectMoved -> onProjectMoved(event.old, event.new)
+            is FileTreeEvent.ProjectDeleted -> onProjectDeleted(event.dir)
             is FileTreeEvent.TogglePin -> togglePin(event.file, event.isDirectory)
             is FileTreeEvent.Reveal -> reveal(event.file, event.isDirectory)
         }
@@ -188,6 +189,12 @@ class FileTreeViewModel(
     private fun onProjectMoved(old: File, new: File) {
         if (!PathUtil.isSameOrUnder(root.path, old.path)) return
         switchRoot(File(PathUtil.rebase(root.path, old.path, new.path)), record = false)
+    }
+
+    /** The open project's folder is gone: fall back to the device root rather than a dead path. */
+    private fun onProjectDeleted(dir: File) {
+        if (!PathUtil.isSameOrUnder(root.path, dir.path)) return
+        switchRoot(storageRoot, record = false)
     }
 
     /** Points the tree at [newRoot], dropping the previous project's expansion state. */
