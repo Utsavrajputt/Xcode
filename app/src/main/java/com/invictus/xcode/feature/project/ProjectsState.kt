@@ -33,6 +33,8 @@ data class ProjectsUiState(
     val backingUp: Set<String> = emptySet(),
     /** Whether the folder browser also lists dot-prefixed (hidden) folders. */
     val showHidden: Boolean = false,
+    /** Error from the last New Project attempt (invalid name, already exists...). */
+    val createError: UiText? = null,
 )
 
 sealed interface ProjectsEvent {
@@ -47,6 +49,9 @@ sealed interface ProjectsEvent {
     data class Backup(val file: File) : ProjectsEvent
     data object ToggleShowHidden : ProjectsEvent
     data class SaveShortcuts(val prefs: List<ShortcutPref>) : ProjectsEvent
+    /** Create folder [name] inside [parent]; on success a [ProjectsEffect.ProjectCreated] follows. */
+    data class CreateProject(val parent: File, val name: String) : ProjectsEvent
+    data object DismissCreateError : ProjectsEvent
 }
 
 sealed interface ProjectsEffect {
@@ -54,4 +59,7 @@ sealed interface ProjectsEffect {
 
     /** A project folder was renamed on disk; the workspace follows it if it was open. */
     data class ProjectMoved(val old: File, val new: File) : ProjectsEffect
+
+    /** A new project folder was created; the home screen opens it right away. */
+    data class ProjectCreated(val dir: File) : ProjectsEffect
 }

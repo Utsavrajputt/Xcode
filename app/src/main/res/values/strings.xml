@@ -557,4 +557,22 @@
     <string name="git_progress_resetting">Resetting…</string>
     <string name="git_progress_count">%1$d / %2$d</string>
     <string name="git_progress_wait">Large repos can take a moment. Please wait.</string>
+    <string name="home_hero_kicker">LET\'S CODE</string>
+    <string name="home_hero_line1">Create Something</string>
+    <string name="home_hero_line2">Amazing</string>
+    <string name="home_new_project">New project</string>
+    <string name="home_search">Search projects</string>
+    <string name="home_search_hint">Search projects…</string>
+    <string name="home_view_all">View All</string>
+    <string name="home_all_projects">All Projects</string>
+    <string name="home_no_matches">No matching projects</string>
+    <string name="home_sort_recent">Recent</string>
+    <string name="home_sort_name_az">Name A–Z</string>
+    <string name="home_sort_name_za">Name Z–A</string>
+    <string name="new_project_title">New project</string>
+    <string name="new_project_name">Project name</string>
+    <string name="new_project_name_hint">Folder will be created at the location below</string>
+    <string name="new_project_location">Location</string>
+    <string name="new_project_change">Change</string>
+    <string name="new_project_create">Create</string>
 </resources>

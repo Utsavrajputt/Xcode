@@ -30,6 +30,7 @@ import com.invictus.xcode.feature.git.GitRemotesScreen
 import com.invictus.xcode.feature.git.GitScreen
 import com.invictus.xcode.feature.git.GitStashScreen
 import com.invictus.xcode.feature.git.GitTagsScreen
+import com.invictus.xcode.feature.home.AllProjectsScreen
 import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.OnboardingScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
@@ -105,6 +106,13 @@ fun XcodeNavHost(
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onProjectOpened = { navController.navigate(Routes.WORKSPACE) },
                 onClone = { navController.navigate(Routes.GIT_CLONE) },
+                onViewAll = { navController.navigate(Routes.ALL_PROJECTS) },
+            )
+        }
+        composable(Routes.ALL_PROJECTS) {
+            AllProjectsScreen(
+                onBack = { navController.popBackStack() },
+                onProjectOpened = { navController.navigate(Routes.WORKSPACE) },
             )
         }
         composable(Routes.WORKSPACE) {
