@@ -2,6 +2,8 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -155,7 +157,7 @@ private fun DrawerHeader(state: GitViewModel.UiState, onEvent: (GitEvent) -> Uni
     val snapshot = state.snapshot ?: return
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Icon(XIcons.AccountTree, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(12.dp))
@@ -190,7 +192,7 @@ private fun DrawerHeader(state: GitViewModel.UiState, onEvent: (GitEvent) -> Uni
 @Composable
 private fun DrawerCommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         OutlinedTextField(
@@ -293,7 +295,7 @@ private fun LazyListScope.drawerSection(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
                 .clickable { onEvent(GitEvent.ToggleSection(key)) }
-                .padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                .padding(start = 16.dp, end = 8.dp, top = 2.dp),
         ) {
             Icon(
                 if (expanded) XIcons.KeyboardArrowDown else XIcons.ChevronRight,
@@ -330,6 +332,7 @@ private fun LazyListScope.drawerSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DrawerChangeItem(
     change: GitPathChange,
@@ -338,28 +341,53 @@ private fun DrawerChangeItem(
     onEvent: (GitEvent) -> Unit,
 ) {
     val (color, labelRes) = changeColorLabel(change)
+    val path = change.repoRelativePath
+    var menuOpen by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
-                .clickable { onEvent(GitEvent.LoadDiff(change.repoRelativePath)) }
-                .padding(start = 28.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .combinedClickable(
+                    // Tap toggles the inline diff: open it, tap again to fold it away.
+                    onClick = {
+                        if (diff != null) onEvent(GitEvent.CloseDiff(path))
+                        else if (!diffLoading) onEvent(GitEvent.LoadDiff(path))
+                    },
+                    onLongClick = { menuOpen = true },
+                )
+                .padding(start = 28.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
         ) {
             Box(Modifier.padding(end = 10.dp).size(8.dp).background(color, CircleShape))
             Text(
-                change.repoRelativePath,
+                path,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { onEvent(GitEvent.OpenFile(change.repoRelativePath)) }) {
-                Text(stringResource(R.string.git_open_in_editor))
-            }
             Text(
                 stringResource(labelRes),
                 style = MaterialTheme.typography.labelSmall,
                 color = color,
+                modifier = Modifier.padding(start = 8.dp),
             )
+            Icon(
+                if (diff != null) XIcons.KeyboardArrowUp else XIcons.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 4.dp).size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box {
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.git_open_in_editor)) },
+                        leadingIcon = { Icon(XIcons.FolderOpen, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onEvent(GitEvent.OpenFile(path))
+                        },
+                    )
+                }
+            }
         }
         if (diffLoading) {
             Row(

@@ -2,6 +2,7 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -218,7 +219,7 @@ fun GitScreen(
                     }
                     Box {
                         IconButton(onClick = { overflowOpen = true }) {
-                            Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_title))
+                            Icon(XIcons.KeyboardArrowDown, contentDescription = stringResource(R.string.git_title))
                         }
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
                             DropdownMenuItem(
@@ -394,7 +395,7 @@ private fun LazyListScope.changeSection(
     item(key = "$keyPrefix:header") {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 4.dp),
         ) {
             Text(
                 stringResource(titleRes),
@@ -453,7 +454,7 @@ private fun ChangeRow(
                     },
                     onLongClick = { menuOpen = true },
                 )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 5.dp),
         ) {
             Box(
                 modifier = Modifier
@@ -638,16 +639,6 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
             label = { Text(stringResource(R.string.git_commit_hint)) },
-            trailingIcon = {
-                IconButton(
-                    onClick = {
-                        clipboard.getText()?.text?.takeIf { it.isNotEmpty() }
-                            ?.let { onEvent(GitEvent.PasteCommitText(it)) }
-                    },
-                ) {
-                    Icon(XIcons.ContentPaste, contentDescription = stringResource(R.string.git_paste))
-                }
-            },
         )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             FilterChip(
@@ -656,6 +647,20 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
                 label = { Text(stringResource(R.string.git_amend)) },
             )
             Spacer(Modifier.weight(1f))
+            OutlinedIconButton(
+                onClick = {
+                    clipboard.getText()?.text?.takeIf { it.isNotEmpty() }
+                        ?.let { onEvent(GitEvent.PasteCommitText(it)) }
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    XIcons.ContentPaste,
+                    contentDescription = stringResource(R.string.git_paste),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Button(
                 onClick = { onEvent(GitEvent.Commit) },
                 enabled = (state.commitMessage.isNotBlank() || state.amend) &&

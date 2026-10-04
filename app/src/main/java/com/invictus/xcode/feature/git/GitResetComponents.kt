@@ -99,7 +99,7 @@ fun GitResetSheet(
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
-    var mode by remember { mutableStateOf(GitResetMode.MIXED) }
+    var mode by remember { mutableStateOf(GitResetMode.HARD) }
     var target by remember { mutableStateOf<GitResetTargetChip?>(null) }
     var picking by remember { mutableStateOf(false) }
 
@@ -280,7 +280,7 @@ fun GitResetModeDialog(
     onConfirm: (GitResetMode) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var mode by remember(commit) { mutableStateOf(GitResetMode.MIXED) }
+    var mode by remember(commit) { mutableStateOf(GitResetMode.HARD) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.git_reset_title)) },
