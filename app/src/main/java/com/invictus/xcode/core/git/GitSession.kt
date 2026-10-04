@@ -1814,6 +1814,7 @@ private object DiffParser {
         var truncated = false
         var leftNo = 0
         var rightNo = 0
+        var inHunk = false // file headers (---/+++) only exist before the first @@
         val pendingRemoved = ArrayList<Pair<Int, String>>()
 
         fun flushRemoved() {
@@ -1832,9 +1833,11 @@ private object DiffParser {
                     val m = HUNK_RE.find(line) ?: continue
                     leftNo = m.groupValues[1].toInt()
                     rightNo = m.groupValues[2].toInt()
+                    inHunk = true
+                    rows += GitDiffRow(null, line, GitDiffLineType.HUNK, null, line, GitDiffLineType.HUNK)
                 }
-                line.startsWith("---") || line.startsWith("+++") ||
-                    line.startsWith("diff ") || line.startsWith("index ") -> Unit
+                !inHunk && (line.startsWith("---") || line.startsWith("+++") ||
+                    line.startsWith("diff ") || line.startsWith("index ")) -> Unit
                 line.startsWith("-") -> pendingRemoved += leftNo++ to line.substring(1)
                 line.startsWith("+") -> {
                     val text = line.substring(1)

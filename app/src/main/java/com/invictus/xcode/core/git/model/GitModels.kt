@@ -139,7 +139,8 @@ enum class GitPendingAction { PUSH, PULL, FETCH, CLONE }
 // ---- M7: diff + file-tree decoration models --------------------------------
 
 /** Line classification for one side of a diff row. PADDING = that side has no line. */
-enum class GitDiffLineType { CONTEXT, ADDED, REMOVED, PADDING }
+/** [HUNK] rows carry the raw "@@ -a,b +c,d @@ section" header in leftText/rightText. */
+enum class GitDiffLineType { CONTEXT, ADDED, REMOVED, PADDING, HUNK }
 
 /**
  * One aligned row of a side-by-side diff. Adds/deletes pair up inside a hunk; a leftover
