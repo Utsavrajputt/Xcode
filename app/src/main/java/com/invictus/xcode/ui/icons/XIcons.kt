@@ -154,9 +154,16 @@ object XIcons {
                 "c0,3.31 2.69,6 6,6h13c2.76,0 5,-2.24 5,-5 0,-2.64 -2.05,-4.78 -4.65,-4.96zM17,13l-5,5 -5,-5h3V9h4v4h3z",
         )
     }
-    /** Clone a repository: arrow dropping into a tray (distinct from CloudDownload, used for fetch/pull). */
+    /** Clone a repository: git branch glyph (two nodes on a trunk plus a branching node). */
     val Clone: ImageVector by lazy {
-        icon("Clone", "M5,20h14v-2H5V20z M19,9h-4V3H9v6H5l7,7L19,9z")
+        icon(
+            "Clone",
+            "M3.4,5.5a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0zM5.0,5.5a1.0,1.0 0 1,1 2.0,0a1.0,1.0 0 1,1 -2.0,0z" +
+                "M3.4,18.5a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0zM5.0,18.5a1.0,1.0 0 1,1 2.0,0a1.0,1.0 0 1,1 -2.0,0z" +
+                "M15.4,8.5a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0zM17.0,8.5a1.0,1.0 0 1,1 2.0,0a1.0,1.0 0 1,1 -2.0,0z" +
+                "M5.1,8.1h1.8v7.8h-1.8z" +
+                "M17.1,11.1V11.6A1.1,1.1 0 0,1 16,12.7H6.9V14.5H16A2.9,2.9 0 0,0 18.9,11.6V11.1Z",
+        )
     }
     val Sync: ImageVector by lazy {
         icon(

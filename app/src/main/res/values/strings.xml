@@ -85,6 +85,7 @@
     <string name="menu_open_project">Open project</string>
     <string name="menu_backup_project">Back up as ZIP</string>
     <string name="sheet_title">Open project</string>
+    <string name="sheet_subtitle">Choose a folder or search for a path.</string>
     <string name="sheet_search_hint">Search, or type a path (/storage/…)</string>
     <string name="sheet_open_path">Open this path</string>
     <string name="sheet_path_missing">Folder not found</string>

@@ -87,7 +87,6 @@ fun WorkspaceScreen(
     onProjectRoot: (File) -> Unit = {},
     onOpenGit: (File) -> Unit = {},
     onGitSetup: (File) -> Unit = {},
-    onClone: () -> Unit = {},
     onOpenCodeSearch: (File) -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
@@ -264,7 +263,6 @@ fun WorkspaceScreen(
                 viewModel.onEvent(FileTreeEvent.OpenProject(dir))
             },
             onCopyPath = copyPath,
-            onClone = onClone,
             onDismiss = { showProjectSheet = false },
             // Inside a project there's no Home recents list visible, so keep it here.
             showRecent = true,
@@ -272,7 +270,6 @@ fun WorkspaceScreen(
             // folder browser, no clone (Home's Open Project sheet keeps all of that).
             showSearch = false,
             showBrowse = false,
-            showClone = false,
         )
     }
 }

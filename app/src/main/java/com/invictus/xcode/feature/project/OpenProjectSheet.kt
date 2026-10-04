@@ -38,6 +38,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Switch
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.Surface
+import com.invictus.xcode.feature.home.projectColor
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -97,14 +103,12 @@ fun OpenProjectSheet(
     onEvent: (ProjectsEvent) -> Unit,
     onOpen: (File) -> Unit,
     onCopyPath: (File) -> Unit,
-    onClone: () -> Unit = {},
     onDismiss: () -> Unit,
     showRecent: Boolean = true,
     // Workspace's in-project "change project" sheet trims this down to just Recents --
-    // Home's pre-workspace "Open Project" sheet keeps the full search/browse/clone flow.
+    // Home's pre-workspace "Open Project" sheet keeps the full search/browse flow.
     showSearch: Boolean = true,
     showBrowse: Boolean = true,
-    showClone: Boolean = true,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var query by rememberSaveable { mutableStateOf("") }
@@ -173,16 +177,31 @@ fun OpenProjectSheet(
         }
         Column(modifier = Modifier.fillMaxWidth().then(heightModifier).imePadding()) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = stringResource(R.string.sheet_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.sheet_title),
+                        style = MaterialTheme.typography.titleLarge,
+                    )
+                    if (showBrowse) {
+                        Text(
+                            text = stringResource(R.string.sheet_subtitle),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 if (showBrowse) {
-                    IconButton(onClick = { editingShortcuts = true }) {
+                    FilledTonalIconButton(
+                        onClick = { editingShortcuts = true },
+                        modifier = Modifier.size(44.dp),
+                        shape = CircleShape,
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        ),
+                    ) {
                         Icon(
                             imageVector = XIcons.Tune,
                             contentDescription = stringResource(R.string.sheet_browse_settings),
@@ -196,13 +215,6 @@ fun OpenProjectSheet(
                     onQueryChange = { query = it },
                     onGo = { if (typedPath != null && pathIsFolder == true) onOpen(File(typedPath)) },
                 )
-            }
-            if (showClone) {
-                TextButton(onClick = onClone, modifier = Modifier.padding(horizontal = 24.dp)) {
-                    Icon(XIcons.Clone, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.home_clone))
-                }
             }
             val listModifier = if (expandFull) Modifier.weight(1f) else Modifier
             LazyColumn(modifier = listModifier, contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -220,8 +232,10 @@ fun OpenProjectSheet(
                         item(key = "browse-internal") {
                             FolderRow(
                                 name = stringResource(R.string.workspace_root_internal),
+                                file = storageRoot,
                                 onEnter = { onEvent(ProjectsEvent.Browse(storageRoot)) },
                                 onOpen = { onOpen(storageRoot) },
+                                onCopyPath = onCopyPath,
                             )
                         }
                     } else {
@@ -241,8 +255,10 @@ fun OpenProjectSheet(
                         items(items = entries, key = { "bl:" + it.path }) { dir ->
                             FolderRow(
                                 name = dir.name,
+                                file = dir,
                                 onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
                                 onOpen = { onOpen(dir) },
+                                onCopyPath = onCopyPath,
                             )
                         }
                     }
@@ -277,6 +293,7 @@ fun OpenProjectSheet(
                                 query = ""
                             },
                             onOpen = { onOpen(result.file) },
+                            onCopyPath = onCopyPath,
                         )
                     }
                 } else {
@@ -285,8 +302,10 @@ fun OpenProjectSheet(
                         items(items = shortcuts, key = { "s:" + it.file.path }) { shortcut ->
                             FolderRow(
                                 name = shortcut.label?.asString() ?: shortcut.file.name,
+                                file = shortcut.file,
                                 onEnter = { onEvent(ProjectsEvent.Browse(shortcut.file)) },
                                 onOpen = { onOpen(shortcut.file) },
+                                onCopyPath = onCopyPath,
                             )
                         }
                     } else {
@@ -306,8 +325,10 @@ fun OpenProjectSheet(
                         items(items = entries, key = { "b:" + it.path }) { dir ->
                             FolderRow(
                                 name = dir.name,
+                                file = dir,
                                 onEnter = { onEvent(ProjectsEvent.Browse(dir)) },
                                 onOpen = { onOpen(dir) },
+                                onCopyPath = onCopyPath,
                             )
                         }
                     }
@@ -465,6 +486,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, onGo: ()
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
         keyboardActions = KeyboardActions(onGo = { onGo() }),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
     )
 }
@@ -523,83 +545,125 @@ private fun TypedPathRow(path: String, isFolder: Boolean?, onOpen: () -> Unit) {
     }
 }
 
+/** Address-bar style header while browsing inside a folder: up button, current path, Open. */
 @Composable
 private fun BrowseHeader(dir: File, onUp: () -> Unit, onOpen: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
-        IconButton(onClick = onUp) {
-            Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+        Row(
+            modifier = Modifier.padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onUp) {
+                Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            }
+            Text(
+                text = dir.path,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            OpenPill(onClick = onOpen)
         }
-        Text(
-            text = dir.path,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_folder)) }
     }
 }
 
-/** Recursive folder-search hit: name (bold match) + its path under storage; tap enters, button opens. */
+/** Small tonal "Open" button shared by the browse rows. */
+@Composable
+private fun OpenPill(onClick: () -> Unit) {
+    FilledTonalButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        modifier = Modifier.height(36.dp),
+    ) { Text(stringResource(R.string.action_open_folder)) }
+}
+
+/** Recursive folder-search hit: name + its path under storage; tap enters, Open opens it. */
 @Composable
 private fun FolderSearchResultRow(
     result: FolderSearchEngine.Result,
     onEnter: () -> Unit,
     onOpen: () -> Unit,
+    onCopyPath: (File) -> Unit,
 ) {
+    FolderEntryRow(
+        name = result.name,
+        file = result.file,
+        subtitle = result.relativePath,
+        onEnter = onEnter,
+        onOpen = onOpen,
+        onCopyPath = onCopyPath,
+    )
+}
+
+/** Tap enters the folder; the trailing button opens it as the workspace. */
+@Composable
+private fun FolderRow(name: String, file: File, onEnter: () -> Unit, onOpen: () -> Unit, onCopyPath: (File) -> Unit) {
+    FolderEntryRow(name = name, file = file, subtitle = file.path, onEnter = onEnter, onOpen = onOpen, onCopyPath = onCopyPath)
+}
+
+/** Colored folder tile, name + path, tonal Open button and a overflow menu (same look as Home). */
+@Composable
+private fun FolderEntryRow(
+    name: String,
+    file: File,
+    subtitle: String,
+    onEnter: () -> Unit,
+    onOpen: () -> Unit,
+    onCopyPath: (File) -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val accent = projectColor(name)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
             .expressiveClickable(onClick = onEnter)
-            .padding(start = 24.dp, end = 12.dp),
+            .padding(start = 24.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FileTypeIcon(name = result.name, isDirectory = true)
-        Spacer(Modifier.width(16.dp))
+        Box(
+            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.2f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(XIcons.Folder, contentDescription = null, tint = accent)
+        }
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = result.name,
+                text = name,
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = result.relativePath,
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_folder)) }
-    }
-}
-
-/** Tap enters the folder; the trailing button opens it as the workspace. */
-@Composable
-private fun FolderRow(name: String, onEnter: () -> Unit, onOpen: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .expressiveClickable(onClick = onEnter)
-            .padding(start = 24.dp, end = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FileTypeIcon(name = name, isDirectory = true)
-        Spacer(Modifier.width(16.dp))
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(onClick = onOpen) { Text(stringResource(R.string.action_open_folder)) }
+        Spacer(Modifier.width(8.dp))
+        OpenPill(onClick = onOpen)
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(XIcons.MoreVert, contentDescription = null)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.tree_menu_copy_path)) },
+                    onClick = {
+                        menuOpen = false
+                        onCopyPath(file)
+                    },
+                )
+            }
+        }
     }
 }
 

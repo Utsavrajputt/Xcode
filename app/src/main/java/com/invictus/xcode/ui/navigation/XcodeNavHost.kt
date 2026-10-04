@@ -122,7 +122,6 @@ fun XcodeNavHost(
                 onProjectRoot = { editorViewModel.onProjectOpened(it.path) },
                 onOpenGit = { root -> navController.navigate(Routes.git(root.path)) },
                 onGitSetup = { root -> navController.navigate(Routes.gitOnboarding(root.path)) },
-                onClone = { navController.navigate(Routes.GIT_CLONE) },
                 onOpenCodeSearch = { root ->
                     navController.navigate(Routes.codeSearch(root.path))
                 },
