@@ -199,7 +199,7 @@ fun OpenProjectSheet(
             }
             if (showClone) {
                 TextButton(onClick = onClone, modifier = Modifier.padding(horizontal = 24.dp)) {
-                    Icon(XIcons.Commit, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(XIcons.Clone, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.home_clone))
                 }

@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -200,6 +201,10 @@ fun HomeScreen(
                     } else {
                         HeaderIconButton(onClick = { searching = true }) {
                             Icon(XIcons.Search, contentDescription = stringResource(R.string.home_search))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        HeaderIconButton(onClick = onClone) {
+                            Icon(XIcons.Clone, contentDescription = stringResource(R.string.home_clone))
                         }
                         Spacer(Modifier.width(10.dp))
                         HeaderIconButton(onClick = onOpenSettings) {
@@ -369,10 +374,12 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
         Column(Modifier.align(Alignment.CenterStart).padding(start = (26 * s).dp)) {
             Text(
                 text = stringResource(R.string.home_hero_kicker),
-                fontSize = (9 * s).sp,
-                letterSpacing = (3 * s).sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF5B8CFF),
+                style = TextStyle(
+                    brush = Brush.horizontalGradient(listOf(Color(0xFF8DB0FF), Color(0xFFB4EAFF))),
+                    fontSize = (10 * s).sp,
+                    letterSpacing = (3 * s).sp,
+                    fontWeight = FontWeight.Medium,
+                ),
             )
             Spacer(Modifier.height((9 * s).dp))
             Box(
@@ -440,6 +447,7 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
     val rise = h * 0.20f
     val panelH = h * 0.36f
     val bob = 6.dp.toPx()
+    val corner = 9.dp.toPx()
     val fills = listOf(
         listOf(Color(0x885CC8FF), Color(0x883A6BFF)),
         listOf(Color(0x993F6BFF), Color(0x992F46E8)),
@@ -452,19 +460,18 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
         val phase = when (k) { 0 -> b; 1 -> a; else -> 1f - b }
         val x0 = w * (0.51f + 0.055f * k)
         val y0 = h * (0.36f + 0.04f * k) + (phase - 0.5f) * 2f * bob * (0.6f + 0.2f * k)
-        val path = Path().apply {
-            moveTo(x0, y0)
-            lineTo(x0 + panelW, y0 - rise)
-            lineTo(x0 + panelW, y0 - rise + panelH)
-            lineTo(x0, y0 + panelH)
-            close()
-        }
+        val quad = listOf(
+            Offset(x0, y0),
+            Offset(x0 + panelW, y0 - rise),
+            Offset(x0 + panelW, y0 - rise + panelH),
+            Offset(x0, y0 + panelH),
+        )
+        val path = roundedPolygon(quad, corner)
         drawPath(
             path,
             Brush.linearGradient(fills[k], start = Offset(x0, y0 - rise), end = Offset(x0 + panelW, y0 + panelH)),
         )
-        // Round stroke joins soften the corners of the parallelogram.
-        drawPath(path, edges[k], style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(path, edges[k], style = Stroke(width = 1.5.dp.toPx(), join = StrokeJoin.Round))
         if (k == 2) {
             frontX = x0
             frontY = y0
@@ -481,19 +488,53 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
         )
     }
 
-    // Glowing </> on the front panel; the glow pulses with [b].
-    val cx = frontX + panelW * 0.5f
-    val cy = frontY + (panelH - rise) / 2f
-    val u = w * 0.028f
+    // Inset screen on the front panel, then the thin glowing </> inside it.
+    val t0 = 0.07f
+    val top = h * 0.075f
+    val bottom = h * 0.05f
+    val tl = Offset(frontX + panelW * t0, frontY - rise * t0 + top)
+    val tr = Offset(frontX + panelW * (1 - t0), frontY - rise * (1 - t0) + top)
+    val br = Offset(tr.x, frontY - rise * (1 - t0) + panelH - bottom)
+    val bl = Offset(tl.x, frontY - rise * t0 + panelH - bottom)
+    val screen = roundedPolygon(listOf(tl, tr, br, bl), 5.dp.toPx())
+    drawPath(screen, Color(0x33081250))
+    drawPath(screen, Color(0x445F8CFF), style = Stroke(width = 1.dp.toPx(), join = StrokeJoin.Round))
+
+    val cx = (tl.x + tr.x) / 2f
+    val cy = (tl.y + tr.y + br.y + bl.y) / 4f
+    val u = w * 0.02f
+    val slope = -rise / panelW // same lean as the panel's top edge
+    fun pt(x: Float, y: Float) = Offset(cx + x * u, cy + y * u + x * u * slope)
     val glyph = Path().apply {
-        moveTo(cx - 1.7f * u, cy - 1.5f * u); lineTo(cx - 3.3f * u, cy); lineTo(cx - 1.7f * u, cy + 1.5f * u)
-        moveTo(cx + 0.55f * u, cy - 2.1f * u); lineTo(cx - 0.55f * u, cy + 2.1f * u)
-        moveTo(cx + 1.7f * u, cy - 1.5f * u); lineTo(cx + 3.3f * u, cy); lineTo(cx + 1.7f * u, cy + 1.5f * u)
+        val a1 = pt(-1.4f, -1.9f); val a2 = pt(-3.3f, 0f); val a3 = pt(-1.4f, 1.9f)
+        moveTo(a1.x, a1.y); lineTo(a2.x, a2.y); lineTo(a3.x, a3.y)
+        val s1 = pt(0.6f, -2.6f); val s2 = pt(-0.6f, 2.6f)
+        moveTo(s1.x, s1.y); lineTo(s2.x, s2.y)
+        val c1 = pt(1.4f, -1.9f); val c2 = pt(3.3f, 0f); val c3 = pt(1.4f, 1.9f)
+        moveTo(c1.x, c1.y); lineTo(c2.x, c2.y); lineTo(c3.x, c3.y)
     }
-    rotate(-10f, Offset(cx, cy)) {
-        drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = 0.15f + 0.25f * b), style = Stroke(width = u * 2.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        drawPath(glyph, Color(0xFF5FF3FF), style = Stroke(width = u * 0.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    // Soft glow (pulses with [b]) under a thin bright stroke.
+    drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = 0.10f + 0.15f * b), style = Stroke(width = w * 0.02f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(glyph, Color(0xFF5FF3FF), style = Stroke(width = w * 0.0085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+/** Polygon with every corner rounded by [radius] (quadratic curve through the original vertex). */
+private fun roundedPolygon(pts: List<Offset>, radius: Float): Path {
+    val path = Path()
+    val n = pts.size
+    for (i in 0 until n) {
+        val prev = pts[(i - 1 + n) % n]
+        val cur = pts[i]
+        val next = pts[(i + 1) % n]
+        val toPrev = prev - cur
+        val toNext = next - cur
+        val start = cur + toPrev * (radius / toPrev.getDistance())
+        val end = cur + toNext * (radius / toNext.getDistance())
+        if (i == 0) path.moveTo(start.x, start.y) else path.lineTo(start.x, start.y)
+        path.quadraticBezierTo(cur.x, cur.y, end.x, end.y)
     }
+    path.close()
+    return path
 }
 
 /** Static "build your app" illustration: a drafting compass crossed with a pencil. */

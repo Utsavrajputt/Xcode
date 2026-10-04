@@ -154,6 +154,10 @@ object XIcons {
                 "c0,3.31 2.69,6 6,6h13c2.76,0 5,-2.24 5,-5 0,-2.64 -2.05,-4.78 -4.65,-4.96zM17,13l-5,5 -5,-5h3V9h4v4h3z",
         )
     }
+    /** Clone a repository: arrow dropping into a tray (distinct from CloudDownload, used for fetch/pull). */
+    val Clone: ImageVector by lazy {
+        icon("Clone", "M5,20h14v-2H5V20z M19,9h-4V3H9v6H5l7,7L19,9z")
+    }
     val Sync: ImageVector by lazy {
         icon(
             "Sync",
