@@ -272,6 +272,14 @@ object XIcons {
         )
     }
 
+    /** Collapse-all (Material "vertical_align_center": arrows folding in to a centre line). */
+    val CollapseAll: ImageVector by lazy {
+        icon(
+            "CollapseAll",
+            "M8,19h3v4h2v-4h3l-4,-4 -4,4zM16,5h-3V1h-2v4H8l4,4 4,-4zM4,11v2h16v-2H4z",
+        )
+    }
+
     /** git reset entry point (Material Symbols "restore" — clock with a back arrow). */
     val Restore: ImageVector by lazy {
         icon(

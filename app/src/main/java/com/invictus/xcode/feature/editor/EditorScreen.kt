@@ -286,7 +286,6 @@ fun EditorScreen(
                         anyDirty = state.tabs.any { it.dirty },
                         onEvent = viewModel::onEvent,
                         onOpenSettings = onOpenSettings,
-                        onGoToFile = if (projectRoot != null) ({ showFileSearch = true }) else null,
                     )
                 },
             )
@@ -558,7 +557,6 @@ private fun EditorOverflowMenu(
     anyDirty: Boolean,
     onEvent: (EditorEvent) -> Unit,
     onOpenSettings: () -> Unit,
-    onGoToFile: (() -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     Box {
@@ -566,16 +564,6 @@ private fun EditorOverflowMenu(
             Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            if (onGoToFile != null) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.search_go_to_file)) },
-                    leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
-                    onClick = {
-                        open = false
-                        onGoToFile()
-                    },
-                )
-            }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.action_save_all)) },
                 leadingIcon = { Icon(XIcons.Save, contentDescription = null) },

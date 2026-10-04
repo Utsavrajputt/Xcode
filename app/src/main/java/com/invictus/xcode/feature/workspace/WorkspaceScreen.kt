@@ -191,7 +191,6 @@ fun WorkspaceScreen(
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
                 onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
                 onOpenCodeSearch = { onOpenCodeSearch(state.root) },
-                onGoToFile = { showFileSearch = true },
                 onOpenSettings = onOpenSettings,
             )
         },
@@ -283,7 +282,6 @@ private fun WorkspaceTopBar(
     onBackup: () -> Unit,
     onOpenGit: (() -> Unit)? = null,
     onOpenCodeSearch: () -> Unit = {},
-    onGoToFile: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -348,16 +346,8 @@ private fun WorkspaceTopBar(
                         )
                     }
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.search_go_to_file)) },
-                        leadingIcon = { Icon(XIcons.Search, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onGoToFile()
-                        },
-                    )
-                    DropdownMenuItem(
                         text = { Text(stringResource(R.string.menu_collapse_all)) },
-                        leadingIcon = { Icon(XIcons.UnfoldLess, contentDescription = null) },
+                        leadingIcon = { Icon(XIcons.CollapseAll, contentDescription = null) },
                         onClick = {
                             menuOpen = false
                             onEvent(FileTreeEvent.CollapseAll)

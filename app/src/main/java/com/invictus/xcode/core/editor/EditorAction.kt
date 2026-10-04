@@ -30,6 +30,7 @@ interface EditorAction {
 object EditorActionRegistry {
     /** Bolt menu only: line-level actions. Select all/cut/copy/paste live in the selection popup. */
     val actions: List<EditorAction> = listOf(
+        CopyFileAction,
         DuplicateLineAction,
         DeleteLineAction,
         MoveLineUpAction,
@@ -88,6 +89,21 @@ object SelectAllAction : EditorAction {
             val lastLine = (lines.size - 1).coerceAtLeast(0)
             editor.setSelectionRegion(0, 0, lastLine, lines[lastLine].length)
         } catch (_: Exception) {
+        }
+    }
+}
+
+/** Copies the whole open document (not just the selection) to the clipboard. */
+object CopyFileAction : EditorAction {
+    override val id = "copy_file"
+    override val labelRes = R.string.qa_copy_file
+
+    override fun perform(editor: CodeEditor, filePath: String?, context: Context) {
+        try {
+            clipboardOf(context)?.setPrimaryClip(ClipData.newPlainText("xcode", editor.text.toString()))
+            android.widget.Toast.makeText(context, R.string.qa_copy_file_done, android.widget.Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+        } catch (_: OutOfMemoryError) {
         }
     }
 }

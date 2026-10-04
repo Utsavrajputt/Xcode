@@ -41,6 +41,7 @@ fun QuickActionsMenu(
 }
 
 private fun iconFor(id: String) = when (id) {
+    "copy_file" -> XIcons.FileCopy
     "duplicate_line" -> XIcons.ContentCopy
     "delete_line" -> XIcons.Delete
     "move_line_up" -> XIcons.ArrowUpward
