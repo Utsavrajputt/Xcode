@@ -21,6 +21,8 @@ class CodeSearchEngine {
         val excludeGlob: String = "",
         val maxFileSizeBytes: Long = 2L * 1024 * 1024,
         val defaultValuesOnly: Boolean = false,
+        /** From "text//name": only files whose NAME matches (contains, case-insensitive; * and ? act as wildcards). */
+        val fileNameFilter: String = "",
     )
 
     data class LineMatch(val line: Int, val text: String, val ranges: List<IntRange>)
@@ -34,6 +36,7 @@ class CodeSearchEngine {
         if (query.isBlank()) return@channelFlow
         val pattern = buildPattern(query, options)
         val include = options.includeGlob.takeIf { it.isNotBlank() }?.let { globToRegex(it) }
+        val nameMatcher = fileNameMatcher(options.fileNameFilter)
         val userExcludes = options.excludeGlob
             .split(',', '\n').map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
         val excludes = (DEFAULT_EXCLUDES + userExcludes).map { globToRegex(it) }
@@ -57,6 +60,7 @@ class CodeSearchEngine {
                 }
                 val rel = child.canonicalPath.removePrefix(rootPath)
                 if (include != null && !include.matches(rel)) continue
+                if (nameMatcher != null && !nameMatcher(name)) continue
                 if (excludes.any { it.matches(rel) }) continue
                 if (child.length() > options.maxFileSizeBytes || isBinary(child)) continue
                 gate.acquire()
@@ -71,6 +75,22 @@ class CodeSearchEngine {
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    private fun fileNameMatcher(filter: String): ((String) -> Boolean)? {
+        val f = filter.trim()
+        if (f.isEmpty()) return null
+        if (f.none { it == '*' || it == '?' }) return { name -> name.contains(f, ignoreCase = true) }
+        val sb = StringBuilder()
+        f.forEach { c ->
+            when (c) {
+                '*' -> sb.append(".*")
+                '?' -> sb.append('.')
+                else -> sb.append(Pattern.quote(c.toString()))
+            }
+        }
+        val re = Regex(sb.toString(), RegexOption.IGNORE_CASE)
+        return { name -> re.containsMatchIn(name) }
+    }
 
     private fun buildPattern(query: String, options: Options): Pattern {
         var src = if (options.regex) query else Pattern.quote(query)

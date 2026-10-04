@@ -54,6 +54,9 @@ import java.io.File
  * gated through [runNetwork] which resolves per-host tokens and surfaces an
  * auth-retry dialog on 401/403 instead of a dead end.
  */
+/** A text change this long in one go is treated as a paste, not typing. */
+private const val PASTE_MIN_CHARS = 6
+
 class GitViewModel(
     private val projectPath: String,
     private val credentialStore: GitCredentialStore,
@@ -247,8 +250,8 @@ class GitViewModel(
                 _uiState.update { it.copy(discardConfirm = DiscardConfirmState(event.path, event.isUntracked)) }
             GitEvent.ConfirmDiscard -> discard()
             GitEvent.DismissDiscard -> _uiState.update { it.copy(discardConfirm = null) }
-            is GitEvent.CommitMessageChange ->
-                _uiState.update { it.copy(commitMessage = event.text) }
+            is GitEvent.CommitMessageChange -> onCommitMessageChange(event.text)
+            is GitEvent.PasteCommitText -> onPasteCommitText(event.text)
             GitEvent.ToggleAmend -> toggleAmend()
             GitEvent.Commit -> commit()
             GitEvent.Push -> push(force = false)
@@ -630,23 +633,68 @@ class GitViewModel(
         if (message.isEmpty() && !amend) return
         viewModelScope.launch(io) {
             _uiState.update { it.copy(committing = true) }
-            when (val result = withOpProgress(R.string.git_progress_committing) { session.commit(message, amend) }) {
-                is GitResult.Ok -> {
-                    _uiState.update { it.copy(commitMessage = "", amend = false) }
-                    message(R.string.git_msg_committed)
-                    applyCommitted()
+            doCommit(message, amend)
+            _uiState.update { it.copy(committing = false) }
+        }
+    }
+
+    /** One commit attempt with the usual messages/dialogs; true only when the commit was made. */
+    private suspend fun doCommit(message: String, amend: Boolean): Boolean {
+        when (val result = withOpProgress(R.string.git_progress_committing) { session.commit(message, amend) }) {
+            is GitResult.Ok -> {
+                _uiState.update { it.copy(commitMessage = "", amend = false) }
+                message(R.string.git_msg_committed)
+                applyCommitted()
+                return true
+            }
+            is GitResult.Err -> {
+                when {
+                    result.error.exceptionClass.endsWith("EmptyCommitException") ->
+                        message(R.string.git_err_nothing_to_commit)
+                    result.error.exceptionClass.endsWith("GitIdentityMissingException") ->
+                        openIdentity()
+                    else -> _uiState.update { it.copy(error = result.error) }
                 }
-                is GitResult.Err -> {
-                    when {
-                        result.error.exceptionClass.endsWith("EmptyCommitException") ->
-                            message(R.string.git_err_nothing_to_commit)
-                        result.error.exceptionClass.endsWith("GitIdentityMissingException") ->
-                            openIdentity()
-                        else -> _uiState.update { it.copy(error = result.error) }
+                return false
+            }
+        }
+    }
+
+    // ---- pasted "git add / commit / push" ----------------------------------------------
+
+    /**
+     * Typing is always plain text. A single insertion of several characters at once (keyboard
+     * clipboard chip, long-press paste) that holds a `git commit -m` snippet runs it instead.
+     */
+    private fun onCommitMessageChange(text: String) {
+        val old = _uiState.value.commitMessage
+        val script = if (text.length - old.length >= PASTE_MIN_CHARS) parseGitScript(text) else null
+        if (script != null) runGitScript(script) else _uiState.update { it.copy(commitMessage = text) }
+    }
+
+    private fun onPasteCommitText(text: String) {
+        val script = parseGitScript(text)
+        if (script != null) runGitScript(script) else _uiState.update { it.copy(commitMessage = it.commitMessage + text) }
+    }
+
+    /** Same order as the shell: add -> commit -> push, each step only if the previous one worked. */
+    private fun runGitScript(script: GitCommandScript) {
+        if (_uiState.value.committing) return
+        _uiState.update { it.copy(commitMessage = script.message, amend = false, committing = true) }
+        viewModelScope.launch(io) {
+            var ok = true
+            if (script.stageAll) {
+                when (val r = withOpProgress(R.string.git_progress_staging) { session.stageAll() }) {
+                    is GitResult.Ok -> applyLocalStageAll()
+                    is GitResult.Err -> {
+                        _uiState.update { it.copy(error = r.error) }
+                        ok = false
                     }
                 }
             }
+            val committed = ok && doCommit(script.message, amend = false)
             _uiState.update { it.copy(committing = false) }
+            if (committed && script.push) push(force = false)
         }
     }
 

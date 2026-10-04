@@ -389,6 +389,7 @@
     <string name="git_remote_name_hint">Remote name</string>
     <string name="git_remote_url_hint">Remote URL (https)</string>
     <string name="git_remotes_empty">No remotes configured.</string>
+    <string name="git_paste">Paste</string>
     <string name="git_diff_edit_file">Edit file / view diff</string>
     <string name="git_diff_unsaved_title">Discard unsaved edits?</string>
     <string name="git_diff_unsaved_message">Your edits to this file have not been saved.</string>

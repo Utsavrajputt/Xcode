@@ -43,6 +43,7 @@
     <string name="git_remote_name_hint">Remote का नाम</string>
     <string name="git_remote_url_hint">Remote URL (https)</string>
     <string name="git_remotes_empty">कोई remote configure नहीं।</string>
+    <string name="git_paste">पेस्ट</string>
     <string name="git_diff_edit_file">फ़ाइल edit करें / diff देखें</string>
     <string name="git_diff_unsaved_title">बिना save किए edits हटाएँ?</string>
     <string name="git_diff_unsaved_message">इस फ़ाइल के edits save नहीं हुए हैं।</string>

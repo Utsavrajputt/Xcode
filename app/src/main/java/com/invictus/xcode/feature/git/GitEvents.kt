@@ -16,6 +16,8 @@ sealed interface GitEvent {
     data object ConfirmDiscard : GitEvent
     data object DismissDiscard : GitEvent
     data class CommitMessageChange(val text: String) : GitEvent
+    /** Paste button: plain text is appended; a git add/commit/push snippet runs straight away. */
+    data class PasteCommitText(val text: String) : GitEvent
     data object ToggleAmend : GitEvent
     data object Commit : GitEvent
     data object Push : GitEvent

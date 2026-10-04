@@ -142,9 +142,11 @@ class CodeSearchViewModel(
             }
             return
         }
+        val parsed = parseSearchQuery(query)
+        val text = parsed.text
         if (_uiState.value.regex) {
             try {
-                Regex(query)
+                Regex(text)
                 _uiState.update { it.copy(error = null) }
             } catch (e: PatternSyntaxException) {
                 _uiState.update { it.copy(error = e.description ?: query, searching = false) }
@@ -157,6 +159,7 @@ class CodeSearchViewModel(
             wholeWord = _uiState.value.wholeWord,
             includeGlob = _uiState.value.includeGlob,
             excludeGlob = _uiState.value.excludeGlob,
+            fileNameFilter = parsed.fileName,
         )
         searchJob = viewModelScope.launch {
             delay(300)
@@ -169,7 +172,7 @@ class CodeSearchViewModel(
             _uiState.update { it.copy(searching = true) }
             val found = mutableListOf<CodeSearchEngine.FileResult>()
             // Stream: results dheere dheere dikhte rahen; naya query -> collect cancel.
-            engine.search(root, query, options).collect { fr ->
+            engine.search(root, text, options).collect { fr ->
                 found.add(fr)
                 publishVisible(found)
             }
@@ -652,4 +655,15 @@ private fun historyOptionsSummary(optionsJson: String): String {
         o.optString("include").takeIf { it.isNotBlank() }?.let { add(it) }
         o.optString("exclude").takeIf { it.isNotBlank() }?.let { add("!$it") }
     }.joinToString(" · ")
+}
+
+/** "text//settings" = search "text" only in files named like "settings". */
+internal data class ParsedSearchQuery(val text: String, val fileName: String)
+
+private val FILE_FILTER_RE = Regex("""^(.+?)(?<!:)//([^\s/]+)$""")
+
+internal fun parseSearchQuery(query: String): ParsedSearchQuery {
+    val m = FILE_FILTER_RE.find(query)
+    if (m == null || m.groupValues[1].isBlank()) return ParsedSearchQuery(query, "")
+    return ParsedSearchQuery(m.groupValues[1], m.groupValues[2])
 }

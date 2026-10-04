@@ -2,6 +2,7 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -626,6 +627,7 @@ private fun BranchCard(
 
 @Composable
 private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit) {
+    val clipboard = LocalClipboardManager.current
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -636,6 +638,16 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
             modifier = Modifier.fillMaxWidth(),
             minLines = 2,
             label = { Text(stringResource(R.string.git_commit_hint)) },
+            trailingIcon = {
+                IconButton(
+                    onClick = {
+                        clipboard.getText()?.text?.takeIf { it.isNotEmpty() }
+                            ?.let { onEvent(GitEvent.PasteCommitText(it)) }
+                    },
+                ) {
+                    Icon(XIcons.ContentPaste, contentDescription = stringResource(R.string.git_paste))
+                }
+            },
         )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             FilterChip(
