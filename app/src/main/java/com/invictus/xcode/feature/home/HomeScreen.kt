@@ -5,7 +5,7 @@ import android.content.ClipboardManager
 import android.os.Build
 import android.os.Environment
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -15,6 +15,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -33,6 +37,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -54,7 +59,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
@@ -64,8 +68,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -161,6 +165,7 @@ fun HomeScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
+                expandedHeight = 88.dp,
                 navigationIcon = {
                     if (searching) {
                         IconButton(onClick = closeSearch) {
@@ -172,10 +177,17 @@ fun HomeScreen(
                     if (searching) {
                         InlineSearchField(query = query, onQueryChange = { query = it })
                     } else {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 28.sp, fontWeight = FontWeight.SemiBold),
-                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 32.sp, fontWeight = FontWeight.SemiBold),
+                            )
+                            Text(
+                                text = stringResource(R.string.home_tagline),
+                                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 2.5.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -186,15 +198,14 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        IconButton(onClick = { searching = true }) {
+                        HeaderIconButton(onClick = { searching = true }) {
                             Icon(XIcons.Search, contentDescription = stringResource(R.string.home_search))
                         }
-                        IconButton(onClick = onClone) {
-                            Icon(XIcons.Commit, contentDescription = stringResource(R.string.home_clone))
-                        }
-                        IconButton(onClick = onOpenSettings) {
+                        Spacer(Modifier.width(10.dp))
+                        HeaderIconButton(onClick = onOpenSettings) {
                             Icon(XIcons.Settings, contentDescription = stringResource(R.string.action_settings))
                         }
+                        Spacer(Modifier.width(12.dp))
                     }
                 },
             )
@@ -204,20 +215,20 @@ fun HomeScreen(
         LazyColumn(Modifier.fillMaxSize().padding(innerPadding)) {
             if (!searching) {
                 item(key = "hero") {
-                    HeroBanner(Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    HeroBanner(Modifier.padding(horizontal = 16.dp))
                 }
                 item(key = "actions") {
                     Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        Modifier.fillMaxWidth().padding(top = 24.dp, bottom = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Button(onClick = { showProjectSheet = true }, modifier = Modifier.weight(1f).height(52.dp)) {
+                        Button(onClick = { showProjectSheet = true }, shape = RoundedCornerShape(14.dp)) {
                             Icon(XIcons.FolderOpen, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.home_open_project))
                         }
-                        FilledTonalIconButton(onClick = { showNewSheet = true }, modifier = Modifier.size(52.dp)) {
+                        FilledTonalIconButton(onClick = { showNewSheet = true }, shape = RoundedCornerShape(14.dp)) {
                             Icon(XIcons.Add, contentDescription = stringResource(R.string.home_new_project))
                         }
                     }
@@ -289,6 +300,20 @@ fun HomeScreen(
     }
 }
 
+/** Round tonal 44dp button used for the header's search / settings actions. */
+@Composable
+private fun HeaderIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        modifier = Modifier.size(44.dp),
+        shape = CircleShape,
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        ),
+        content = content,
+    )
+}
+
 /** Borderless text field for the top bar's search mode. Grabs focus when first shown. */
 @Composable
 internal fun InlineSearchField(query: String, onQueryChange: (String) -> Unit) {
@@ -311,68 +336,163 @@ internal fun InlineSearchField(query: String, onQueryChange: (String) -> Unit) {
 }
 
 /**
- * Gradient hero card. Two soft blobs and a "</>" tile drift slowly (draw-phase only, so the
- * animation never triggers recomposition) behind the compass illustration and headline.
+ * Welcome hero: dark gradient card with drifting glow blobs, three floating glass panels with a
+ * glowing "</>" on the front one, and twinkling dot grids. Everything is drawn in one Canvas and
+ * the animated values are only read in the draw phase, so it never triggers recomposition.
+ * Sizes scale with the card width (designed at 328dp).
  */
 @Composable
 private fun HeroBanner(modifier: Modifier = Modifier) {
-    val primary = MaterialTheme.colorScheme.primary
-    val surface = MaterialTheme.colorScheme.surface
     val transition = rememberInfiniteTransition(label = "hero")
     val a by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(5200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "a",
     )
     val b by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(7500, easing = LinearEasing), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(6800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "b",
     )
     val shape = RoundedCornerShape(28.dp)
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(190.dp)
+            .aspectRatio(1.57f)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(lerp(surface, primary, 0.28f), lerp(surface, primary, 0.06f))))
-            .drawBehind {
-                val w = size.width
-                val h = size.height
-                val drift = 14.dp.toPx()
-                drawCircle(primary.copy(alpha = 0.16f), radius = w * 0.26f, center = Offset(w * 0.08f, h * 0.02f + a * drift))
-                drawCircle(primary.copy(alpha = 0.12f), radius = w * 0.30f, center = Offset(w * 0.98f - b * drift, h * 0.30f))
-            },
+            .background(Brush.linearGradient(listOf(Color(0xFF030716), Color(0xFF071445), Color(0xFF040B26))))
+            .border(1.dp, Color(0x552F5BFF), shape),
     ) {
-        Text(
-            text = "</>",
-            style = MaterialTheme.typography.headlineMedium,
-            color = primary.copy(alpha = 0.45f),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 28.dp, bottom = 22.dp)
-                .graphicsLayer { rotationZ = -15f + a * 8f },
-        )
-        BuildIllustration(
-            Modifier.align(Alignment.CenterEnd).padding(end = 72.dp).size(108.dp),
-        )
-        Column(Modifier.align(Alignment.CenterStart).padding(start = 24.dp)) {
+        val s = maxWidth.value / 328f
+        Canvas(Modifier.fillMaxSize()) { drawHeroArt(a, b) }
+        Column(Modifier.align(Alignment.CenterStart).padding(start = (26 * s).dp)) {
             Text(
                 text = stringResource(R.string.home_hero_kicker),
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 3.sp),
-                color = primary.copy(alpha = 0.8f),
+                fontSize = (9 * s).sp,
+                letterSpacing = (3 * s).sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF5B8CFF),
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height((9 * s).dp))
+            Box(
+                Modifier.size(width = (22 * s).dp, height = (3 * s).dp)
+                    .clip(RoundedCornerShape(2.dp)).background(Color(0xFF5B6CFF)),
+            )
+            Spacer(Modifier.height((8 * s).dp))
             Text(
                 text = buildAnnotatedString {
                     append(stringResource(R.string.home_hero_line1))
                     append("\n")
-                    withStyle(SpanStyle(color = primary)) { append(stringResource(R.string.home_hero_line2)) }
+                    append(stringResource(R.string.home_hero_line2))
+                    append("\n")
+                    withStyle(SpanStyle(brush = Brush.horizontalGradient(listOf(Color(0xFF2F9BFF), Color(0xFF7FEBFF))))) {
+                        append(stringResource(R.string.home_hero_line3))
+                    }
                 },
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, lineHeight = 30.sp),
+                fontSize = (24 * s).sp,
+                lineHeight = (26 * s).sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+            )
+            Spacer(Modifier.height((8 * s).dp))
+            Text(
+                text = stringResource(R.string.home_hero_sub),
+                fontSize = (10 * s).sp,
+                lineHeight = (14 * s).sp,
+                color = Color(0xFFB8C4F0),
             )
         }
+    }
+}
+
+private fun DrawScope.drawHeroArt(a: Float, b: Float) {
+    val w = size.width
+    val h = size.height
+    val drift = 12.dp.toPx()
+
+    fun blob(cx: Float, cy: Float, r: Float, c: Color, alpha: Float) {
+        val center = Offset(cx, cy)
+        drawCircle(
+            brush = Brush.radialGradient(listOf(c.copy(alpha = alpha), c.copy(alpha = alpha * 0.3f)), center = center, radius = r),
+            radius = r,
+            center = center,
+        )
+    }
+    blob(w * 0.02f, h * 0.05f + a * drift, w * 0.26f, Color(0xFF1F4DFF), 0.55f)
+    blob(w * 0.66f - b * drift, h * -0.04f, w * 0.20f, Color(0xFF2B5CFF), 0.45f)
+    blob(w * 0.88f, h * 1.0f - a * drift, w * 0.24f, Color(0xFF2E6BFF), 0.50f)
+    blob(b * drift * 0.5f, h * 1.02f, w * 0.17f, Color(0xFF2A4BFF), 0.45f)
+    blob(w * 1.02f, h * 0.62f + b * drift, w * 0.13f, Color(0xFF8B5CFF), 0.50f)
+
+    // Twinkling dot grids (top right, bottom left).
+    val gap = 9.dp.toPx()
+    for (r in 0..4) for (c in 0..4) {
+        val on = (r + c) % 2 == 0
+        val alpha = 0.12f + 0.28f * (if (on) a else 1f - a)
+        val dot = Color(0xFF7FA0FF).copy(alpha = alpha)
+        drawCircle(dot, 1.2.dp.toPx(), Offset(w * 0.86f + c * gap, h * 0.06f + r * gap))
+        drawCircle(dot, 1.2.dp.toPx(), Offset(w * 0.14f + c * gap, h * 0.80f + r * gap))
+    }
+
+    // Three stacked glass panels, each bobbing on its own phase.
+    val panelW = w * 0.27f
+    val rise = h * 0.20f
+    val panelH = h * 0.36f
+    val bob = 6.dp.toPx()
+    val fills = listOf(
+        listOf(Color(0x885CC8FF), Color(0x883A6BFF)),
+        listOf(Color(0x993F6BFF), Color(0x992F46E8)),
+        listOf(Color(0xE63B5BFF), Color(0xE67A4DFF)),
+    )
+    val edges = listOf(Color(0xCC8FE3FF), Color(0x887FA8FF), Color(0xAA9FB4FF))
+    var frontX = 0f
+    var frontY = 0f
+    for (k in 0..2) {
+        val phase = when (k) { 0 -> b; 1 -> a; else -> 1f - b }
+        val x0 = w * (0.51f + 0.055f * k)
+        val y0 = h * (0.36f + 0.04f * k) + (phase - 0.5f) * 2f * bob * (0.6f + 0.2f * k)
+        val path = Path().apply {
+            moveTo(x0, y0)
+            lineTo(x0 + panelW, y0 - rise)
+            lineTo(x0 + panelW, y0 - rise + panelH)
+            lineTo(x0, y0 + panelH)
+            close()
+        }
+        drawPath(
+            path,
+            Brush.linearGradient(fills[k], start = Offset(x0, y0 - rise), end = Offset(x0 + panelW, y0 + panelH)),
+        )
+        // Round stroke joins soften the corners of the parallelogram.
+        drawPath(path, edges[k], style = Stroke(width = 3.dp.toPx(), join = StrokeJoin.Round))
+        if (k == 2) {
+            frontX = x0
+            frontY = y0
+        }
+    }
+
+    // Window dots along the front panel's top edge.
+    for (i in 0..2) {
+        val t = 0.68f + 0.10f * i
+        drawCircle(
+            Color(0xCCBFD8FF),
+            radius = 3.dp.toPx(),
+            center = Offset(frontX + panelW * t, frontY - rise * t + h * 0.05f),
+        )
+    }
+
+    // Glowing </> on the front panel; the glow pulses with [b].
+    val cx = frontX + panelW * 0.5f
+    val cy = frontY + (panelH - rise) / 2f
+    val u = w * 0.028f
+    val glyph = Path().apply {
+        moveTo(cx - 1.7f * u, cy - 1.5f * u); lineTo(cx - 3.3f * u, cy); lineTo(cx - 1.7f * u, cy + 1.5f * u)
+        moveTo(cx + 0.55f * u, cy - 2.1f * u); lineTo(cx - 0.55f * u, cy + 2.1f * u)
+        moveTo(cx + 1.7f * u, cy - 1.5f * u); lineTo(cx + 3.3f * u, cy); lineTo(cx + 1.7f * u, cy + 1.5f * u)
+    }
+    rotate(-10f, Offset(cx, cy)) {
+        drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = 0.15f + 0.25f * b), style = Stroke(width = u * 2.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(glyph, Color(0xFF5FF3FF), style = Stroke(width = u * 0.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

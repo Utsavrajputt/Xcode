@@ -108,7 +108,7 @@ internal fun ProjectCardRow(
     val shape = RoundedCornerShape(20.dp)
     val accent = if (item.exists) projectColor(item.file.name) else MaterialTheme.colorScheme.outline
     Surface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -116,11 +116,11 @@ internal fun ProjectCardRow(
             modifier = Modifier
                 .clip(shape)
                 .expressiveClickable(onClick = onOpen)
-                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+                .padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.2f)),
+                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(XIcons.Folder, contentDescription = null, tint = accent)

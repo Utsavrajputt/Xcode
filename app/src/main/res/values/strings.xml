@@ -557,9 +557,12 @@
     <string name="git_progress_resetting">Resetting…</string>
     <string name="git_progress_count">%1$d / %2$d</string>
     <string name="git_progress_wait">Large repos can take a moment. Please wait.</string>
-    <string name="home_hero_kicker">LET\'S CODE</string>
-    <string name="home_hero_line1">Create Something</string>
-    <string name="home_hero_line2">Amazing</string>
+    <string name="home_hero_kicker">WELCOME TO XCODE</string>
+    <string name="home_hero_line1">Code</string>
+    <string name="home_hero_line2">Your Ideas</string>
+    <string name="home_hero_line3">Anywhere</string>
+    <string name="home_hero_sub">A modern, powerful and\nsimple code editor for Android.</string>
+    <string name="home_tagline">CODE · EDIT · BUILD</string>
     <string name="home_new_project">New project</string>
     <string name="home_search">Search projects</string>
     <string name="home_search_hint">Search projects…</string>
