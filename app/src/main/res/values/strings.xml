@@ -329,6 +329,17 @@
     <!-- M8: Git advanced -->
     <string name="git_branches_title">Branches</string>
     <string name="git_branch_create">New branch</string>
+    <string name="git_branch_new_short">New</string>
+    <string name="git_branches_subtitle">On %2$s · %1$d total</string>
+    <string name="git_branches_subtitle_plain">Manage your branches</string>
+    <string name="git_branches_current_section">Current branch</string>
+    <string name="git_branches_others_section">Other branches (%1$d)</string>
+    <string name="git_branches_empty">No branches found</string>
+    <string name="git_branch_current_badge">Current</string>
+    <string name="git_branch_up_to_date">Up to date</string>
+    <string name="git_branch_filter_hint">Filter branches</string>
+    <string name="git_branch_copy_name">Copy name</string>
+    <string name="git_branch_name_copied">Branch name copied</string>
     <string name="git_branch_name_hint">Branch name</string>
     <string name="git_branch_checkout">Checkout</string>
     <string name="git_branch_rename">Rename</string>
@@ -378,6 +389,12 @@
     <string name="git_remote_name_hint">Remote name</string>
     <string name="git_remote_url_hint">Remote URL (https)</string>
     <string name="git_remotes_empty">No remotes configured.</string>
+    <string name="git_diff_edit_file">Edit file / view diff</string>
+    <string name="git_diff_unsaved_title">Discard unsaved edits?</string>
+    <string name="git_diff_unsaved_message">Your edits to this file have not been saved.</string>
+    <string name="git_remote_default">Default</string>
+    <string name="git_remote_copy_url">Copy URL</string>
+    <string name="git_remote_url_copied">URL copied</string>
     <string name="git_reset_title">Reset</string>
     <string name="git_reset_title_branch">Reset \'%1$s\'</string>
     <string name="git_reset_mode_label">Mode</string>

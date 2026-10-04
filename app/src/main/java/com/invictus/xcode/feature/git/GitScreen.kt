@@ -446,7 +446,10 @@ private fun ChangeRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
-                    onClick = { onEvent(GitEvent.OpenFile(path)) },
+                    onClick = {
+                        showDiff = true
+                        onEvent(GitEvent.LoadDiff(path))
+                    },
                     onLongClick = { menuOpen = true },
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -474,6 +477,14 @@ private fun ChangeRow(
             )
             Box {
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.git_open_in_editor)) },
+                        leadingIcon = { Icon(XIcons.FolderOpen, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onEvent(GitEvent.OpenFile(path))
+                        },
+                    )
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -528,6 +539,10 @@ private fun ChangeRow(
                 onClose = {
                     showDiff = false
                     onEvent(GitEvent.CloseDiff(path))
+                },
+                onSaved = {
+                    onEvent(GitEvent.CloseDiff(path))
+                    onEvent(GitEvent.LoadDiff(path))
                 },
             )
         }

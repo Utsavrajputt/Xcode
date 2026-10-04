@@ -2,6 +2,12 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -66,9 +72,10 @@ import java.io.File
 @Composable
 fun GitDiffViewer(result: GitFileDiffResult, modifier: Modifier = Modifier) {
     var sideBySide by rememberSaveable { mutableStateOf(false) }
+    var fontSize by rememberSaveable { mutableStateOf(DEFAULT_DIFF_FONT) }
     val added = remember(result) { result.rows.count { it.rightType == GitDiffLineType.ADDED } }
     val removed = remember(result) { result.rows.count { it.leftType == GitDiffLineType.REMOVED } }
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().pinchZoom { fontSize = clampDiffFont(fontSize * it) }) {
         DiffToolbar(
             sideBySide = sideBySide,
             onChange = { sideBySide = it },
@@ -84,7 +91,7 @@ fun GitDiffViewer(result: GitFileDiffResult, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(16.dp),
             )
-            else -> DiffRows(result = result, sideBySide = sideBySide)
+            else -> DiffRows(result = result, sideBySide = sideBySide, fontSize = fontSize)
         }
         if (result.truncated) {
             Text(
@@ -240,7 +247,36 @@ private fun toUnified(rows: List<GitDiffRow>): List<UniLine> {
 }
 
 private const val MAX_DIFF_CHARS = 1000
-private val CodeStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 18.sp)
+private const val DEFAULT_DIFF_FONT = 12f
+private const val MIN_DIFF_FONT = 7f
+private const val MAX_DIFF_FONT = 28f
+
+/** Monospace diff style at [size] sp; line height follows the font so zoomed rows stay tight. */
+internal fun diffCodeStyle(size: Float): TextStyle =
+    TextStyle(fontFamily = FontFamily.Monospace, fontSize = size.sp, lineHeight = (size * 1.5f).sp)
+
+internal fun clampDiffFont(v: Float): Float = v.coerceIn(MIN_DIFF_FONT, MAX_DIFF_FONT)
+internal const val DIFF_FONT_DEFAULT = DEFAULT_DIFF_FONT
+
+/**
+ * Two-finger pinch zoom. Watches in the Initial pass so it sees pointers before the scroll
+ * containers below; one-finger drags are never consumed, only the multi-touch frames are.
+ */
+internal fun Modifier.pinchZoom(onScale: (Float) -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        do {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            if (event.changes.count { it.pressed } >= 2) {
+                val zoom = event.calculateZoom()
+                if (zoom != 1f) {
+                    onScale(zoom)
+                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                }
+            }
+        } while (event.changes.any { it.pressed })
+    }
+}
 private val SignWidth = 18.dp
 private val CodePad = 8.dp
 
@@ -249,11 +285,12 @@ private val CodePad = 8.dp
  * LazyColumn inside it; rows are exactly content-width so tints and gutters run edge to edge.
  */
 @Composable
-private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
+private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean, fontSize: Float) {
     val p = rememberPalette()
+    val codeStyle = remember(fontSize) { diffCodeStyle(fontSize) }
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val charWidth = remember(density) { with(density) { measurer.measure("0", CodeStyle).size.width.toDp() } }
+    val charWidth = remember(density, codeStyle) { with(density) { measurer.measure("0", codeStyle).size.width.toDp() } }
 
     val unified = remember(result) { toUnified(result.rows) }
     val maxChars = remember(result) {
@@ -279,12 +316,12 @@ private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
                     items(result.rows.size, key = { it }) { i ->
                         val row = result.rows[i]
                         if (row.leftType == GitDiffLineType.HUNK) {
-                            HunkRow(row.leftText.orEmpty(), gutterWidth = numWidth, p = p)
+                            HunkRow(row.leftText.orEmpty(), gutterWidth = numWidth, p = p, style = codeStyle)
                         } else {
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                                SplitCell(row.leftNumber, row.leftText, row.leftType, row.intralineLeft, numWidth, p, Modifier.weight(1f))
+                                SplitCell(row.leftNumber, row.leftText, row.leftType, row.intralineLeft, numWidth, p, Modifier.weight(1f), codeStyle)
                                 Box(Modifier.width(1.dp).fillMaxHeight().background(p.divider))
-                                SplitCell(row.rightNumber, row.rightText, row.rightType, row.intralineRight, numWidth, p, Modifier.weight(1f))
+                                SplitCell(row.rightNumber, row.rightText, row.rightType, row.intralineRight, numWidth, p, Modifier.weight(1f), codeStyle)
                             }
                         }
                     }
@@ -294,9 +331,9 @@ private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
                     items(unified.size, key = { it }) { i ->
                         val line = unified[i]
                         if (line.type == GitDiffLineType.HUNK) {
-                            HunkRow(line.text, gutterWidth = numWidth * 2, p = p)
+                            HunkRow(line.text, gutterWidth = numWidth * 2, p = p, style = codeStyle)
                         } else {
-                            UnifiedRow(line, numWidth, p)
+                            UnifiedRow(line, numWidth, p, codeStyle)
                         }
                     }
                 }
@@ -306,12 +343,12 @@ private fun DiffRows(result: GitFileDiffResult, sideBySide: Boolean) {
 }
 
 @Composable
-private fun HunkRow(text: String, gutterWidth: androidx.compose.ui.unit.Dp, p: DiffPalette) {
+private fun HunkRow(text: String, gutterWidth: androidx.compose.ui.unit.Dp, p: DiffPalette, style: TextStyle) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).background(p.hunkBg)) {
         Spacer(Modifier.width(gutterWidth).fillMaxHeight())
         Text(
             text = text,
-            style = CodeStyle,
+            style = style,
             color = p.hunkText,
             softWrap = false,
             maxLines = 1,
@@ -322,7 +359,7 @@ private fun HunkRow(text: String, gutterWidth: androidx.compose.ui.unit.Dp, p: D
 }
 
 @Composable
-private fun UnifiedRow(line: UniLine, numWidth: androidx.compose.ui.unit.Dp, p: DiffPalette) {
+private fun UnifiedRow(line: UniLine, numWidth: androidx.compose.ui.unit.Dp, p: DiffPalette, style: TextStyle) {
     val (lineBg, gutterBg, wordBg) = when (line.type) {
         GitDiffLineType.ADDED -> Triple(p.addLine, p.addGutter, p.addWord)
         GitDiffLineType.REMOVED -> Triple(p.delLine, p.delGutter, p.delWord)
@@ -330,12 +367,12 @@ private fun UnifiedRow(line: UniLine, numWidth: androidx.compose.ui.unit.Dp, p: 
     }
     val sign = when (line.type) { GitDiffLineType.ADDED -> "+"; GitDiffLineType.REMOVED -> "\u2212"; else -> "" }
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).background(lineBg)) {
-        Gutter(line.oldNo, numWidth, gutterBg, p)
-        Gutter(line.newNo, numWidth, gutterBg, p)
+        Gutter(line.oldNo, numWidth, gutterBg, p, style)
+        Gutter(line.newNo, numWidth, gutterBg, p, style)
         Box(Modifier.width(SignWidth).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Text(sign, style = CodeStyle, color = p.number)
+            Text(sign, style = style, color = p.number)
         }
-        CodeText(line.text, line.ranges, wordBg, Modifier.weight(1f).heightIn(min = 18.dp))
+        CodeText(line.text, line.ranges, wordBg, Modifier.weight(1f), style)
     }
 }
 
@@ -348,6 +385,7 @@ private fun SplitCell(
     numWidth: androidx.compose.ui.unit.Dp,
     p: DiffPalette,
     modifier: Modifier,
+    style: TextStyle,
 ) {
     val (lineBg, gutterBg, wordBg) = when (type) {
         GitDiffLineType.ADDED -> Triple(p.addLine, p.addGutter, p.addWord)
@@ -357,23 +395,23 @@ private fun SplitCell(
     }
     val sign = when (type) { GitDiffLineType.ADDED -> "+"; GitDiffLineType.REMOVED -> "\u2212"; else -> "" }
     Row(modifier.fillMaxHeight().background(lineBg)) {
-        Gutter(number, numWidth, gutterBg, p)
+        Gutter(number, numWidth, gutterBg, p, style)
         Box(Modifier.width(SignWidth).fillMaxHeight(), contentAlignment = Alignment.Center) {
-            Text(sign, style = CodeStyle, color = p.number)
+            Text(sign, style = style, color = p.number)
         }
-        CodeText(text.orEmpty(), ranges, wordBg, Modifier.weight(1f).heightIn(min = 18.dp))
+        CodeText(text.orEmpty(), ranges, wordBg, Modifier.weight(1f), style)
     }
 }
 
 @Composable
-private fun Gutter(number: Int?, width: androidx.compose.ui.unit.Dp, bg: Color, p: DiffPalette) {
+private fun Gutter(number: Int?, width: androidx.compose.ui.unit.Dp, bg: Color, p: DiffPalette, style: TextStyle) {
     Box(
         Modifier.width(width).fillMaxHeight().background(bg).padding(end = 10.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
         Text(
             text = number?.toString().orEmpty(),
-            style = CodeStyle.copy(fontSize = 11.sp),
+            style = style.copy(fontSize = (style.fontSize.value - 1f).coerceAtLeast(6f).sp),
             color = p.number,
             textAlign = TextAlign.End,
             maxLines = 1,
@@ -382,7 +420,7 @@ private fun Gutter(number: Int?, width: androidx.compose.ui.unit.Dp, bg: Color, 
 }
 
 @Composable
-private fun CodeText(text: String, ranges: List<IntRange>, wordBg: Color, modifier: Modifier) {
+private fun CodeText(text: String, ranges: List<IntRange>, wordBg: Color, modifier: Modifier, style: TextStyle) {
     val annotated: AnnotatedString = remember(text, ranges, wordBg) {
         buildAnnotatedString {
             append(text)
@@ -394,7 +432,7 @@ private fun CodeText(text: String, ranges: List<IntRange>, wordBg: Color, modifi
     }
     Text(
         text = annotated,
-        style = CodeStyle,
+        style = style,
         color = MaterialTheme.colorScheme.onSurface,
         softWrap = false,
         modifier = modifier.padding(horizontal = CodePad),

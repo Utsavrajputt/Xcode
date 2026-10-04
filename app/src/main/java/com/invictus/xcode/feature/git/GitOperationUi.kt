@@ -2,6 +2,14 @@ package com.invictus.xcode.feature.git
 
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
+import java.io.File
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import com.invictus.xcode.core.git.model.GitDiffLineType
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -212,6 +220,10 @@ internal fun ConflictCard(
                 showDiff = false
                 onEvent(GitEvent.CloseDiff(path))
             },
+            onSaved = {
+                onEvent(GitEvent.CloseDiff(path))
+                onEvent(GitEvent.LoadDiff(path))
+            },
         )
     }
     Card(
@@ -276,7 +288,7 @@ internal fun ConflictCard(
     }
 }
 
-/** Full-screen diff for one file (long-press menu "Diff", or long-press on a conflicted file). */
+/** Full-screen diff for one file. The pencil icon switches to an editable view (save writes the file). */
 @Composable
 internal fun GitFileDiffDialog(
     name: String,
@@ -284,18 +296,60 @@ internal fun GitFileDiffDialog(
     diff: GitFileDiffResult?,
     loading: Boolean,
     onClose: () -> Unit,
+    onSaved: () -> Unit = {},
 ) {
+    val scope = rememberCoroutineScope()
+    val workFile = remember(diff?.workFilePath) { diff?.workFilePath?.let { File(it) } }
+    val canEdit = diff != null && !diff.isBinary && !diff.isImage &&
+        workFile != null && workFile.isFile && workFile.length() <= MAX_EDIT_BYTES
+
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var original by remember { mutableStateOf<String?>(null) }
+    var text by remember { mutableStateOf("") }
+    var added by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var confirmDiscard by remember { mutableStateOf(false) }
+    var fontSize by rememberSaveable { mutableStateOf(DIFF_FONT_DEFAULT) }
+    val dirty = editing && original != null && text != original
+
+    // Tints come from the diff; refresh them whenever a (re)loaded diff arrives and nothing is unsaved.
+    LaunchedEffect(diff) {
+        if (diff != null && !dirty) {
+            added = diff.rows.mapNotNull { r ->
+                if (r.rightType == GitDiffLineType.ADDED) r.rightNumber?.minus(1) else null
+            }.toSet()
+        }
+    }
+    LaunchedEffect(editing, workFile) {
+        if (editing && workFile != null && original == null) {
+            val loaded = withContext(Dispatchers.IO) { runCatching { workFile.readText() }.getOrNull() }
+            if (loaded == null) editing = false else { original = loaded; text = loaded }
+        }
+    }
+
+    fun tryClose() { if (dirty) confirmDiscard = true else onClose() }
+    fun save() {
+        val file = workFile ?: return
+        val toWrite = text
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { file.writeText(toWrite) }.isSuccess }
+            if (ok) {
+                original = toWrite
+                onSaved()
+            }
+        }
+    }
+
     Dialog(
-        onDismissRequest = onClose,
+        onDismissRequest = ::tryClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(end = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(end = 8.dp),
                 ) {
-                    IconButton(onClick = onClose) {
+                    IconButton(onClick = ::tryClose) {
                         Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.git_diff_close))
                     }
                     Column(Modifier.weight(1f)) {
@@ -313,9 +367,43 @@ internal fun GitFileDiffDialog(
                             )
                         }
                     }
+                    if (dirty) {
+                        IconButton(onClick = ::save) {
+                            Icon(
+                                XIcons.Save,
+                                contentDescription = stringResource(R.string.action_save),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    if (canEdit) {
+                        IconButton(onClick = {
+                            when {
+                                !editing -> editing = true
+                                dirty -> confirmDiscard = true
+                                else -> { editing = false; original = null }
+                            }
+                        }) {
+                            Icon(
+                                if (editing) XIcons.Diff else XIcons.Edit,
+                                contentDescription = stringResource(R.string.git_diff_edit_file),
+                            )
+                        }
+                    }
                 }
                 HorizontalDivider()
                 when {
+                    editing && original != null -> GitDiffEditor(
+                        text = text,
+                        onTextChange = { text = it },
+                        addedLines = added,
+                        onAddedLinesChange = { added = it },
+                        fontSize = fontSize,
+                        modifier = Modifier.weight(1f).pinchZoom { fontSize = clampDiffFont(fontSize * it) },
+                    )
+                    editing -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                     diff != null -> GitDiffViewer(result = diff, modifier = Modifier.weight(1f))
                     loading -> Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
@@ -325,4 +413,22 @@ internal fun GitFileDiffDialog(
             }
         }
     }
+
+    if (confirmDiscard) {
+        GitConfirmDialog(
+            title = stringResource(R.string.git_diff_unsaved_title),
+            text = stringResource(R.string.git_diff_unsaved_message),
+            confirmLabel = stringResource(R.string.action_discard),
+            danger = true,
+            onConfirm = {
+                confirmDiscard = false
+                editing = false
+                original = null
+                onClose()
+            },
+            onDismiss = { confirmDiscard = false },
+        )
+    }
 }
+
+private const val MAX_EDIT_BYTES = 400_000L

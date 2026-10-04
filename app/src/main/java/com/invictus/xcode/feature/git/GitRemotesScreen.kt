@@ -1,6 +1,33 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import com.invictus.xcode.ui.icons.XIcons
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
@@ -195,6 +222,9 @@ fun GitRemotesScreen(
     )
     val ui by vm.ui.collectAsState()
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val copiedMsg = stringResource(R.string.git_remote_url_copied)
+    val defaultName = (ui.remotes.firstOrNull { it.name == "origin" } ?: ui.remotes.firstOrNull())?.name
 
     LaunchedEffect(Unit) {
         vm.messages.collect { msg -> msg?.let { snackbar.showSnackbar(it); vm.messageHandled() } }
@@ -210,54 +240,65 @@ fun GitRemotesScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onOpenCredentials) {
+                    FilledTonalButton(
+                        onClick = onOpenCredentials,
+                        modifier = Modifier.height(40.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                    ) {
+                        Icon(XIcons.Key, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(stringResource(R.string.git_remote_manage_tokens))
                     }
-                    TextButton(onClick = { vm.openAdd() }) {
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { vm.openAdd() },
+                        modifier = Modifier.height(40.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                    ) {
+                        Icon(XIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.git_remote_add))
                     }
+                    Spacer(Modifier.width(12.dp))
                 },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(vertical = 4.dp)) {
             items(ui.remotes, key = { it.name }) { r ->
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                        Text(r.name, style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            r.url,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Row {
-                            TextButton(onClick = { vm.openEdit(r) }) {
-                                Text(stringResource(R.string.git_remote_edit))
-                            }
-                            TextButton(onClick = { vm.openRename(r) }) {
-                                Text(stringResource(R.string.git_remote_rename))
-                            }
-                            Spacer(Modifier.weight(1f))
-                            TextButton(onClick = { vm.openDelete(r.name) }) {
-                                Text(
-                                    stringResource(R.string.git_remote_delete),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-                }
+                RemoteCard(
+                    remote = r,
+                    isDefault = r.name == defaultName,
+                    onEdit = { vm.openEdit(r) },
+                    onRename = { vm.openRename(r) },
+                    onDelete = { vm.openDelete(r.name) },
+                    onCopied = { scope.launch { snackbar.showSnackbar(copiedMsg) } },
+                )
             }
             if (!ui.loading && ui.remotes.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.git_remotes_empty),
-                        Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box(
+                            Modifier.size(56.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                XIcons.Cloud,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.git_remotes_empty),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -301,6 +342,133 @@ fun GitRemotesScreen(
         )
     }
     ui.error?.let { GitErrorDialog(details = it, onDismiss = vm::dismissError) }
+}
+
+@Composable
+private fun RemoteCard(
+    remote: GitRemoteInfo,
+    isDefault: Boolean,
+    onEdit: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onCopied: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    var menuOpen by remember { mutableStateOf(false) }
+    val isGitHub = remember(remote.url) { remote.url.contains("github.com", ignoreCase = true) }
+    val cs = MaterialTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = cs.surfaceContainer),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(cs.surfaceContainerHighest),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        if (isGitHub) XIcons.GitHub else XIcons.Cloud,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = cs.onSurface,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            remote.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (isDefault) {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(shape = CircleShape, color = cs.primaryContainer) {
+                                Text(
+                                    stringResource(R.string.git_remote_default),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = cs.onPrimaryContainer,
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        remote.url,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(36.dp)) {
+                        Icon(XIcons.MoreVert, contentDescription = null, tint = cs.onSurfaceVariant)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.git_remote_copy_url)) },
+                            leadingIcon = { Icon(XIcons.ContentCopy, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                clipboard.setText(AnnotatedString(remote.url))
+                                onCopied()
+                            },
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RemoteAction(XIcons.Edit, stringResource(R.string.git_remote_edit), onEdit)
+                RemoteAction(XIcons.ContentCopy, stringResource(R.string.git_remote_rename), onRename)
+                RemoteAction(
+                    XIcons.Delete,
+                    stringResource(R.string.git_remote_delete),
+                    onDelete,
+                    danger = true,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RowScope.RemoteAction(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+) {
+    val cs = MaterialTheme.colorScheme
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier.weight(1f).height(36.dp),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        colors = if (danger) {
+            ButtonDefaults.filledTonalButtonColors(
+                containerColor = cs.errorContainer.copy(alpha = 0.45f),
+                contentColor = cs.error,
+            )
+        } else {
+            ButtonDefaults.filledTonalButtonColors(
+                containerColor = cs.surfaceContainerHighest,
+                contentColor = cs.onSurface,
+            )
+        },
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+    }
 }
 
 // ========================= Credentials manager ================================
