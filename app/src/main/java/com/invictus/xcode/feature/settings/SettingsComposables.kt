@@ -238,7 +238,7 @@ fun RadioSettingRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         RadioButton(selected = selected, onClick = null)
-        Column(modifier = Modifier.padding(start = 12.dp)) {
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp, end = 4.dp)) {
             Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
             if (subtitle.isNotBlank()) {
                 Text(

@@ -546,6 +546,8 @@
     <string name="search_include_ignored">Include build/, .git, node_modules</string>
     <string name="search_go_to_file">Go to file</string>
     <string name="settings_search_excludes">Search: default excludes</string>
+    <string name="settings_search_excludes_label">Skip patterns (comma separated)</string>
+    <string name="settings_search_excludes_hint">Example: *.min.js, dist/**</string>
     <string name="settings_search_excludes_desc">Comma-separated globs skipped by file and code search (e.g. *.min.js, dist/**).</string>
     <string name="settings_search_max_size">Search: max file size</string>
     <string name="settings_search_max_size_desc">Code search skips files larger than this.</string>

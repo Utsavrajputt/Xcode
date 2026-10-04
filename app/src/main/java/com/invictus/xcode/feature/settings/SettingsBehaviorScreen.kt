@@ -2,6 +2,8 @@ package com.invictus.xcode.feature.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
@@ -38,7 +40,7 @@ import com.invictus.xcode.feature.editor.EditorViewModel
 import com.invictus.xcode.ui.icons.XIcons
 
 /** Behavior settings: what to do when a file changes on disk outside the app. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsBehaviorScreen(
     viewModel: EditorViewModel,
@@ -139,7 +141,8 @@ fun SettingsBehaviorScreen(
                             viewModel.setSearchExtraExcludes(it)
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        placeholder = { Text("*.min.js, dist/**") },
+                        label = { Text(stringResource(R.string.settings_search_excludes_label)) },
+                        placeholder = { Text(stringResource(R.string.settings_search_excludes_hint)) },
                         singleLine = true,
                     )
                 }
@@ -153,9 +156,10 @@ fun SettingsBehaviorScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(
+                    FlowRow(
                         Modifier.fillMaxWidth().padding(top = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         listOf(1, 2, 5, 10, 25).forEach { mb ->
                             FilterChip(
