@@ -513,6 +513,7 @@
     <string name="search_regex">.*</string>
     <string name="search_case_sensitive">Aa</string>
     <string name="search_whole_word">Word</string>
+    <string name="search_clear_filters">Clear filters</string>
     <string name="search_include_glob">Include (e.g. *.kt)</string>
     <string name="search_exclude_glob">Exclude (e.g. build/)</string>
     <string name="search_matches_summary">%1$d matches in %2$d files</string>

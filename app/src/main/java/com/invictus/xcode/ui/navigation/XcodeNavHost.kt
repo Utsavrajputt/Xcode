@@ -204,8 +204,9 @@ fun XcodeNavHost(
                     onBack = { navController.popBackStack() },
                     onOpenRoute = { route -> navController.navigate(route) },
                     onOpenFile = { file ->
+                        // Navigation happens via showEditor once the tab actually exists; navigating
+                        // now would hit EditorScreen with zero tabs and bounce straight back.
                         editorViewModel.onEvent(EditorEvent.Open(file))
-                        navController.navigate(Routes.EDITOR) { launchSingleTop = true }
                     },
                 )
             }
@@ -281,8 +282,8 @@ fun XcodeNavHost(
                     projectPath = path,
                     onBack = { navController.popBackStack() },
                     onOpenMatch = { file, line, column, length ->
+                        // See GIT onOpenFile: showEditor navigates once the tab is loaded.
                         editorViewModel.onEvent(EditorEvent.OpenAtLine(file, line, column, length))
-                        navController.navigate(Routes.EDITOR) { launchSingleTop = true }
                     },
                     onLocateInTree = { file ->
                         SearchBus.requestReveal(file)
@@ -295,7 +296,8 @@ fun XcodeNavHost(
 
     LaunchedEffect(editorViewModel) {
         editorViewModel.showEditor.collect {
-            if (navController.currentBackStackEntry?.destination?.route == Routes.WORKSPACE) {
+            val route = navController.currentBackStackEntry?.destination?.route
+            if (route == Routes.WORKSPACE || route == Routes.CODE_SEARCH || route == Routes.GIT) {
                 navController.navigate(Routes.EDITOR) { launchSingleTop = true }
             }
         }

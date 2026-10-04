@@ -58,7 +58,13 @@ class FindReplaceState {
  * stable count) so the panel can show "12 matches" / a regex-error state without depending on
  * [io.github.rosemoe.sora.widget.EditorSearcher] internals that aren't part of its stable API.
  */
-fun countMatches(text: CharSequence, query: String, caseSensitive: Boolean, useRegex: Boolean): Int? {
+fun countMatches(
+    text: CharSequence,
+    query: String,
+    caseSensitive: Boolean,
+    useRegex: Boolean,
+    cap: Int = Int.MAX_VALUE,
+): Int? {
     if (query.isEmpty()) return 0
     val options = if (caseSensitive) emptySet() else setOf(RegexOption.IGNORE_CASE)
     return try {
@@ -68,6 +74,7 @@ fun countMatches(text: CharSequence, query: String, caseSensitive: Boolean, useR
         while (start <= text.length) {
             val match = pattern.find(text, start) ?: break
             count++
+            if (count >= cap) break
             start = if (match.range.isEmpty()) match.range.first + 1 else match.range.last + 1
         }
         count

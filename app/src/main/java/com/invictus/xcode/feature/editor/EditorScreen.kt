@@ -88,7 +88,10 @@ import com.invictus.xcode.feature.preview.SplitDragHandle
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import io.github.rosemoe.sora.widget.EditorSearcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,20 +180,42 @@ fun EditorScreen(
     // query/options/edits, without polling on every recomposition.
     LaunchedEffect(activePath, showFind, findState.query, findState.caseSensitive, findState.useRegex, findState.editEpoch) {
         if (!showFind || activePath == null) return@LaunchedEffect
-        val count = activeBuffer?.let {
-            countMatches(it.content, findState.query, findState.caseSensitive, findState.useRegex)
-        } ?: 0
+        val query = findState.query
+        if (query.isEmpty()) {
+            findState.matchCount = 0
+            handle.editor?.searcher?.stopSearch()
+            return@LaunchedEffect
+        }
+        // Debounce: every keystroke cancels this effect, so a large file is searched once typing
+        // pauses instead of on each character (that pile-up is what froze/crashed big files).
+        delay(FIND_DEBOUNCE_MS)
+        val caseSensitive = findState.caseSensitive
+        val useRegex = findState.useRegex
+        // Content is main-thread only, so snapshot here; the heavy regex scan runs off-thread.
+        // Past the limit the independent count is skipped -- Sora's own searcher still highlights.
+        val snapshot = activeBuffer?.content?.takeIf { it.length <= FIND_COUNT_MAX_CHARS }?.toString()
+        val count: Int? = if (snapshot == null) {
+            0
+        } else {
+            withContext(Dispatchers.Default) {
+                try {
+                    countMatches(snapshot, query, caseSensitive, useRegex, FIND_COUNT_CAP)
+                } catch (_: Throwable) {
+                    null
+                }
+            }
+        }
         findState.matchCount = count
         val editor = handle.editor ?: return@LaunchedEffect
-        if (findState.query.isEmpty() || count == null) {
+        if (count == null) {
             editor.searcher.stopSearch()
         } else {
             try {
                 editor.searcher.search(
-                    findState.query,
-                    EditorSearcher.SearchOptions(!findState.caseSensitive, findState.useRegex),
+                    query,
+                    EditorSearcher.SearchOptions(!caseSensitive, useRegex),
                 )
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 // Independent countMatches() above already flags a bad pattern to the user.
             }
         }
@@ -280,7 +305,9 @@ fun EditorScreen(
             active?.let { tab ->
                 ExternalChangeBanner(tab = tab, onEvent = viewModel::onEvent)
             }
-            val activeText = handle.editor?.text?.toString()
+            val activeText = handle.editor?.text
+                ?.takeIf { it.length <= FIND_COUNT_MAX_CHARS } // skip full-text copy on huge files
+                ?.toString()
             val conflictBlocks = remember(active?.dirty, activePath, activeText) {
                 activeText
                     ?.takeIf { active?.previewType == PreviewType.NONE }
@@ -814,3 +841,7 @@ private fun UnsavedChangesDialog(pending: PendingClose, onEvent: (EditorEvent) -
         },
     )
 }
+
+private const val FIND_DEBOUNCE_MS = 300L
+private const val FIND_COUNT_MAX_CHARS = 2_000_000
+private const val FIND_COUNT_CAP = 10_000

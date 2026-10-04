@@ -1,5 +1,12 @@
 package com.invictus.xcode.feature.search
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +22,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -258,6 +268,25 @@ class CodeSearchViewModel(
     }
 }
 
+@Composable
+private fun FilterField(value: String, onValueChange: (String) -> Unit, label: String) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        shape = RoundedCornerShape(16.dp),
+        trailingIcon = {
+            if (value.isNotEmpty()) {
+                IconButton(onClick = { onValueChange("") }) {
+                    Icon(XIcons.Close, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CodeSearchScreen(
@@ -327,47 +356,83 @@ fun CodeSearchScreen(
                 }
             }
 
-            // Options row
+            // Options row: toggles on the left, "more" on the right reveals include/exclude.
+            var showFilters by rememberSaveable { mutableStateOf(false) }
+            val filtersActive = state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank()
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilterChip(
                     selected = state.regex,
                     onClick = { viewModel.setRegex(!state.regex) },
                     label = { Text(stringResource(R.string.search_regex)) },
+                    shape = RoundedCornerShape(50),
                 )
                 FilterChip(
                     selected = state.caseSensitive,
                     onClick = { viewModel.setCase(!state.caseSensitive) },
                     label = { Text(stringResource(R.string.search_case_sensitive)) },
+                    shape = RoundedCornerShape(50),
                 )
                 FilterChip(
                     selected = state.wholeWord,
                     onClick = { viewModel.setWholeWord(!state.wholeWord) },
                     label = { Text(stringResource(R.string.search_whole_word)) },
+                    shape = RoundedCornerShape(50),
                 )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { showFilters = !showFilters }) {
+                    BadgedBox(badge = { if (filtersActive) Badge() }) {
+                        Icon(
+                            XIcons.MoreVert,
+                            contentDescription = stringResource(R.string.search_filters),
+                            tint = if (showFilters || filtersActive) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            AnimatedVisibility(
+                visible = showFilters,
+                enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                exit = shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut(),
             ) {
-                OutlinedTextField(
-                    value = state.includeGlob,
-                    onValueChange = viewModel::setInclude,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.search_include_glob)) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                )
-                OutlinedTextField(
-                    value = state.excludeGlob,
-                    onValueChange = viewModel::setExclude,
-                    modifier = Modifier.weight(1f),
-                    label = { Text(stringResource(R.string.search_exclude_glob)) },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                )
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 1.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        FilterField(
+                            value = state.includeGlob,
+                            onValueChange = viewModel::setInclude,
+                            label = stringResource(R.string.search_include_glob),
+                        )
+                        FilterField(
+                            value = state.excludeGlob,
+                            onValueChange = viewModel::setExclude,
+                            label = stringResource(R.string.search_exclude_glob),
+                        )
+                        if (filtersActive) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.setInclude("")
+                                    viewModel.setExclude("")
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                            ) { Text(stringResource(R.string.search_clear_filters)) }
+                        }
+                    }
+                }
             }
 
             state.error?.let { err ->
