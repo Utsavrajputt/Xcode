@@ -5,11 +5,14 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -34,6 +37,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -70,7 +77,31 @@ import com.invictus.xcode.ui.components.expressivePressScale
 import com.invictus.xcode.ui.components.FileTypeIcon
 import com.invictus.xcode.ui.icons.XIcons
 import java.io.File
+import kotlin.math.ceil
 import kotlinx.coroutines.delay
+
+/**
+ * Horizontal-overflow bookkeeping for the tree. Every visible [FileRow] reports the width it
+ * needs; the tree scrolls sideways (as one block, so indentation stays aligned) only when the
+ * widest visible row is wider than the viewport.
+ */
+@Stable
+private class TreeHScroll {
+    var viewportPx by mutableIntStateOf(0)
+    private val rowWidths = mutableStateMapOf<String, Int>()
+    private val widest by derivedStateOf { rowWidths.values.maxOrNull() ?: 0 }
+
+    val contentPx: Int get() = maxOf(viewportPx, widest)
+    val overflowing: Boolean get() = viewportPx > 0 && widest > viewportPx
+
+    fun report(key: String, px: Int) {
+        if (rowWidths[key] != px) rowWidths[key] = px
+    }
+
+    fun clear(key: String) {
+        rowWidths.remove(key)
+    }
+}
 
 @Composable
 fun UiText.asString(): String = stringResource(resId, *args.toTypedArray())
@@ -90,7 +121,26 @@ fun FileTree(
     val query = filterQuery.trim()
 
     if (query.isEmpty()) {
-        LazyColumn(modifier = modifier.fillMaxSize(), state = listState) {
+        val hScroll = remember { TreeHScroll() }
+        val hScrollState = rememberScrollState()
+        val density = LocalDensity.current
+        val overflowing = hScroll.overflowing
+        // Back to normal (no sideways scrolling) as soon as nothing overflows any more.
+        LaunchedEffect(overflowing) { if (!overflowing) hScrollState.scrollTo(0) }
+        Box(modifier = modifier.fillMaxSize().onSizeChanged { hScroll.viewportPx = it.width }) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxHeight()
+                .horizontalScroll(hScrollState, enabled = overflowing)
+                .let { m ->
+                    if (hScroll.viewportPx > 0) {
+                        m.width(with(density) { hScroll.contentPx.toDp() })
+                    } else {
+                        m.fillMaxWidth()
+                    }
+                },
+            state = listState,
+        ) {
             items(items = state.rows, key = { it.key }) { row ->
                 // Expressive: rows spring into place when the tree expands/collapses.
                 Box(modifier = Modifier.animateItem()) {
@@ -110,11 +160,14 @@ fun FileTree(
                         ],
                         onEvent = onEvent,
                         onCopyPath = onCopyPath,
+                        onWidthNeeded = { hScroll.report(row.key, it) },
+                        onWidthGone = { hScroll.clear(row.key) },
                     )
                     is TreeRow.Empty -> EmptyRow(depth = row.depth)
                 }
                 }
             }
+        }
         }
     } else {
         // Andar (collapsed folders) ki files bhi milni chahiye, isliye ab poore project ko
@@ -198,6 +251,8 @@ private fun FileRow(
     decoration: GitPathDecoration?,
     onEvent: (FileTreeEvent) -> Unit,
     onCopyPath: (File) -> Unit,
+    onWidthNeeded: (Int) -> Unit,
+    onWidthGone: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     var pressOffset by remember { mutableStateOf(Offset.Zero) }
@@ -205,6 +260,13 @@ private fun FileRow(
     var pressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     val isRenaming = renaming != null
+
+    // Row stops reporting when it leaves composition or while the rename field is shown.
+    DisposableEffect(Unit) { onDispose(onWidthGone) }
+    LaunchedEffect(isRenaming) { if (isRenaming) onWidthGone() }
+    // Everything in the row except the name: indent, chevron, icon, gaps, loader, end padding.
+    val chromeDp = 8 + row.depth * 16 + 20 + 6 + 22 + 10 + 8 + 4 + if (row.isLoading) 22 else 0
+    val chromePx = with(density) { chromeDp.dp.toPx() }
 
     // DropdownMenu anchors to the bottom-left of its parent, so subtract the row height to
     // make the menu open at the finger instead of below the row.
@@ -294,7 +356,11 @@ private fun FileRow(
                         text = displayName,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
+                        onTextLayout = { layout ->
+                            onWidthNeeded(ceil(layout.multiParagraph.maxIntrinsicWidth + chromePx).toInt())
+                        },
                     )
                 }
             }
