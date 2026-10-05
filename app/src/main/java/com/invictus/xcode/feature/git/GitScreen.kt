@@ -219,7 +219,7 @@ fun GitScreen(
                     }
                     Box {
                         IconButton(onClick = { overflowOpen = true }) {
-                            Icon(XIcons.KeyboardArrowDown, contentDescription = stringResource(R.string.git_title))
+                            Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
                         }
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
                             DropdownMenuItem(
