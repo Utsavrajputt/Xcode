@@ -10,9 +10,11 @@
   <i>No SDK manager, no terminal, no Ubuntu rootfs — just your project folder, a fast editor and Git.</i>
 </p>
 
-> [!IMPORTANT]
-> Xcode is under active development and has no stable release yet. Every change lands in
-> [CHANGELOG.md](CHANGELOG.md) under **Unreleased** until the first tag is cut.
+> [!NOTE]
+> **Xcode 1.0.0 is out.** Grab the APK for your phone from the
+> [latest release](https://github.com/Utsavrajputt/Xcode/releases/latest) — see
+> [APK variants](#-apk-variants) if you're not sure which one — and read what's new in
+> [CHANGELOG.md](CHANGELOG.md).
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android%2011%2B-brightgreen.svg" />
@@ -68,6 +70,7 @@ left to GitHub Actions or a PC — that is a different (and much heavier) proble
 | **Recent projects** | Home and *All projects* lists with search and sort. Per-project menu: **pin to top**, **rename**, **delete** (with confirmation), **project info** (size, files, last modified/opened, Git branch), copy path, remove from recents |
 | **Backup as ZIP** | One-tap project backup from the recents menu |
 | **Pinned files** | Pin files and folders to the top of a project's tree |
+| **Long names** | The file tree scrolls sideways only while a name is wider than the screen (Settings → Behavior → *Scroll long file names*, on by default) |
 | **Safety** | Binary/large-file open warning, hidden-files toggle, and device root, Documents and Downloads can never be deleted from the app |
 
 </details>
@@ -94,10 +97,11 @@ left to GitHub Actions or a PC — that is a different (and much heavier) proble
 
 | Feature | Description |
 |---|---|
-| **Core operations** | Clone, status, stage/unstage, commit (+ amend), push/pull/fetch, force push behind a confirmation |
-| **Branches** | List, create, checkout, delete, rename — also before the first commit |
+| **Core operations** | Clone with live progress, status, stage/unstage, commit (+ amend), push/pull/fetch, force push (incl. force-with-lease) behind a confirmation |
+| **Branches** | List, create, checkout, delete, rename, quick-switch dropdown — also before the first commit |
+| **Rebase** | Rebase onto a branch with continue / skip / abort and conflict resolution |
 | **History** | Log, commit detail, file history, search by message/author/hash |
-| **Diff** | Inline and side-by-side, image diff preview |
+| **Diff** | GitHub-style unified and side-by-side viewer with word highlights, tap-to-open, inline editing, image diff preview |
 | **Merge & cherry-pick** | Fast-forward and normal merge, cherry-pick from history |
 | **Conflicts** | Inline accept ours/theirs/both, abort or complete the merge |
 | **Stash & tags** | Save/list/apply/pop/drop and tag list/create/delete |
@@ -105,7 +109,7 @@ left to GitHub Actions or a PC — that is a different (and much heavier) proble
 | **Multi-remote** | Per-remote token manager; tokens live in an AES/GCM vault backed by the Android Keystore |
 | **GitHub settings** | Per-host token and profile management |
 
-Not planned: GPG commit signing, submodules, rebase conflict flow, SSH auth.
+Not planned: GPG commit signing, submodules, SSH auth.
 
 </details>
 
@@ -131,6 +135,7 @@ Not planned: GPG commit signing, submodules, rebase conflict flow, SSH auth.
 | **5 app themes** | Default, Aurora, Catppuccin, Nord and Rose Pine, plus an **AMOLED** true-black toggle |
 | **Editor themes** | Light/dark pairs including One Dark Pro, GitHub, Solarized, Monokai, Ayu, Darcula, VS Code and Xcode |
 | **Crash & Git logs** | On-device crash log and Git log viewers under Settings → Diagnostics |
+| **About** | Version, GitHub and Libraries buttons, Support, GitHub contributors and the AGPL-3.0 license under Settings → About |
 
 </details>
 
@@ -158,7 +163,7 @@ app/src/main/java/com/invictus/xcode/
  ├─ core/
  │   ├─ fs/          # file operations, directory/external-change watchers, storage permission
  │   ├─ git/         # JGit session, auth, cloner, conflict parser
- │   ├─ github/      # GitHub profile lookups
+ │   ├─ github/      # GitHub profile + contributors lookups
  │   ├─ editor/      # tab buffers, language registry, TextMate + editor settings
  │   ├─ preview/     # preview helpers
  │   ├─ search/      # fuzzy file search, code search, search history
@@ -174,7 +179,7 @@ app/src/main/java/com/invictus/xcode/
  │   ├─ git/         # status, commit, branches, diff, history, stash, remotes, onboarding
  │   ├─ preview/     # Markdown / HTML / SVG / image / video
  │   ├─ search/      # file search overlay, code search screen
- │   ├─ settings/    # appearance, editing, behaviour, GitHub, diagnostics
+ │   ├─ settings/    # appearance, editing, behaviour, GitHub, diagnostics, about + libraries
  │   ├─ permission/  # onboarding + storage permission flow
  │   └─ diagnostics/
  ├─ ui/              # theme, shared components, navigation
@@ -241,7 +246,7 @@ to `main` runs `.github/workflows/android-build.yml` and uploads the signed APKs
 Two tag-triggered workflows build signed APKs and publish them to GitHub Releases, with SHA-256
 checksums and notes pulled from `CHANGELOG.md`:
 
-- **`.github/workflows/release.yml`** — stable releases, tags matching `vX.Y.Z` (e.g. `v1.0.0`).
+- **`.github/workflows/release.yml`** — stable releases, tags matching `vX.Y.Z` (e.g. `v1.0.0`, the current release).
 - **`.github/workflows/prerelease.yml`** — pre-releases, tags matching `vX.Y.Z-suffix` (e.g.
   `v1.0.0-beta.1`, `v1.0.0-rc.2`). The GitHub Release is flagged **Pre-release** automatically.
 
@@ -286,7 +291,7 @@ Run workflow** and typing the tag name, without pushing a tag first.
 ## 🚫 Out of scope
 
 On-device build/run, SDK/Gradle/JDK management, a terminal, SSH auth, LSP servers, AI agents/MCP,
-a plugin system, a real Compose/XML/Flutter layout preview, and the rebase conflict flow.
+a plugin system and a real Compose/XML/Flutter layout preview.
 
 ---
 

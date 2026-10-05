@@ -591,13 +591,15 @@ private fun FileResultHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FileTypeIcon(name = fileResult.file.name, isDirectory = false)
-        Text(
-            text = fileResult.relativePath,
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
+            Text(
+                text = fileResult.file.name,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            FolderPathSubtitle(relativePath = fileResult.relativePath)
+        }
         Text(
             text = "${fileResult.matches.size}",
             style = MaterialTheme.typography.labelSmall,
@@ -621,6 +623,35 @@ private fun FileResultHeader(
             Icon(XIcons.Close, contentDescription = stringResource(R.string.search_dismiss_file))
         }
     }
+}
+
+/**
+ * Small grey folder path under the file name. When the whole path does not fit on one line it
+ * drops the outermost folders ("…/shared-youtube/lib") until it does, so the folders closest
+ * to the file always stay visible.
+ */
+@Composable
+private fun FolderPathSubtitle(relativePath: String) {
+    val folders = remember(relativePath) {
+        relativePath.substringBeforeLast('/', "").split('/').filter { it.isNotEmpty() }
+    }
+    var shown by remember(relativePath) { mutableStateOf(folders.size) }
+    val text = when {
+        folders.isEmpty() -> "/"
+        shown >= folders.size -> "/" + folders.joinToString("/")
+        else -> "…/" + folders.takeLast(shown).joinToString("/")
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { layout ->
+            if (layout.didOverflowWidth && shown > 1) shown--
+        },
+    )
 }
 
 /** Snippet me match ranges soft highlight (plan: line highlight ke saath jump). */
