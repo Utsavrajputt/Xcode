@@ -6,9 +6,11 @@ import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -186,64 +190,84 @@ internal fun ProjectCardRow(
                 IconButton(onClick = { menuOpen = true }) {
                     Icon(XIcons.MoreVert, contentDescription = null)
                 }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 3.dp,
+                    shadowElevation = 6.dp,
+                ) {
                     val close = { menuOpen = false }
                     val canModify = item.exists && !item.isDeviceStorage
-                    DropdownMenuItem(
-                        text = { Text(stringResource(if (item.pinned) R.string.tree_menu_unpin else R.string.tree_menu_pin)) },
-                        onClick = {
-                            close()
-                            onTogglePin()
-                        },
+                    val canDelete = item.exists && !item.isProtected
+                    ProjectMenuItem(
+                        label = stringResource(if (item.pinned) R.string.tree_menu_unpin else R.string.tree_menu_pin),
+                        icon = XIcons.Pin,
+                        onClick = { close(); onTogglePin() },
                     )
                     if (item.exists) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.recent_menu_info)) },
-                            onClick = {
-                                close()
-                                onInfo()
-                            },
+                        ProjectMenuItem(
+                            label = stringResource(R.string.recent_menu_info),
+                            icon = XIcons.Info,
+                            onClick = { close(); onInfo() },
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.tree_menu_copy_path)) },
-                        onClick = {
-                            close()
-                            onCopyPath()
-                        },
+                    ProjectMenuItem(
+                        label = stringResource(R.string.tree_menu_copy_path),
+                        icon = XIcons.ContentCopy,
+                        onClick = { close(); onCopyPath() },
                     )
                     if (canModify) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.tree_menu_rename)) },
-                            onClick = {
-                                close()
-                                onRename()
-                            },
+                        ProjectMenuItem(
+                            label = stringResource(R.string.tree_menu_rename),
+                            icon = XIcons.Edit,
+                            onClick = { close(); onRename() },
                         )
                     }
-                    if (item.exists && !item.isProtected) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(R.string.tree_menu_delete),
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            },
-                            onClick = {
-                                close()
-                                onDelete()
-                            },
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 12.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+                    if (canDelete) {
+                        ProjectMenuItem(
+                            label = stringResource(R.string.tree_menu_delete),
+                            icon = XIcons.Delete,
+                            danger = true,
+                            onClick = { close(); onDelete() },
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.recent_menu_remove)) },
-                        onClick = {
-                            close()
-                            onRemove()
-                        },
+                    ProjectMenuItem(
+                        label = stringResource(R.string.recent_menu_remove),
+                        icon = XIcons.Close,
+                        onClick = { close(); onRemove() },
                     )
                 }
             }
         }
     }
+}
+
+/** One compact (44dp) row of the project card menu: leading icon + label, red when [danger]. */
+@Composable
+private fun ProjectMenuItem(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+) {
+    val tint = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+    DropdownMenuItem(
+        text = {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp)) },
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 14.dp),
+        modifier = Modifier.height(44.dp),
+    )
 }

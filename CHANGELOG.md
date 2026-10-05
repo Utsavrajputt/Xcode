@@ -45,7 +45,7 @@ When cutting a release, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` an
 - 🏷️ **Versioning is now driven by the tag**: `v1.2.3` sets `versionName` to `1.2.3` and `versionCode` is derived from the tag (`.github/scripts/version-from-tag.sh`) instead of the CI run number, so pre-releases and stable builds from separate workflows always compare correctly and a beta updates into its final release.
 - 🧱 Release signing and note generation moved into `.github/scripts/` (`sign-apks.sh`, `release-notes.py`) shared by every workflow. Stable and pre-release builds refuse to publish unsigned APKs.
 - 🗄️ Room database bumped to version 3 (adds the `pinned` column to recent projects; existing data is migrated in place).
-- 🧼 **UI polish pass**: borderless paste button in the commit box, hero banner without an outline, one shared edge/gap rhythm on Home, a top bar that matches the page colour (no seam while scrolling), and bottom breathing room under the Git changes lists. The editor's Source Control sheet now opens at its content height instead of half-open.
+- 🧼 **UI polish pass**: project card menu is now compact with icons ("Remove" instead of "Remove from recents"), the Home search button only shows with more than 9 recents, a new folder-download Clone icon, borderless paste button in the commit box, hero banner without an outline, one shared edge/gap rhythm on Home, a top bar that matches the page colour (no seam while scrolling), and bottom breathing room under the Git changes lists. The editor's Source Control sheet now opens at its content height instead of half-open.
 - 📦 CI and releases now produce three APKs: `arm64-v8a`, `armeabi-v7a` and `universal`.
 
 ### 🗑️ Removed

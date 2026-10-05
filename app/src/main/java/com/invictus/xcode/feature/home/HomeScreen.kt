@@ -95,6 +95,9 @@ import java.io.File
 /** Recents shown on Home before "View All" takes over. */
 private const val HomeRecentLimit = 5
 
+/** The search icon only appears once there are more recents than this. */
+private const val HomeSearchMinProjects = 9
+
 /** Left/right edge shared by the title, hero, section label and project cards. */
 private val HomeEdge = 16.dp
 
@@ -121,7 +124,7 @@ fun HomeScreen(
     val treeState by fileTreeViewModel.uiState.collectAsStateWithLifecycle()
     var showProjectSheet by rememberSaveable { mutableStateOf(false) }
     var showNewSheet by rememberSaveable { mutableStateOf(false) }
-    var searching by rememberSaveable { mutableStateOf(false) }
+    var searchRequested by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -154,8 +157,12 @@ fun HomeScreen(
 
     val copyPath = rememberCopyPath(snackbarHostState)
 
+    // Search is only worth a button once the list is long enough to need it; if the list shrinks
+    // below that while searching, the search bar closes with it.
+    val canSearch = projectsState.recents.size > HomeSearchMinProjects
+    val searching = searchRequested && canSearch
     val closeSearch = {
-        searching = false
+        searchRequested = false
         query = ""
     }
     BackHandler(enabled = searching) { closeSearch() }
@@ -215,10 +222,12 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        HeaderIconButton(onClick = { searching = true }) {
-                            Icon(XIcons.Search, contentDescription = stringResource(R.string.home_search))
+                        if (canSearch) {
+                            HeaderIconButton(onClick = { searchRequested = true }) {
+                                Icon(XIcons.Search, contentDescription = stringResource(R.string.home_search))
+                            }
+                            Spacer(Modifier.width(10.dp))
                         }
-                        Spacer(Modifier.width(10.dp))
                         HeaderIconButton(onClick = onClone) {
                             Icon(XIcons.Clone, contentDescription = stringResource(R.string.home_clone))
                         }

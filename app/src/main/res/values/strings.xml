@@ -95,7 +95,7 @@
     <string name="sheet_current">Open now</string>
     <string name="sheet_folder_missing">Folder missing · %1$s</string>
     <string name="recent_menu_backup">Back up as ZIP</string>
-    <string name="recent_menu_remove">Remove from recents</string>
+    <string name="recent_menu_remove">Remove</string>
     <string name="recent_menu_info">Project info</string>
     <string name="msg_project_deleted">Deleted "%1$s"</string>
     <string name="dialog_delete_project_body">This project folder and everything inside it will be deleted permanently from your device. This can\'t be undone.</string>
