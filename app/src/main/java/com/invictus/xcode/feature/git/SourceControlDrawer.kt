@@ -7,6 +7,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -76,7 +77,11 @@ fun SourceControlDrawerSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                // Air under the last row so it never sits flush on the gesture bar.
+                contentPadding = PaddingValues(bottom = 24.dp),
+            ) {
                 item("commit") { DrawerCommitCard(state, onEvent) }
                 item("actions") { DrawerQuickActions(state, onEvent) }
                 if (state.snapshot?.mergeInProgress == true || state.snapshot?.rebaseInProgress == true) {

@@ -1,8 +1,8 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -335,7 +335,11 @@ private fun GitContent(
 ) {
     val snapshot = state.snapshot ?: return
     val status = state.status
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        // Breathing room under the last row so it never sits flush on the gesture bar.
+        contentPadding = PaddingValues(bottom = 24.dp),
+    ) {
         item(key = "branch") {
             BranchCard(snapshot, state, onEvent, onClick = onBranchClick)
         }
@@ -647,7 +651,9 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
                 label = { Text(stringResource(R.string.git_amend)) },
             )
             Spacer(Modifier.weight(1f))
-            OutlinedIconButton(
+            // Borderless on purpose: an outlined circle next to the Amend chip and the filled
+            // Commit button read as a third competing control.
+            IconButton(
                 onClick = {
                     clipboard.getText()?.text?.takeIf { it.isNotEmpty() }
                         ?.let { onEvent(GitEvent.PasteCommitText(it)) }
@@ -657,6 +663,7 @@ private fun CommitCard(state: GitViewModel.UiState, onEvent: (GitEvent) -> Unit)
                 Icon(
                     XIcons.ContentPaste,
                     contentDescription = stringResource(R.string.git_paste),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
             }

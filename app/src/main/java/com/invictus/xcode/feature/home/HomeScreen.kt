@@ -13,8 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -93,6 +94,12 @@ import java.io.File
 
 /** Recents shown on Home before "View All" takes over. */
 private const val HomeRecentLimit = 5
+
+/** Left/right edge shared by the title, hero, section label and project cards. */
+private val HomeEdge = 16.dp
+
+/** Vertical gap between the hero, the action buttons and the Recent Projects label. */
+private val HomeSectionGap = 20.dp
 
 /**
  * Home screen: hero banner, Open Project + New project buttons, and a short recent-projects list.
@@ -160,6 +167,11 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 expandedHeight = 88.dp,
+                // Same colour as the page, also while the list scrolls under it: no tonal seam.
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                ),
                 navigationIcon = {
                     if (searching) {
                         IconButton(onClick = closeSearch) {
@@ -221,15 +233,19 @@ fun HomeScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
-        LazyColumn(Modifier.fillMaxSize().padding(innerPadding)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
             if (!searching) {
                 item(key = "hero") {
-                    HeroBanner(Modifier.padding(horizontal = 16.dp))
+                    HeroBanner(Modifier.padding(horizontal = HomeEdge))
                 }
                 item(key = "actions") {
                     Row(
-                        // top = bottom + Recent header's own inset, so hero->button gap == button->"Recent Projects" gap
-                        Modifier.fillMaxWidth().padding(top = 34.dp, bottom = 24.dp),
+                        // The label below carries 8dp of its own vertical inset, so take that off the
+                        // bottom: hero->buttons and buttons->"Recent Projects" both measure HomeSectionGap.
+                        Modifier.fillMaxWidth().padding(top = HomeSectionGap, bottom = HomeSectionGap - 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -245,7 +261,7 @@ fun HomeScreen(
                 }
                 item(key = "header") {
                     Row(
-                        Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp),
+                        Modifier.fillMaxWidth().padding(start = HomeEdge, end = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -382,8 +398,8 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .aspectRatio(1.57f)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xFF030716), Color(0xFF071445), Color(0xFF040B26))))
-            .border(1.dp, Color(0x552F5BFF), shape),
+            // No outline: the card fades out of the page instead of sitting on it like a sticker.
+            .background(Brush.linearGradient(listOf(Color(0xFF030716), Color(0xFF071445), Color(0xFF040B26)))),
     ) {
         val s = maxWidth.value / 328f
         Canvas(Modifier.fillMaxSize()) { drawHeroArt(a, b) }

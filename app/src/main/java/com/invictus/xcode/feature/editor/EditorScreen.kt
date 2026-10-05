@@ -477,7 +477,9 @@ fun EditorScreen(
     if (showGitSheet && gitViewModel != null && projectRoot != null) {
         ModalBottomSheet(
             onDismissRequest = { showGitSheet = false },
-            sheetState = rememberModalBottomSheetState(),
+            // Open at the content's height instead of half-way: the half-open state left the
+            // changes list running off the bottom edge of the screen.
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         ) {
             SourceControlDrawerSheet(
                 state = gitState,

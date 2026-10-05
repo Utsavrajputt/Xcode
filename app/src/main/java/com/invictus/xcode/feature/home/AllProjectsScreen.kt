@@ -2,6 +2,7 @@ package com.invictus.xcode.feature.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,6 +113,10 @@ fun AllProjectsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                ),
                 navigationIcon = {
                     IconButton(onClick = { if (searching) closeSearch() else onBack() }) {
                         Icon(XIcons.ArrowBack, contentDescription = stringResource(R.string.action_back))
@@ -137,7 +143,10 @@ fun AllProjectsScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(Modifier.fillMaxSize().padding(innerPadding)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
+        ) {
             item(key = "sort") {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp),
