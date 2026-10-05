@@ -64,6 +64,10 @@ object XIcons {
                 "M15,9h2V7h4V5h-4V3h-2v6z",
         )
     }
+    /** Material "download": tray with a down arrow, for the vector PNG / SVG export buttons. */
+    val Download: ImageVector by lazy {
+        icon("Download", "M5,20h14v-2H5v2zM19,9h-4V3H9v6H5l7,7 7,-7z")
+    }
     val ContentCopy: ImageVector by lazy {
         icon(
             "ContentCopy",

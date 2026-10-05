@@ -104,6 +104,7 @@ fun EditorScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val handle = remember { EditorHandle() }
     val context = LocalContext.current
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
@@ -407,6 +408,7 @@ fun EditorScreen(
                                 darkTheme = darkTheme,
                                 projectRoot = viewModel.projectRoot,
                                 onSetHtmlJsEnabled = { viewModel.onEvent(EditorEvent.SetHtmlJsEnabled(path, it)) },
+                                onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         } else { // SPLIT: editor on top, drag handle, preview below (M5 decision).
@@ -428,6 +430,7 @@ fun EditorScreen(
                                         darkTheme = darkTheme,
                                         projectRoot = viewModel.projectRoot,
                                         onSetHtmlJsEnabled = { viewModel.onEvent(EditorEvent.SetHtmlJsEnabled(path, it)) },
+                                        onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
                                         modifier = Modifier.weight(1f - ratio).fillMaxWidth(),
                                     )
                                 }

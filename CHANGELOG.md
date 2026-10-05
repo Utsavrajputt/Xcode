@@ -35,6 +35,7 @@ When cutting a release, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` an
 - 🧭 Guided Git onboarding wizard (init → identity → remote → first commit → upstream).
 - 🔐 Per-remote token vault using an AES/GCM key in the Android Keystore, plus GitHub profile lookups per host.
 - 👀 Previews: Markdown, HTML (split mode, JS off by default), SVG, images and video as in-editor tabs.
+- 🤖 **Android Vector XML preview**: `.xml` files with a `<vector>` root open with the Editor / Split / Preview toggle and render live (groups, clip-paths, strokes, fill/stroke alpha, `#AARRGGBB` colours). Preview-only — no other converter features. Buttons save a **PNG** (1024px long side) or **SVG** into `Downloads/` (never overwriting) or copy the SVG text. Conversion is a Kotlin port of the XML → SVG half of the Modxtools web tool.
 - 🔎 File search (fuzzy, recents, filters) and code search (regex, case, whole word, include / exclude globs, streamed grouped results) with separate histories.
 - 🎨 Five app themes (Default, Aurora, Catppuccin, Nord, Rose Pine) and a true-black AMOLED toggle.
 - 🩺 On-device crash and Git log viewers under Settings → Diagnostics.

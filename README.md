@@ -115,6 +115,7 @@ Not planned: GPG commit signing, submodules, rebase conflict flow, SSH auth.
 | Feature | Description |
 |---|---|
 | **Preview** | Markdown (theme toggle), HTML (split mode, JS off by default), SVG, images and video as in-editor tabs |
+| **Vector XML preview** | Any `.xml` with a `<vector>` root gets the same Editor / Split / Preview toggle. Live render (groups, clip-paths, strokes, alpha), light/dark canvas switch, and **PNG**, **SVG** and **Copy SVG** buttons — exports land in `Downloads/` |
 | **File search** | Fuzzy filename match, recents, extension/folder filters |
 | **Code search** | Whole-workspace content search with regex/case/whole word, include/exclude globs and streamed, grouped results |
 | **Search history** | Separate history for file and code search |

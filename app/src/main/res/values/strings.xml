@@ -231,7 +231,7 @@
     <string name="settings_symbol_bar_visible">Show symbol bar</string>
     <string name="settings_symbol_bar_visible_desc">Quick-insert symbol strip above the keyboard</string>
     <string name="settings_auto_preview">Auto-preview</string>
-    <string name="settings_auto_preview_desc">Open Markdown/HTML files straight into split view</string>
+    <string name="settings_auto_preview_desc">Open Markdown, HTML and Vector XML files straight into split view</string>
     <string name="settings_autocomplete">Autocomplete</string>
     <string name="settings_autocomplete_desc">Suggest words and keywords while typing</string>
     <string name="settings_pair_cursor">Pair cursor</string>
@@ -250,6 +250,14 @@
     <string name="preview_html_js_dialog_body">This HTML file can run scripts. Only enable this if you trust what it does — scripts can still load anything else this file references.</string>
     <string name="preview_html_js_dialog_enable">Enable</string>
     <string name="preview_html_js_dialog_keep_off">Keep off</string>
+    <string name="vector_preview_png">PNG</string>
+    <string name="vector_preview_svg">SVG</string>
+    <string name="vector_preview_copy_svg">Copy SVG</string>
+    <string name="vector_preview_background">Switch preview background</string>
+    <string name="vector_preview_saved">Saved to Downloads/%1$s</string>
+    <string name="vector_preview_save_failed">Couldn\'t save: %1$s</string>
+    <string name="vector_preview_copied">SVG copied</string>
+    <string name="vector_preview_invalid">Can\'t render: %1$s</string>
     <string name="preview_unsupported">Can\'t preview this file</string>
     <!-- strings_m6.xml - Git (M6) -->
     <string name="git_title">Source Control</string>
