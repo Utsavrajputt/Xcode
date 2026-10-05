@@ -2,7 +2,9 @@ package com.invictus.xcode.feature.search
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,8 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -40,6 +44,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -626,20 +632,28 @@ private fun FileResultHeader(
 }
 
 /**
- * Small grey folder path under the file name. When the whole path does not fit on one line it
- * drops the outermost folders ("…/shared-youtube/lib") until it does, so the folders closest
- * to the file always stay visible.
+ * Small grey folder path under the file name. The full path is shown; when it is wider than the
+ * row it glides to the end, pauses, glides back to the start and repeats, so every folder name can
+ * be read without any truncation. A path that fits just stays still.
  */
 @Composable
 private fun FolderPathSubtitle(relativePath: String) {
-    val folders = remember(relativePath) {
-        relativePath.substringBeforeLast('/', "").split('/').filter { it.isNotEmpty() }
+    val text = remember(relativePath) {
+        relativePath.substringBeforeLast('/', "").ifEmpty { "/" }
     }
-    var shown by remember(relativePath) { mutableStateOf(folders.size) }
-    val text = when {
-        folders.isEmpty() -> "/"
-        shown >= folders.size -> "/" + folders.joinToString("/")
-        else -> "…/" + folders.takeLast(shown).joinToString("/")
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    val maxScroll = scroll.maxValue
+    LaunchedEffect(text, maxScroll) {
+        if (maxScroll <= 0) return@LaunchedEffect
+        // ~36 dp per second keeps the text readable while it moves.
+        val millis = ((maxScroll / density.density) / 36f * 1000f).toInt().coerceIn(600, 12_000)
+        while (true) {
+            delay(1200)
+            scroll.animateScrollTo(maxScroll, tween(millis, easing = LinearEasing))
+            delay(900)
+            scroll.animateScrollTo(0, tween(millis, easing = LinearEasing))
+        }
     }
     Text(
         text = text,
@@ -647,10 +661,10 @@ private fun FolderPathSubtitle(relativePath: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         softWrap = false,
-        overflow = TextOverflow.Ellipsis,
-        onTextLayout = { layout ->
-            if (layout.didOverflowWidth && shown > 1) shown--
-        },
+        overflow = TextOverflow.Clip,
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scroll, enabled = false),
     )
 }
 

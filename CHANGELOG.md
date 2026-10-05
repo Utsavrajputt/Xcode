@@ -57,7 +57,7 @@ When cutting a release, rename `## [Unreleased]
 - 🕒 *Git status detection* toggle (off by default) for the file-tree stripes, and per-operation **Git logs** with wait / run timings.
 
 #### 🔎 Search
-- 🔍 **File search** (fuzzy, recents, extension / folder filters) and **code search** (regex, case, whole word, include / exclude globs, parallel scan, streamed grouped results, a `text//name` file filter) with separate histories and a collapsible filters panel. Result headers show the **file name** with the folder path as a small subtitle, shortened from the outside in (`…/shared-youtube/lib`) so it always fits on one line.
+- 🔍 **File search** (fuzzy, recents, extension / folder filters) and **code search** (regex, case, whole word, include / exclude globs, parallel scan, streamed grouped results, a `text//name` file filter) with separate histories and a collapsible filters panel. Result headers show the **file name** with the full folder path as a small subtitle that slowly glides to the end and back when it is wider than the row.
 - 🗂️ Recursive filename search inside the workspace tree and *locate in file tree*.
 - ⚙️ Search settings: default-strings-only (skip `values-*`), extra excludes and a max file size.
 
