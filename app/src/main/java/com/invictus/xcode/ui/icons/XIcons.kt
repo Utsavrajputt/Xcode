@@ -16,6 +16,9 @@ import com.composables.icons.materialsymbols.roundedfilled.Close
 import com.composables.icons.materialsymbols.roundedfilled.Edit
 import com.composables.icons.materialsymbols.roundedfilled.Folder
 import com.composables.icons.materialsymbols.roundedfilled.Folder_open
+import com.composables.icons.materialsymbols.roundedfilled.Article
+import com.composables.icons.materialsymbols.roundedfilled.Monetization_on
+import com.composables.icons.materialsymbols.roundedfilled.Open_in_new
 import com.composables.icons.materialsymbols.roundedfilled.Keyboard_arrow_down
 import com.composables.icons.materialsymbols.roundedfilled.Keyboard_arrow_up
 import com.composables.icons.materialsymbols.roundedfilled.More_vert
@@ -54,6 +57,9 @@ object XIcons {
     val Edit: ImageVector = MaterialSymbols.RoundedFilled.Edit
     val Bolt: ImageVector = MaterialSymbols.RoundedFilled.Bolt
     val Settings: ImageVector = MaterialSymbols.RoundedFilled.Settings
+    val Article: ImageVector = MaterialSymbols.RoundedFilled.Article
+    val MonetizationOn: ImageVector = MaterialSymbols.RoundedFilled.Monetization_on
+    val OpenInNew: ImageVector = MaterialSymbols.RoundedFilled.Open_in_new
 
     // Editor tools menu glyphs (Material paths, same hand-drawn pattern as below).
     /** Top-bar tools menu (Material "tune" — sliders), replaces the old bolt. */

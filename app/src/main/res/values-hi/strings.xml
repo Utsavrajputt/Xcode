@@ -190,4 +190,49 @@
     <string name="sheet_browse_add">जोड़ें</string>
     <string name="sheet_browse_add_hint">Folder path जोड़ें (/storage/…)</string>
     <string name="sheet_browse_invalid_path">Folder नहीं मिला</string>
+
+    <!-- Settings: file tree horizontal scroll -->
+    <string name="settings_tree_hscroll">लंबे फ़ाइल नाम स्क्रॉल करें</string>
+    <string name="settings_tree_hscroll_desc">फ़ाइल ट्री में स्क्रीन से चौड़ा नाम पढ़ने के लिए साइड में स्वाइप करें। सारे नाम फ़िट हों तो यह अपने-आप बंद रहता है। बंद करने पर लंबे नाम “…” पर कट जाते हैं।</string>
+
+    <!-- About -->
+    <string name="settings_category_about_desc">वर्ज़न, क्रेडिट्स और लाइसेंस</string>
+    <string name="about_title">जानकारी</string>
+    <string name="about_tagline">Git के साथ नेटिव Android कोड एडिटर</string>
+    <string name="about_version_format">वर्ज़न %1$s</string>
+    <string name="about_license_title">लाइसेंस</string>
+    <string name="about_license_body">GNU Affero General Public License v3.0 (AGPL-3.0) के तहत जारी। Xcode फ़्री और ओपन-सोर्स सॉफ़्टवेयर है — आप इसे इस्तेमाल, स्टडी, शेयर और मॉडिफ़ाई कर सकते हैं।</string>
+    <string name="about_libraries_title">लाइब्रेरी</string>
+    <string name="about_credits_hint">Xcode इन ओपन-सोर्स प्रोजेक्ट्स के कंधों पर खड़ा है</string>
+    <string name="about_credit_sora_desc">कोड एडिटर विजेट</string>
+    <string name="about_credit_textmate_desc">सिंटैक्स हाइलाइटिंग के लिए TextMate ग्रामर</string>
+    <string name="about_credit_jgit_desc">क्लोन, कमिट, पुश और पुल के लिए Pure-Java Git इंजन</string>
+    <string name="about_credit_compose_desc">डिक्लेरेटिव UI टूलकिट और Material 3 कॉम्पोनेंट</string>
+    <string name="about_credit_symbols_desc">आइकन सेट</string>
+    <string name="about_credit_room_desc">लोकल प्रोजेक्ट और सर्च हिस्ट्री स्टोरेज</string>
+    <string name="about_credit_datastore_desc">सेटिंग्स स्टोरेज</string>
+    <string name="about_credit_coil_desc">इमेज लोडिंग और GitHub अवतार</string>
+    <string name="about_credit_okhttp_desc">HTTP नेटवर्किंग</string>
+    <string name="about_credit_androidsvg_desc">प्रीव्यू के लिए SVG रेंडरिंग</string>
+    <string name="about_credit_webkit_desc">Markdown और HTML प्रीव्यू</string>
+    <string name="about_credit_coroutines_desc">Asynchronous काम</string>
+    <string name="about_developers_title">डेवलपर्स</string>
+    <string name="about_support_title">सपोर्ट</string>
+    <string name="about_support_heading">Xcode को सपोर्ट करें</string>
+    <string name="about_support_body">Xcode फ़्री और ओपन-सोर्स है। अगर यह आपका समय बचाता है, तो एक छोटा सा सहयोग इसे चलते रहने में मदद करता है। हर योगदान मायने रखता है!</string>
+    <string name="about_upi_id_label">UPI ID</string>
+    <string name="about_upi_copy">UPI ID कॉपी करें</string>
+    <string name="about_upi_copied">UPI ID कॉपी हो गई!</string>
+    <string name="about_upi_no_app">कोई UPI ऐप नहीं मिला</string>
+    <string name="about_upi_send">प्यार भेजें</string>
+    <string name="about_contributors_loading">योगदानकर्ता लोड हो रहे हैं…</string>
+    <string name="about_contributors_error">योगदानकर्ता लोड नहीं हो सके</string>
+    <string name="about_contributors_empty">कोई योगदानकर्ता नहीं मिला।</string>
+    <string name="about_contributors_retry">फिर कोशिश करें</string>
+    <string name="about_contributors_view_all">सभी योगदानकर्ता देखें</string>
+    <plurals name="about_contributor_commits">
+        <item quantity="one">%d कमिट</item>
+        <item quantity="other">%d कमिट</item>
+    </plurals>
+    <string name="about_made_by">Invictus द्वारा ♥️ के साथ बनाया गया</string>
 </resources>

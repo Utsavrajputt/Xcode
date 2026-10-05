@@ -35,6 +35,8 @@ import com.invictus.xcode.feature.home.HomeScreen
 import com.invictus.xcode.feature.permission.OnboardingScreen
 import com.invictus.xcode.feature.preview.MediaPreviewScreen
 import com.invictus.xcode.feature.diagnostics.CrashLogsScreen
+import com.invictus.xcode.feature.settings.AboutScreen
+import com.invictus.xcode.feature.settings.LibrariesScreen
 import com.invictus.xcode.feature.settings.SettingsAppearanceScreen
 import com.invictus.xcode.feature.settings.SettingsBehaviorScreen
 import com.invictus.xcode.feature.settings.SettingsEditingScreen
@@ -147,7 +149,17 @@ fun XcodeNavHost(
                 onOpenBehavior = { navController.navigate(Routes.SETTINGS_BEHAVIOR) },
                 onOpenDiagnostics = { navController.navigate(Routes.SETTINGS_DIAGNOSTICS) },
                 onOpenGitHub = { navController.navigate(Routes.SETTINGS_GITHUB) },
+                onOpenAbout = { navController.navigate(Routes.SETTINGS_ABOUT) },
             )
+        }
+        composable(Routes.SETTINGS_ABOUT) {
+            AboutScreen(
+                onBack = { navController.popBackStack() },
+                onOpenLibraries = { navController.navigate(Routes.SETTINGS_LIBRARIES) },
+            )
+        }
+        composable(Routes.SETTINGS_LIBRARIES) {
+            LibrariesScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.SETTINGS_GITHUB) {
             SettingsGitHubScreen(onBack = { navController.popBackStack() })

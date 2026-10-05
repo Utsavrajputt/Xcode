@@ -101,6 +101,10 @@ private class TreeHScroll {
     fun clear(key: String) {
         rowWidths.remove(key)
     }
+
+    fun clearAll() {
+        rowWidths.clear()
+    }
 }
 
 @Composable
@@ -124,7 +128,10 @@ fun FileTree(
         val hScroll = remember { TreeHScroll() }
         val hScrollState = rememberScrollState()
         val density = LocalDensity.current
-        val overflowing = hScroll.overflowing
+        val hScrollOn = state.hScrollLongNames
+        val overflowing = hScrollOn && hScroll.overflowing
+        // Setting turned off: forget every reported width so the tree is plain again.
+        LaunchedEffect(hScrollOn) { if (!hScrollOn) hScroll.clearAll() }
         // Back to normal (no sideways scrolling) as soon as nothing overflows any more.
         LaunchedEffect(overflowing) { if (!overflowing) hScrollState.scrollTo(0) }
         Box(modifier = modifier.fillMaxSize().onSizeChanged { hScroll.viewportPx = it.width }) {
@@ -160,6 +167,7 @@ fun FileTree(
                         ],
                         onEvent = onEvent,
                         onCopyPath = onCopyPath,
+                        trackOverflow = hScrollOn,
                         onWidthNeeded = { hScroll.report(row.key, it) },
                         onWidthGone = { hScroll.clear(row.key) },
                     )
@@ -251,6 +259,7 @@ private fun FileRow(
     decoration: GitPathDecoration?,
     onEvent: (FileTreeEvent) -> Unit,
     onCopyPath: (File) -> Unit,
+    trackOverflow: Boolean,
     onWidthNeeded: (Int) -> Unit,
     onWidthGone: () -> Unit,
 ) {
@@ -356,10 +365,12 @@ private fun FileRow(
                         text = displayName,
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip,
+                        softWrap = !trackOverflow,
+                        overflow = if (trackOverflow) TextOverflow.Clip else TextOverflow.Ellipsis,
                         onTextLayout = { layout ->
-                            onWidthNeeded(ceil(layout.multiParagraph.maxIntrinsicWidth + chromePx).toInt())
+                            if (trackOverflow) {
+                                onWidthNeeded(ceil(layout.multiParagraph.maxIntrinsicWidth + chromePx).toInt())
+                            }
                         },
                     )
                 }

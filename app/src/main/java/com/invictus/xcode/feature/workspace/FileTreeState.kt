@@ -65,6 +65,8 @@ data class FileTreeUiState(
     val showHidden: Boolean = false,
     /** Mirrors Settings "File search: default strings only" for the tree's search box. */
     val searchDefaultStringsOnly: Boolean = false,
+    /** Mirrors Settings "Scroll long file names": sideways scroll when a name overflows. */
+    val hScrollLongNames: Boolean = true,
     val showGitFolder: Boolean = false,
     val clipboard: Clipboard? = null,
     val renaming: RenameState? = null,

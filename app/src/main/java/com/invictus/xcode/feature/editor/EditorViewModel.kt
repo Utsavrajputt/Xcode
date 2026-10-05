@@ -143,6 +143,14 @@ class EditorViewModel(
     val searchDefaultStringsOnly: StateFlow<Boolean> = settingsStore.searchDefaultStringsOnly
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    /** Settings "Scroll long file names" toggle for the file tree. */
+    val fileTreeHScrollLongNames: StateFlow<Boolean> = settingsStore.fileTreeHScrollLongNames
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
+    fun setFileTreeHScrollLongNames(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setFileTreeHScrollLongNames(enabled) }
+    }
+
     fun clearRecentFiles() {
         viewModelScope.launch { settingsStore.clearRecentFiles() }
     }

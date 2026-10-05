@@ -22,6 +22,8 @@ When cutting a release, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD` an
 - 🚀 Tag-driven CI: signed per-ABI APKs, SHA-256 checksums and notes from this changelog.
 
 ### ✨ Added
+- ↔️ **Scroll long file names** (Settings → Behavior, on by default) — the file tree scrolls sideways as one block, but only while some visible name is wider than the screen; otherwise it stays vertical-only. Turning it off brings back the ellipsised names.
+- ℹ️ **About screen** (Settings → About) — animated identity card with version, GitHub and Libraries buttons, Support (UPI), GitHub contributors (cached 72 h) and the AGPL-3.0 notice, plus a Libraries screen listing what Xcode is built on.
 - 📌 **Pin projects to the top** of recents (Home, All projects and the Open Project sheet). Pinned projects survive the 50-entry recents trim and stay on top under every sort order.
 - ✏️ **Rename project folders on disk** straight from the Home / All projects card menu; recents, pins and the open workspace follow the new path.
 - 🗑️ **Delete project folders** from the card menu behind a confirmation dialog. The project disappears from recents, its pins are dropped, and if it was the open workspace the app falls back to the device root. The device root, Documents and Downloads are protected and can never be deleted from here.

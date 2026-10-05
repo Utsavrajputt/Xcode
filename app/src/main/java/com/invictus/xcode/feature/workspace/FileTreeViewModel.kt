@@ -107,6 +107,9 @@ class FileTreeViewModel(
             settingsStore.searchDefaultStringsOnly.collect { on -> publish { copy(searchDefaultStringsOnly = on) } }
         }
         viewModelScope.launch {
+            settingsStore.fileTreeHScrollLongNames.collect { on -> publish { copy(hScrollLongNames = on) } }
+        }
+        viewModelScope.launch {
             settingsStore.gitStatusPollingEnabled.collect { enabled ->
                 val turnedOn = enabled && !gitStatusPollingEnabled
                 val turnedOff = !enabled && gitStatusPollingEnabled

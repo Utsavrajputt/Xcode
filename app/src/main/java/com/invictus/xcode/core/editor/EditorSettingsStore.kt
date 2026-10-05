@@ -43,6 +43,7 @@ class EditorSettingsStore(private val context: Context) {
         val SEARCH_MAX_FILE_MB = intPreferencesKey("search_max_file_mb")
         val RECENT_FILES = stringPreferencesKey("recent_files")
         val FILE_TREE_SHOW_HIDDEN = booleanPreferencesKey("file_tree_show_hidden")
+        val FILE_TREE_HSCROLL = booleanPreferencesKey("file_tree_hscroll_long_names")
         val BROWSE_SHORTCUTS = stringPreferencesKey("browse_shortcuts")
     }
 
@@ -93,6 +94,17 @@ class EditorSettingsStore(private val context: Context) {
     /** Workspace file tree menu's "Show hidden files" toggle -- persisted across app starts. */
     val fileTreeShowHidden: Flow<Boolean> = context.editorSettingsDataStore.data
         .map { it[Keys.FILE_TREE_SHOW_HIDDEN] ?: false }
+
+    /**
+     * Settings "Behavior" toggle -- the file tree scrolls sideways, but only while some row's
+     * name is wider than the screen. On by default; off restores the ellipsised names.
+     */
+    val fileTreeHScrollLongNames: Flow<Boolean> = context.editorSettingsDataStore.data
+        .map { it[Keys.FILE_TREE_HSCROLL] ?: true }
+
+    suspend fun setFileTreeHScrollLongNames(enabled: Boolean) {
+        context.editorSettingsDataStore.edit { it[Keys.FILE_TREE_HSCROLL] = enabled }
+    }
 
     /**
      * Open Project sheet's Browse shortcuts as the user arranged them (order + on/off + custom

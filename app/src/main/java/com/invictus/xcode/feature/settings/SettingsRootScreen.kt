@@ -28,6 +28,7 @@ fun SettingsRootScreen(
     onOpenBehavior: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenGitHub: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -89,8 +90,16 @@ fun SettingsRootScreen(
                     chevron = XIcons.ChevronRight,
                     title = stringResource(R.string.settings_section_github),
                     subtitle = stringResource(R.string.settings_category_github_desc),
-                    isLast = true,
                     onClick = onOpenGitHub,
+                )
+                CategoryRowGap()
+                CategoryRow(
+                    icon = XIcons.Info,
+                    chevron = XIcons.ChevronRight,
+                    title = stringResource(R.string.about_title),
+                    subtitle = stringResource(R.string.settings_category_about_desc),
+                    isLast = true,
+                    onClick = onOpenAbout,
                 )
             }
         }

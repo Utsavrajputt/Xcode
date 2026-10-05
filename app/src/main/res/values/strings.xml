@@ -625,4 +625,52 @@
     <string name="new_project_location">Location</string>
     <string name="new_project_change">Change</string>
     <string name="new_project_create">Create</string>
+
+    <!-- Settings: file tree horizontal scroll -->
+    <string name="settings_tree_hscroll">Scroll long file names</string>
+    <string name="settings_tree_hscroll_desc">In the file tree, swipe sideways to read a name that is wider than the screen. Turns itself off when every name fits. When this is off, long names end with “…”.</string>
+
+    <!-- About -->
+    <string name="settings_category_about_desc">Version, credits, and licenses</string>
+    <string name="about_title">About</string>
+    <string name="about_tagline">Native Android code editor with Git</string>
+    <string name="about_version_format">Version %1$s</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_url" translatable="false">https://github.com/Utsavrajputt/xcode</string>
+    <string name="about_license_title">License</string>
+    <string name="about_license_body">Released under the GNU Affero General Public License v3.0 (AGPL-3.0). Xcode is free and open-source software — you are free to use, study, share, and modify it.</string>
+    <string name="about_libraries_title">Libraries</string>
+    <string name="about_credits_hint">Xcode is built on the shoulders of these open-source projects</string>
+    <string name="about_credit_sora_desc">Code editor widget</string>
+    <string name="about_credit_textmate_desc">TextMate grammars for syntax highlighting</string>
+    <string name="about_credit_jgit_desc">Pure-Java Git engine for clone, commit, push and pull</string>
+    <string name="about_credit_compose_desc">Declarative UI toolkit and Material 3 components</string>
+    <string name="about_credit_symbols_desc">Icon set</string>
+    <string name="about_credit_room_desc">Local project and search history storage</string>
+    <string name="about_credit_datastore_desc">Settings storage</string>
+    <string name="about_credit_coil_desc">Image loading and GitHub avatars</string>
+    <string name="about_credit_okhttp_desc">HTTP networking</string>
+    <string name="about_credit_androidsvg_desc">SVG rendering for previews</string>
+    <string name="about_credit_webkit_desc">Markdown and HTML preview</string>
+    <string name="about_credit_coroutines_desc">Asynchronous work</string>
+    <string name="about_developers_title">Developers</string>
+    <string name="about_support_title">Support</string>
+    <string name="about_support_heading">Support Xcode</string>
+    <string name="about_support_body">Xcode is free and open-source. If it saves you time, a small contribution helps keep it going. Every bit counts!</string>
+    <string name="about_upi_id_label">UPI ID</string>
+    <string name="about_upi_id" translatable="false">utsavrajput@yesfam</string>
+    <string name="about_upi_copy">Copy UPI ID</string>
+    <string name="about_upi_copied">UPI ID copied!</string>
+    <string name="about_upi_no_app">No UPI app found</string>
+    <string name="about_upi_send">Send love</string>
+    <string name="about_contributors_loading">Loading contributors…</string>
+    <string name="about_contributors_error">Couldn\'t load contributors</string>
+    <string name="about_contributors_empty">No contributors found.</string>
+    <string name="about_contributors_retry">Retry</string>
+    <string name="about_contributors_view_all">View all contributors</string>
+    <plurals name="about_contributor_commits">
+        <item quantity="one">%d commit</item>
+        <item quantity="other">%d commits</item>
+    </plurals>
+    <string name="about_made_by">Built with ♥️ by Invictus</string>
 </resources>

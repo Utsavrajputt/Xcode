@@ -51,6 +51,7 @@ fun SettingsBehaviorScreen(
     val gitStatusPollingEnabled by viewModel.gitStatusPollingEnabled.collectAsStateWithLifecycle()
     val restoreTabsOnOpen by viewModel.restoreTabsOnOpen.collectAsStateWithLifecycle()
     val searchDefaultStringsOnly by viewModel.searchDefaultStringsOnly.collectAsStateWithLifecycle()
+    val fileTreeHScroll by viewModel.fileTreeHScrollLongNames.collectAsStateWithLifecycle()
     val searchExtraExcludes by viewModel.searchExtraExcludes.collectAsStateWithLifecycle()
     val searchMaxFileMb by viewModel.searchMaxFileMb.collectAsStateWithLifecycle()
     val appContext = LocalContext.current.applicationContext
@@ -101,6 +102,17 @@ fun SettingsBehaviorScreen(
                     subtitle = stringResource(R.string.settings_restore_tabs_desc),
                     checked = restoreTabsOnOpen,
                     onCheckedChange = viewModel::setRestoreTabsOnOpen,
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            SettingsSectionCard {
+                SwitchSettingRow(
+                    title = stringResource(R.string.settings_tree_hscroll),
+                    subtitle = stringResource(R.string.settings_tree_hscroll_desc),
+                    checked = fileTreeHScroll,
+                    onCheckedChange = viewModel::setFileTreeHScrollLongNames,
                 )
             }
 
