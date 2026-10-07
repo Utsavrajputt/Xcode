@@ -620,6 +620,9 @@
     <string name="home_hero_line1">Code</string>
     <string name="home_hero_line2">Your Ideas</string>
     <string name="home_hero_line3">Anywhere</string>
+    <string name="home_hero_word2">Anytime</string>
+    <string name="home_hero_word3">On the go</string>
+    <string name="home_hero_word4">Offline</string>
     <string name="home_hero_sub">A modern, powerful and\nsimple code editor for Android.</string>
     <string name="home_tagline">CODE · EDIT · BUILD</string>
     <string name="home_new_project">New project</string>

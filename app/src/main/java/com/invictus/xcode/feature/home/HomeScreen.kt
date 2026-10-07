@@ -48,6 +48,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,6 +80,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
 import com.invictus.xcode.feature.project.OpenProjectSheet
@@ -402,6 +404,48 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
     )
     val shape = RoundedCornerShape(28.dp)
 
+    // GitHub-profile style "typing" intro: kicker, then line 1 and 2, then line 3 cycles words.
+    val kickerFull = stringResource(R.string.home_hero_kicker)
+    val line1Full = stringResource(R.string.home_hero_line1)
+    val line2Full = stringResource(R.string.home_hero_line2)
+    val words = listOf(
+        stringResource(R.string.home_hero_line3),
+        stringResource(R.string.home_hero_word2),
+        stringResource(R.string.home_hero_word3),
+        stringResource(R.string.home_hero_word4),
+    )
+    var kickerLen by remember { mutableIntStateOf(0) }
+    var line1Len by remember { mutableIntStateOf(0) }
+    var line2Len by remember { mutableIntStateOf(0) }
+    var wordText by remember { mutableStateOf("") }
+    var activeLine by remember { mutableIntStateOf(0) } // 0 kicker, 1/2/3 = heading lines
+    var cursorOn by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        while (true) { delay(480); cursorOn = !cursorOn }
+    }
+    LaunchedEffect(kickerFull, line1Full, line2Full, words) {
+        delay(350)
+        for (i in 1..kickerFull.length) { kickerLen = i; delay(60) }
+        delay(220)
+        activeLine = 1
+        for (i in 1..line1Full.length) { line1Len = i; delay(95) }
+        delay(120)
+        activeLine = 2
+        for (i in 1..line2Full.length) { line2Len = i; delay(80) }
+        delay(120)
+        activeLine = 3
+        var idx = 0
+        while (true) {
+            val word = words[idx % words.size]
+            for (i in 1..word.length) { wordText = word.take(i); delay(90) }
+            delay(1700)
+            for (i in word.length - 1 downTo 0) { wordText = word.take(i); delay(45) }
+            delay(250)
+            idx++
+        }
+    }
+
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -414,7 +458,13 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
         Canvas(Modifier.fillMaxSize()) { drawHeroArt(a, b) }
         Column(Modifier.align(Alignment.CenterStart).padding(start = (26 * s).dp)) {
             Text(
-                text = stringResource(R.string.home_hero_kicker),
+                text = buildAnnotatedString {
+                    append(kickerFull.take(kickerLen))
+                    // Invisible when off / inactive (keeps the line height and width stable).
+                    withStyle(SpanStyle(color = if (activeLine == 0 && cursorOn) Color(0xFFB4EAFF) else Color.Transparent)) {
+                        append("|")
+                    }
+                },
                 style = TextStyle(
                     brush = Brush.horizontalGradient(listOf(Color(0xFF8DB0FF), Color(0xFFB4EAFF))),
                     fontSize = (10 * s).sp,
@@ -430,13 +480,19 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
             Spacer(Modifier.height((8 * s).dp))
             Text(
                 text = buildAnnotatedString {
-                    append(stringResource(R.string.home_hero_line1))
+                    val cursor = SpanStyle(color = Color(0xFF7FEBFF))
+                    val hidden = SpanStyle(color = Color.Transparent)
+                    fun cursorFor(line: Int) = if (activeLine == line && cursorOn) cursor else hidden
+                    append(line1Full.take(line1Len))
+                    withStyle(cursorFor(1)) { append("|") }
                     append("\n")
-                    append(stringResource(R.string.home_hero_line2))
+                    append(line2Full.take(line2Len))
+                    withStyle(cursorFor(2)) { append("|") }
                     append("\n")
                     withStyle(SpanStyle(brush = Brush.horizontalGradient(listOf(Color(0xFF2F9BFF), Color(0xFF7FEBFF))))) {
-                        append(stringResource(R.string.home_hero_line3))
+                        append(wordText)
                     }
+                    withStyle(cursorFor(3)) { append("|") }
                 },
                 fontSize = (24 * s).sp,
                 lineHeight = (26 * s).sp,
