@@ -8,9 +8,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -65,6 +69,9 @@ fun XcodeNavHost(
     onRequestNotification: () -> Unit,
     onFinishOnboarding: () -> Unit,
     modifier: Modifier = Modifier,
+    /** File handed in by "Open with Xcode" (ACTION_VIEW/EDIT); opened in the editor once permissions allow. */
+    externalFile: java.io.File? = null,
+    onExternalFileHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     // Activity-scoped on purpose: open tabs outlive the trip back to the file tree.
@@ -306,12 +313,36 @@ fun XcodeNavHost(
         }
     }
 
+    // An external open may come from any screen (home, settings...), not only the workspace.
+    var externalNavPending by remember { mutableStateOf(false) }
+    val externalScope = rememberCoroutineScope()
+
     LaunchedEffect(editorViewModel) {
         editorViewModel.showEditor.collect {
             val route = navController.currentBackStackEntry?.destination?.route
             if (route == Routes.WORKSPACE || route == Routes.CODE_SEARCH || route == Routes.GIT) {
                 navController.navigate(Routes.EDITOR) { launchSingleTop = true }
+            } else if (externalNavPending && route != null && route != Routes.EDITOR &&
+                route != Routes.PERMISSION && route != Routes.MEDIA_PREVIEW
+            ) {
+                navController.navigate(Routes.EDITOR) { launchSingleTop = true }
             }
+            externalNavPending = false
+        }
+    }
+
+    LaunchedEffect(externalFile, storageGranted, onboardingCompleted) {
+        val file = externalFile ?: return@LaunchedEffect
+        // Wait for storage access + onboarding; the file stays pending until then.
+        if (!storageGranted || !onboardingCompleted) return@LaunchedEffect
+        externalNavPending = true
+        editorViewModel.onEvent(EditorEvent.Open(file))
+        onExternalFileHandled()
+        // If the open fails (unreadable / too big) no editor event comes: don't leave the flag set.
+        // Own scope: onExternalFileHandled() changes this effect's key and would cancel a delay here.
+        externalScope.launch {
+            kotlinx.coroutines.delay(8_000)
+            externalNavPending = false
         }
     }
 

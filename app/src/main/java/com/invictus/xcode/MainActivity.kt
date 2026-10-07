@@ -1,5 +1,6 @@
 package com.invictus.xcode
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +11,14 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
+import com.invictus.xcode.core.external.ExternalFileResolver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.invictus.xcode.ui.MainUiEvent
@@ -26,9 +35,14 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels { MainViewModel.Factory }
     private val transitionController = ThemeTransitionController()
 
+    /** File from an "Open with Xcode" intent, waiting for the nav host to open it in the editor. */
+    private var externalFile by mutableStateOf<File?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        if (savedInstanceState == null) handleOpenIntent(intent)
 
         val container = (application as XcodeApp).container
         val storagePermission = container.storagePermission
@@ -64,6 +78,8 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onFinishOnboarding = { viewModel.onEvent(MainUiEvent.CompleteOnboarding) },
+                        externalFile = externalFile,
+                        onExternalFileHandled = { externalFile = null },
                     )
                     ThemeTransitionOverlay(transitionController)
                     if (ThemePickerState.visible) {
@@ -74,6 +90,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOpenIntent(intent)
+    }
+
+    /** ACTION_VIEW / ACTION_EDIT from a file manager or another app -> resolve off-main, then hand to the nav host. */
+    private fun handleOpenIntent(intent: Intent?) {
+        if (!ExternalFileResolver.isOpenIntent(intent)) return
+        val open = intent ?: return
+        lifecycleScope.launch {
+            val file = withContext(Dispatchers.IO) { ExternalFileResolver.resolve(applicationContext, open) }
+            if (file != null) externalFile = file
         }
     }
 
