@@ -140,6 +140,9 @@ class GitViewModel(
         val resetSheetOpen: Boolean = false,
         val resetCommits: List<GitCommitSummary> = emptyList(),
         val resetCommitsLoading: Boolean = false,
+        /** Every local/remote branch that really exists (main/master pinned first), for reset targets. */
+        val resetBranches: List<String> = emptyList(),
+        val resetBranchesLoaded: Boolean = false,
         val resetHardConfirm: PendingReset? = null,
         val resetting: Boolean = false,
         // M11: rebase
@@ -301,7 +304,10 @@ class GitViewModel(
             GitEvent.DismissCompleteMerge ->
                 _uiState.update { it.copy(completeMergeDialog = false) }
             // ---- reset ----
-            GitEvent.OpenReset -> _uiState.update { it.copy(resetSheetOpen = true) }
+            GitEvent.OpenReset -> {
+                _uiState.update { it.copy(resetSheetOpen = true, resetBranchesLoaded = false) }
+                loadResetBranches()
+            }
             GitEvent.DismissReset -> _uiState.update { it.copy(resetSheetOpen = false) }
             GitEvent.LoadResetCommits -> loadResetCommits()
             is GitEvent.ResetTo -> requestReset(event.ref, event.label, event.mode)
@@ -721,7 +727,9 @@ class GitViewModel(
     private fun push(force: Boolean) {
         val snapshot = _uiState.value.snapshot ?: return
         if (!snapshot.hasCommits) return
-        val remote = snapshot.trackingInfo?.remote ?: _uiState.value.remotes.firstOrNull()?.name
+        val remote = snapshot.trackingInfo?.remote
+            ?: _uiState.value.remotes.firstOrNull { it.name == "origin" }?.name
+            ?: _uiState.value.remotes.firstOrNull()?.name
         if (remote == null) {
             message(R.string.git_err_no_remote)
             return
@@ -1092,6 +1100,13 @@ class GitViewModel(
 
     // ---- reset -------------------------------------------------------------
 
+    private fun loadResetBranches() {
+        viewModelScope.launch(io) {
+            val names = (session.mergeCandidates() as? GitResult.Ok)?.value.orEmpty()
+            _uiState.update { it.copy(resetBranches = names, resetBranchesLoaded = true) }
+        }
+    }
+
     private fun loadResetCommits() {
         if (_uiState.value.resetCommits.isNotEmpty() || _uiState.value.resetCommitsLoading) return
         viewModelScope.launch(io) {
@@ -1128,7 +1143,7 @@ class GitViewModel(
             when (val result = withOpProgress(R.string.git_progress_resetting) { session.resetTo(ref, mode) }) {
                 is GitResult.Ok -> {
                     _uiState.update {
-                        it.copy(resetSheetOpen = false, resetCommits = emptyList())
+                        it.copy(resetSheetOpen = false, resetCommits = emptyList(), resetBranches = emptyList(), resetBranchesLoaded = false)
                     }
                     message(R.string.git_reset_success, mode.label(), label)
                     refresh()

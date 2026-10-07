@@ -32,6 +32,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.CheckoutCommand
+import org.eclipse.jgit.api.CreateBranchCommand
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand
 import org.eclipse.jgit.api.MergeCommand
@@ -524,8 +525,43 @@ class GitSession(
                         it.status == RemoteRefUpdate.Status.REJECTED_REMOTE_CHANGED }
                 if (rejected) throw GitPushRejectedException()
             }
+            // `git push -u` behaviour: JGit never writes branch.<name>.remote/merge itself, so a
+            // freshly pushed branch kept showing "No upstream" forever.
+            val pushed = results.flatMap { it.remoteUpdates }.any {
+                it.status == RemoteRefUpdate.Status.OK || it.status == RemoteRefUpdate.Status.UP_TO_DATE
+            }
+            if (pushed) currentBranchName()?.let { setUpstreamIfMissing(it, remote) }
         }
         Unit
+    }
+
+    /** Writes branch.<[branch]>.remote/merge unless the branch already tracks something. */
+    private fun setUpstreamIfMissing(branch: String, remote: String) {
+        runCatching {
+            val cfg = repository.config
+            val hasRemote = cfg.getString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE)
+            val hasMerge = cfg.getString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE)
+            if (hasRemote != null && hasMerge != null) return
+            cfg.setString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE, remote)
+            cfg.setString(ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE, Constants.R_HEADS + branch)
+            cfg.save()
+        }
+    }
+
+    /**
+     * Branch without tracking config but with a same-named remote-tracking ref (pushed from
+     * another clone, or pushed before upstream was being recorded): pick the remote that really
+     * has it — `origin` first, otherwise only when exactly one remote does. Never a guess at a
+     * ref that doesn't exist.
+     */
+    private fun inferredRemoteFor(branch: String): String? {
+        val have = readRemotes().map { it.name }
+            .filter { repository.resolve("refs/remotes/$it/$branch") != null }
+        return when {
+            "origin" in have -> "origin"
+            have.size == 1 -> have.first()
+            else -> null
+        }
     }
 
     /**
@@ -734,11 +770,19 @@ class GitSession(
                 )
             }
             // Unborn branch: branchList() is empty but HEAD already points at one.
-            if (listed.none { it.isCurrent } && current != null) {
+            val locals = if (listed.none { it.isCurrent } && current != null) {
                 listed + GitBranchDetail(current, isCurrent = true, upstream = null)
             } else {
                 listed
             }
+            // Remote branches that exist on the server but have no local branch yet (made on
+            // GitHub / pushed from another clone): shown as remote-only so they are not invisible.
+            val localNames = locals.map { it.name }.toSet()
+            val tracked = locals.mapNotNull { it.upstream }.toSet()
+            val remoteOnly = remoteBranchNames()
+                .filter { it !in tracked && it.substringAfter('/') !in localNames }
+                .map { GitBranchDetail(name = it, isCurrent = false, upstream = null, isRemote = true) }
+            locals + remoteOnly
         }
     }
 
@@ -762,26 +806,69 @@ class GitSession(
     private fun upstreamOf(branch: String): Upstream? {
         val remote = repository.config.getString(
             ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE,
-        ) ?: return null
+        )
         val merge = repository.config.getString(
             ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE,
-        ) ?: return null
-        val shortBranch = merge.removePrefix("refs/heads/")
-        val remoteRef = repository.resolve("refs/remotes/$remote/$shortBranch") ?: return null
-        return Upstream(remote, shortBranch, remoteRef)
+        )
+        if (remote != null && merge != null) {
+            val shortBranch = merge.removePrefix("refs/heads/")
+            repository.resolve("refs/remotes/$remote/$shortBranch")?.let { return Upstream(remote, shortBranch, it) }
+        }
+        // Config missing, or it points at a ref that doesn't exist: fall back to a real same-named one.
+        val inferred = inferredRemoteFor(branch) ?: return null
+        val ref = repository.resolve("refs/remotes/$inferred/$branch") ?: return null
+        return Upstream(inferred, branch, ref)
     }
 
-    suspend fun createBranch(name: String, checkout: Boolean): GitResult<Unit> = ioOp(TITLE_BRANCH) {
-        val n = name.trim()
-        require(n.isNotEmpty()) { "Branch name is empty." }
-        timedLock {
-            if (repository.resolve("HEAD") == null) {
-                // Unborn: branch has no tip yet, just point HEAD at the new name.
-                repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
-            } else {
-                git.branchCreate().setName(n).call()
-                if (checkout) git.checkout().setName(n).call()
+    /** Every remote-tracking branch as "origin/main" (no HEAD aliases), sorted. */
+    suspend fun listRemoteBranches(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
+        readOnly { remoteBranchNames() }
+    }
+
+    private fun remoteBranchNames(): List<String> =
+        git.branchList().setListMode(ListBranchCommand.ListMode.REMOTE).call()
+            .map { it.name.removePrefix("refs/remotes/") }
+            .filter { !it.endsWith("/HEAD") }
+            .sorted()
+
+    /**
+     * [startPoint] = e.g. "origin/main" to branch off a remote-tracking ref instead of HEAD.
+     * No upstream is recorded for that case (the new branch is not "origin/main"); the first
+     * push sets the right one.
+     */
+    suspend fun createBranch(name: String, checkout: Boolean, startPoint: String? = null): GitResult<Unit> =
+        ioOp(TITLE_BRANCH) {
+            val n = name.trim()
+            require(n.isNotEmpty()) { "Branch name is empty." }
+            timedLock {
+                val start = startPoint?.trim()?.takeIf { it.isNotEmpty() }
+                if (start != null) {
+                    if (repository.resolve(start) == null) throw IllegalArgumentException("Can't resolve '$start'.")
+                    git.branchCreate().setName(n).setStartPoint(start)
+                        .setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.NOTRACK).call()
+                    if (checkout) git.checkout().setName(n).call()
+                } else if (repository.resolve("HEAD") == null) {
+                    // Unborn: branch has no tip yet, just point HEAD at the new name.
+                    repository.updateRef(Constants.HEAD).link(Constants.R_HEADS + n)
+                } else {
+                    git.branchCreate().setName(n).call()
+                    if (checkout) git.checkout().setName(n).call()
+                }
             }
+            Unit
+        }
+
+    /** Remote-only branch ("origin/foo"): make a local tracking branch "foo" and switch to it. */
+    suspend fun checkoutRemoteBranch(remoteRef: String): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val ref = remoteRef.trim()
+        val local = ref.substringAfter('/')
+        require(local.isNotEmpty() && local != ref) { "Not a remote branch: '$ref'." }
+        timedLock {
+            if (repository.resolve("refs/heads/$local") == null) {
+                git.branchCreate().setName(local).setStartPoint(ref)
+                    .setUpstreamMode(CreateBranchCommand.SetupUpstreamMode.TRACK).call()
+            }
+            git.checkout().setName(local).call()
         }
         Unit
     }
@@ -1233,16 +1320,32 @@ class GitSession(
             }
             ?: throw IllegalStateException("Cannot resolve branch '$name'.")
 
-    /** Local + remote short names minus the current branch, for the merge picker. */
+    /**
+     * Local + remote short names minus the current branch, for the merge/rebase/reset pickers.
+     * The default branch(es) that really exist (master / main, local first, then origin/..., then
+     * other remotes) are pinned on top; everything else follows alphabetically.
+     */
     suspend fun mergeCandidates(): GitResult<List<String>> = ioOp(TITLE_BRANCH) {
         readOnly {
             val current = currentBranchName()
-            val local = git.branchList().call()
-                .map { it.name.removePrefix("refs/heads/") }
-            val remote = git.branchList().setListMode(ListBranchCommand.ListMode.REMOTE).call()
-                .map { it.name.removePrefix("refs/remotes/") }
-                .filter { !it.endsWith("/HEAD") }
-            (local + remote).filter { it != current }.distinct().sorted()
+            val local = git.branchList().call().map { it.name.removePrefix("refs/heads/") }
+            val remote = remoteBranchNames()
+            val localSet = local.toSet()
+            val remotes = readRemotes().map { it.name }
+            fun defaultRank(b: String) = when (b) { "master" -> 0; "main" -> 1; else -> -1 }
+            fun key(n: String): Triple<Int, Int, String> {
+                if (n in localSet) {
+                    val r = defaultRank(n)
+                    return if (r >= 0) Triple(0, r, n) else Triple(2, 0, n)
+                }
+                val r = defaultRank(n.substringAfter('/'))
+                if (r < 0) return Triple(2, 0, n)
+                val remoteName = n.substringBefore('/')
+                val remoteIdx = if (remoteName == "origin") 0 else 1 + remotes.indexOf(remoteName).coerceAtLeast(0)
+                return Triple(1, remoteIdx * 10 + r, n)
+            }
+            (local + remote).filter { it != current }.distinct()
+                .sortedWith(compareBy<String>({ key(it).first }, { key(it).second }, { key(it).third }))
         }
     }
 
@@ -1585,23 +1688,16 @@ class GitSession(
     }
 
     private fun trackingInfo(branch: String): GitTrackingInfo? {
-        val remote = repository.config.getString(
-            ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_REMOTE,
-        ) ?: return null
-        val merge = repository.config.getString(
-            ConfigConstants.CONFIG_BRANCH_SECTION, branch, ConfigConstants.CONFIG_KEY_MERGE,
-        ) ?: return null
-        val shortBranch = merge.removePrefix("refs/heads/")
+        val up = upstreamOf(branch) ?: return null
         val localRef = repository.resolve("HEAD") ?: return null
-        val remoteRef = repository.resolve("refs/remotes/$remote/$shortBranch") ?: return null
         val walk = RevWalk(repository)
         return try {
             walk.setRetainBody(false)
             GitTrackingInfo(
-                remote = remote,
-                branch = shortBranch,
-                ahead = countRange(walk, localRef, remoteRef),
-                behind = countRange(walk, remoteRef, localRef),
+                remote = up.remote,
+                branch = up.branch,
+                ahead = countRange(walk, localRef, up.remoteRef),
+                behind = countRange(walk, up.remoteRef, localRef),
             )
         } finally {
             walk.close()

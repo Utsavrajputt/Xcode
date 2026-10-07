@@ -202,6 +202,8 @@ data class GitBranchDetail(
     /** null until the background divergence pass has computed it (names load first, counts fill in). */
     val ahead: Int? = null,
     val behind: Int? = null,
+    /** true for a remote-tracking branch with no local branch yet; [name] is then "origin/foo". */
+    val isRemote: Boolean = false,
 )
 
 data class GitTagInfo(

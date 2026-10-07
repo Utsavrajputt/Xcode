@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -102,13 +103,28 @@ fun GitResetSheet(
     var mode by remember { mutableStateOf(GitResetMode.HARD) }
     var target by remember { mutableStateOf<GitResetTargetChip?>(null) }
     var picking by remember { mutableStateOf(false) }
+    var pickingBranch by remember { mutableStateOf(false) }
 
     val branch = state.snapshot?.headName
-    val quickTargets = remember(branch, state.remotes) {
+    val tracking = state.snapshot?.trackingInfo
+    // Only refs that really exist: HEAD, then main/master (local or remote), then the current
+    // branch's own tracking / same-named remote ref. Everything else is behind the "…" chip.
+    val quickTargets = remember(branch, tracking, state.resetBranches, state.remotes) {
+        val existing = state.resetBranches.toSet()
+        val defaults = buildSet {
+            add("master"); add("main")
+            state.remotes.forEach { r -> add("${r.name}/master"); add("${r.name}/main") }
+        }
+        fun isDefault(n: String) = n in defaults
         buildList {
             add(GitResetTargetChip("HEAD", "HEAD"))
-            branch?.let { b -> state.remotes.forEach { r -> add(GitResetTargetChip("${r.name}/$b", "${r.name}/$b")) } }
-        }
+            state.resetBranches.filter(::isDefault).forEach { add(GitResetTargetChip(it, it)) }
+            tracking?.let { t -> "${t.remote}/${t.branch}".takeIf { it in existing }?.let { add(GitResetTargetChip(it, it)) } }
+            branch?.let { b ->
+                state.resetBranches.filter { it.contains('/') && it.substringAfter('/') == b }
+                    .forEach { add(GitResetTargetChip(it, it)) }
+            }
+        }.distinctBy { it.ref }
     }
     val chips = remember(target, quickTargets) {
         val custom = target?.takeIf { t -> quickTargets.none { it.ref == t.ref } }
@@ -116,6 +132,27 @@ fun GitResetSheet(
     }
 
     LaunchedEffect(picking) { if (picking) onEvent(GitEvent.LoadResetCommits) }
+
+    if (pickingBranch) {
+        BranchPickerDialog(
+            title = stringResource(R.string.git_reset_target_label),
+            description = null,
+            phase = when {
+                !state.resetBranchesLoaded -> BranchPickerPhase.LOADING
+                state.resetBranches.isEmpty() -> BranchPickerPhase.EMPTY
+                else -> BranchPickerPhase.LIST
+            },
+            branches = state.resetBranches,
+            busyText = "",
+            emptyText = stringResource(R.string.git_rebase_no_branches),
+            dismissible = true,
+            onPick = { name ->
+                target = GitResetTargetChip(ref = name, label = name)
+                pickingBranch = false
+            },
+            onDismiss = { pickingBranch = false },
+        )
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
@@ -168,6 +205,10 @@ fun GitResetSheet(
                                 },
                             )
                         }
+                        AssistChip(
+                            onClick = { pickingBranch = true },
+                            label = { Text("…") },
+                        )
                     }
                     OutlinedButton(onClick = { picking = true }, modifier = Modifier.fillMaxWidth()) {
                         Icon(XIcons.Restore, contentDescription = null, modifier = Modifier.size(18.dp))

@@ -369,8 +369,20 @@
     <string name="git_branch_rename_hint">New name</string>
     <string name="git_branch_delete">Delete</string>
     <string name="git_branch_delete_confirm">Delete branch \'%1$s\'? Unmerged commits may be lost.</string>
-    <string name="git_upstream_none">no upstream</string>
+    <string name="git_upstream_none">No upstream configured</string>
     <string name="git_force_push">Force push</string>
+    <string name="git_branches_subtitle_remote">Manage your local and remote branches</string>
+    <string name="git_branches_found">%1$d branches found</string>
+    <string name="git_branches_found_desc">Create, switch, and manage branches to work on different features.</string>
+    <string name="git_branch_search_hint">Search branches…</string>
+    <string name="git_branch_filter_all">All</string>
+    <string name="git_branch_filter_local">Local</string>
+    <string name="git_branch_filter_remote">Remote</string>
+    <string name="git_branch_remote_only">Remote only · checkout creates a local branch</string>
+    <string name="git_branch_create_from">Create from</string>
+    <string name="git_branch_from_head">Current branch</string>
+    <string name="git_branch_from_none">No branches fetched yet</string>
+
     <string name="git_force_push_confirm_text">Overwrite the remote branch with your local history? The remote tip is lease-checked first.</string>
     <string name="git_history_title">History</string>
     <string name="git_history_search_hint">Search commits…</string>
