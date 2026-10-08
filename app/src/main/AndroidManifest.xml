@@ -150,6 +150,42 @@
                 <data android:pathPattern=".*/Procfile" />
                 <data android:pathPattern=".*/Gemfile" />
                 <data android:pathPattern=".*/Rakefile" />
+                <data android:pathPattern=".*\\.releaserc" />
+                <data android:pathPattern=".*\\.npmrc" />
+                <data android:pathPattern=".*\\.nvmrc" />
+                <data android:pathPattern=".*\\.babelrc" />
+                <data android:pathPattern=".*\\.eslintrc" />
+                <data android:pathPattern=".*\\.prettierrc" />
+                <data android:pathPattern=".*\\.stylelintrc" />
+                <data android:pathPattern=".*\\.dockerignore" />
+                <data android:pathPattern=".*\\.npmignore" />
+                <data android:pathPattern=".*\\.eslintignore" />
+                <data android:pathPattern=".*\\.prettierignore" />
+                <data android:pathPattern=".*\\.gitconfig" />
+                <data android:pathPattern=".*\\.bashrc" />
+                <data android:pathPattern=".*\\.zshrc" />
+                <data android:pathPattern=".*\\.profile" />
+                <data android:pathPattern=".*\\.mailmap" />
+                <data android:pathPattern=".*\\.tool-versions" />
+                <data android:pathPattern=".*\\.editorconfig" />
+                <data android:pathPattern=".*/NOTICE" />
+                <data android:pathPattern=".*/AUTHORS" />
+                <data android:pathPattern=".*/CONTRIBUTORS" />
+                <data android:pathPattern=".*/CONTRIBUTING" />
+                <data android:pathPattern=".*/CODEOWNERS" />
+                <data android:pathPattern=".*/COPYING" />
+                <data android:pathPattern=".*/VERSION" />
+                <data android:pathPattern=".*/TODO" />
+                <data android:pathPattern=".*/INSTALL" />
+                <data android:pathPattern=".*/SECURITY" />
+                <data android:pathPattern=".*/MAINTAINERS" />
+                <data android:pathPattern=".*/Jenkinsfile" />
+                <data android:pathPattern=".*/Vagrantfile" />
+                <data android:pathPattern=".*/Brewfile" />
+                <data android:pathPattern=".*/Podfile" />
+                <data android:pathPattern=".*/Fastfile" />
+                <data android:pathPattern=".*/Gemfile.lock" />
+                <data android:pathPattern=".*/CMakeLists.txt" />
             </intent-filter>
 
             <!-- Open with Xcode: EDIT on text/code MIME types. -->
@@ -271,6 +307,42 @@
                 <data android:pathPattern=".*/Procfile" />
                 <data android:pathPattern=".*/Gemfile" />
                 <data android:pathPattern=".*/Rakefile" />
+                <data android:pathPattern=".*\\.releaserc" />
+                <data android:pathPattern=".*\\.npmrc" />
+                <data android:pathPattern=".*\\.nvmrc" />
+                <data android:pathPattern=".*\\.babelrc" />
+                <data android:pathPattern=".*\\.eslintrc" />
+                <data android:pathPattern=".*\\.prettierrc" />
+                <data android:pathPattern=".*\\.stylelintrc" />
+                <data android:pathPattern=".*\\.dockerignore" />
+                <data android:pathPattern=".*\\.npmignore" />
+                <data android:pathPattern=".*\\.eslintignore" />
+                <data android:pathPattern=".*\\.prettierignore" />
+                <data android:pathPattern=".*\\.gitconfig" />
+                <data android:pathPattern=".*\\.bashrc" />
+                <data android:pathPattern=".*\\.zshrc" />
+                <data android:pathPattern=".*\\.profile" />
+                <data android:pathPattern=".*\\.mailmap" />
+                <data android:pathPattern=".*\\.tool-versions" />
+                <data android:pathPattern=".*\\.editorconfig" />
+                <data android:pathPattern=".*/NOTICE" />
+                <data android:pathPattern=".*/AUTHORS" />
+                <data android:pathPattern=".*/CONTRIBUTORS" />
+                <data android:pathPattern=".*/CONTRIBUTING" />
+                <data android:pathPattern=".*/CODEOWNERS" />
+                <data android:pathPattern=".*/COPYING" />
+                <data android:pathPattern=".*/VERSION" />
+                <data android:pathPattern=".*/TODO" />
+                <data android:pathPattern=".*/INSTALL" />
+                <data android:pathPattern=".*/SECURITY" />
+                <data android:pathPattern=".*/MAINTAINERS" />
+                <data android:pathPattern=".*/Jenkinsfile" />
+                <data android:pathPattern=".*/Vagrantfile" />
+                <data android:pathPattern=".*/Brewfile" />
+                <data android:pathPattern=".*/Podfile" />
+                <data android:pathPattern=".*/Fastfile" />
+                <data android:pathPattern=".*/Gemfile.lock" />
+                <data android:pathPattern=".*/CMakeLists.txt" />
             </intent-filter>
         </activity>
     </application>

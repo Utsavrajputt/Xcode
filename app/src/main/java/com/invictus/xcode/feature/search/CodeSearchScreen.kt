@@ -209,6 +209,14 @@ class CodeSearchViewModel(
     fun setInclude(v: String) = applyOption { it.copy(includeGlob = v) }
     fun setExclude(v: String) = applyOption { it.copy(excludeGlob = v) }
 
+    /** 3-dot on a file card: add that file's relative path to the exclude filter and re-run. */
+    fun excludeFile(relativePath: String) {
+        val current = _uiState.value.excludeGlob
+        val entries = current.split(',', '\n').map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
+        if (relativePath in entries) return
+        setExclude(if (current.isBlank()) relativePath else current.trimEnd().trimEnd(',') + "," + relativePath)
+    }
+
     private fun applyOption(transform: (UiState) -> UiState) {
         _uiState.update(transform)
         onQueryChange(_uiState.value.query)
@@ -534,6 +542,7 @@ fun CodeSearchScreen(
                                         fileResult = fileResult,
                                         onLocateInTree = { onLocateInTree(fileResult.file) },
                                         onDismiss = { viewModel.dismissFile(fileResult.file) },
+                                        onExclude = { viewModel.excludeFile(fileResult.relativePath) },
                                     )
                                     fileResult.matches.forEach { m ->
                                         Row(
@@ -587,6 +596,7 @@ private fun FileResultHeader(
     fileResult: CodeSearchEngine.FileResult,
     onLocateInTree: () -> Unit,
     onDismiss: () -> Unit,
+    onExclude: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -621,6 +631,13 @@ private fun FileResultHeader(
                     onClick = {
                         menuOpen = false
                         onLocateInTree()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.search_exclude_file)) },
+                    onClick = {
+                        menuOpen = false
+                        onExclude()
                     },
                 )
             }
