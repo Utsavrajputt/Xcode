@@ -1,6 +1,7 @@
 package com.invictus.xcode.feature.git
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -111,6 +112,11 @@ class GitBranchesViewModel(
         val renameTarget: String? = null,
         val renameName: String = "",
         val deleteTarget: String? = null,
+        val deleteAlsoRemote: Boolean = false,
+        /** Full remote ref, e.g. "origin/feature", waiting for the delete-on-remote confirmation. */
+        val remoteDeleteTarget: String? = null,
+        /** Remote ref ("origin/dev") waiting for the make-default-on-GitHub confirmation. */
+        val makeDefaultTarget: String? = null,
         val forcePushConfirm: Boolean = false,
         /** Remote name when a force push was refused because it has unfetched commits. */
         val fetchPromptRemote: String? = null,
@@ -284,23 +290,113 @@ class GitBranchesViewModel(
         }
     }
 
-    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name) }
-    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null) }
+    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name, deleteAlsoRemote = false) }
+    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
+    fun setDeleteAlsoRemote(v: Boolean) = _ui.update { it.copy(deleteAlsoRemote = v) }
 
     fun delete() {
         val target = _ui.value.deleteTarget ?: return
+        val upstream = _ui.value.branches.firstOrNull { it.name == target && !it.isRemote }?.upstream
+        val alsoRemote = _ui.value.deleteAlsoRemote && upstream != null
         viewModelScope.launch(io) {
             // Not-merged branches throw; retry with force once.
             val first = session.deleteBranch(target, force = false)
             val r = if (first is GitResult.Err) session.deleteBranch(target, force = true) else first
             when (r) {
                 is GitResult.Ok -> {
-                    _ui.update { it.copy(deleteTarget = null) }
+                    _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
                     _messages.value = "Branch '$target' deleted"
                     load()
+                    if (alsoRemote && upstream != null) {
+                        deleteRemoteBranch(upstream.substringBefore('/'), upstream.substringAfter('/'))
+                    }
                 }
                 is GitResult.Err -> _ui.update { it.copy(error = r.error) }
             }
+        }
+    }
+
+    // ---- make default branch on GitHub ---------------------------------------------
+
+    fun askMakeDefault(b: GitBranchDetail) {
+        val ref = if (b.isRemote) b.name else b.upstream
+        if (ref == null) {
+            _messages.value = "Push '${b.name}' to GitHub first"
+            return
+        }
+        _ui.update { it.copy(makeDefaultTarget = ref) }
+    }
+
+    fun dismissMakeDefault() = _ui.update { it.copy(makeDefaultTarget = null) }
+
+    fun confirmMakeDefault() {
+        val ref = _ui.value.makeDefaultTarget ?: return
+        _ui.update { it.copy(makeDefaultTarget = null) }
+        makeDefault(ref.substringBefore('/'), ref.substringAfter('/'))
+    }
+
+    private fun makeDefault(remote: String, branch: String) {
+        val url = session.remoteUrl(remote)
+        val repo = url?.let { com.invictus.xcode.core.github.GitHubRepoApi.parseRepo(it) }
+        if (repo == null) {
+            _messages.value = "'$remote' isn't a GitHub remote"
+            return
+        }
+        val cred = credentialStore.get("github.com")
+        if (cred == null) {
+            askToken("github.com") { makeDefault(remote, branch) }
+            return
+        }
+        viewModelScope.launch(io) {
+            _ui.update { it.copy(busy = true, progressTask = "") }
+            try {
+                com.invictus.xcode.core.github.GitHubRepoApi.setDefaultBranch(repo.first, repo.second, branch, cred.token)
+                _messages.value = "'$branch' is now the default branch of ${repo.first}/${repo.second}"
+            } catch (e: Exception) {
+                _ui.update {
+                    it.copy(
+                        error = com.invictus.xcode.core.git.GitErrorFactory.from(e, "GitHub") { t ->
+                            t.message ?: "Request failed"
+                        },
+                    )
+                }
+            }
+            _ui.update { it.copy(busy = false, progressTask = "") }
+        }
+    }
+
+    // ---- delete on the remote ---------------------------------------------------
+
+    fun openDeleteRemote(ref: String) = _ui.update { it.copy(remoteDeleteTarget = ref) }
+    fun dismissDeleteRemote() = _ui.update { it.copy(remoteDeleteTarget = null) }
+
+    fun confirmDeleteRemote() {
+        val ref = _ui.value.remoteDeleteTarget ?: return
+        _ui.update { it.copy(remoteDeleteTarget = null) }
+        deleteRemoteBranch(ref.substringBefore('/'), ref.substringAfter('/'))
+    }
+
+    private fun deleteRemoteBranch(remote: String, branch: String) {
+        val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
+        val cred = host?.let { credentialStore.get(it) }
+        if (host != null && cred == null) {
+            askToken(host) { deleteRemoteBranch(remote, branch) }
+            return
+        }
+        viewModelScope.launch(io) {
+            _ui.update { it.copy(busy = true, progressTask = "") }
+            val provider = cred?.let { GitTokenCredentialsProvider(it.username, it.token) }
+            when (val r = session.deleteRemoteBranch(remote, branch, provider)) {
+                is GitResult.Ok -> { _messages.value = "Branch '$branch' deleted from $remote"; load() }
+                is GitResult.Err -> {
+                    if (host != null && r.error.authFailure.isAuthError()) {
+                        askToken(host) { deleteRemoteBranch(remote, branch) }
+                    } else {
+                        _ui.update { it.copy(error = r.error) }
+                    }
+                }
+            }
+            _ui.update { it.copy(busy = false, progressTask = "") }
         }
     }
 
@@ -318,7 +414,7 @@ class GitBranchesViewModel(
         val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
         val cred = host?.let { credentialStore.get(it) }
         if (host != null && cred == null) {
-            _ui.update { it.copy(tokenHost = host) }
+            askToken(host) { forcePush() }
             return
         }
         viewModelScope.launch(io) {
@@ -330,7 +426,7 @@ class GitBranchesViewModel(
                 is GitResult.Ok -> { _messages.value = "Force pushed to $remote"; load() }
                 is GitResult.Err -> {
                     if (host != null && r.error.authFailure.isAuthError()) {
-                        _ui.update { it.copy(tokenHost = host) }
+                        askToken(host) { forcePush() }
                     } else if (r.error.kind == GitErrorKind.UNFETCHED_COMMITS) {
                         _ui.update { it.copy(fetchPromptRemote = remote) }
                     } else {
@@ -354,7 +450,7 @@ class GitBranchesViewModel(
         val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
         val cred = host?.let { credentialStore.get(it) }
         if (host != null && cred == null) {
-            _ui.update { it.copy(tokenHost = host) }
+            askToken(host) { pull(rebase) }
             return
         }
         viewModelScope.launch(io) {
@@ -366,7 +462,7 @@ class GitBranchesViewModel(
                 is GitResult.Ok -> { _messages.value = "Pulled $remote/$branch"; load() }
                 is GitResult.Err -> {
                     if (host != null && r.error.authFailure.isAuthError()) {
-                        _ui.update { it.copy(tokenHost = host) }
+                        askToken(host) { pull(rebase) }
                     } else {
                         _ui.update { it.copy(error = r.error) }
                     }
@@ -385,7 +481,7 @@ class GitBranchesViewModel(
         val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
         val cred = host?.let { credentialStore.get(it) }
         if (host != null && cred == null) {
-            _ui.update { it.copy(tokenHost = host) }
+            askToken(host) { _ui.update { it.copy(fetchPromptRemote = remote) }; fetchFromPrompt() }
             return
         }
         viewModelScope.launch(io) {
@@ -398,7 +494,7 @@ class GitBranchesViewModel(
                 }
                 is GitResult.Err -> {
                     if (host != null && r.error.authFailure.isAuthError()) {
-                        _ui.update { it.copy(tokenHost = host) }
+                        askToken(host) { _ui.update { it.copy(fetchPromptRemote = remote) }; fetchFromPrompt() }
                     } else {
                         _ui.update { it.copy(error = r.error) }
                     }
@@ -408,13 +504,26 @@ class GitBranchesViewModel(
         }
     }
 
+    /** What to run again once the user has entered a token (each network action sets its own). */
+    private var afterToken: (() -> Unit)? = null
+
+    private fun askToken(host: String, resume: () -> Unit) {
+        afterToken = resume
+        _ui.update { it.copy(tokenHost = host) }
+    }
+
     fun saveToken(host: String, username: String, token: String) {
         credentialStore.put(GitCredential(host, username.ifBlank { DEFAULT_USER }, token))
         _ui.update { it.copy(tokenHost = null) }
-        forcePush()
+        val resume = afterToken
+        afterToken = null
+        resume?.invoke()
     }
 
-    fun dismissToken() = _ui.update { it.copy(tokenHost = null) }
+    fun dismissToken() {
+        afterToken = null
+        _ui.update { it.copy(tokenHost = null) }
+    }
     fun dismissError() = _ui.update { it.copy(error = null) }
 
     private fun GitAuthFailureType.isAuthError(): Boolean =
@@ -526,6 +635,8 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                         onDelete = { vm.openDelete(b.name) },
                         onPull = { vm.pull(rebase = false) },
                         onPullRebase = { vm.pull(rebase = true) },
+                        onDeleteRemote = { vm.openDeleteRemote(b.name) },
+                        onMakeDefault = { vm.askMakeDefault(b) },
                     )
                 }
             }
@@ -557,13 +668,61 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
         )
     }
     ui.deleteTarget?.let { target ->
+        val upstream = ui.branches.firstOrNull { it.name == target && !it.isRemote }?.upstream
+        if (upstream == null) {
+            GitConfirmDialog(
+                title = stringResource(R.string.git_branch_delete),
+                text = stringResource(R.string.git_branch_delete_confirm, target),
+                confirmLabel = stringResource(R.string.git_branch_delete),
+                danger = true,
+                onConfirm = vm::delete,
+                onDismiss = vm::dismissDelete,
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = vm::dismissDelete,
+                title = { Text(stringResource(R.string.git_branch_delete)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.git_branch_delete_confirm, target))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { vm.setDeleteAlsoRemote(!ui.deleteAlsoRemote) },
+                        ) {
+                            Checkbox(checked = ui.deleteAlsoRemote, onCheckedChange = vm::setDeleteAlsoRemote)
+                            Text(stringResource(R.string.git_branch_delete_also_remote, upstream))
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = vm::delete) {
+                        Text(stringResource(R.string.git_branch_delete), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = vm::dismissDelete) { Text(stringResource(R.string.action_cancel)) }
+                },
+            )
+        }
+    }
+    ui.makeDefaultTarget?.let { ref ->
         GitConfirmDialog(
-            title = stringResource(R.string.git_branch_delete),
-            text = stringResource(R.string.git_branch_delete_confirm, target),
+            title = stringResource(R.string.git_branch_make_default),
+            text = stringResource(R.string.git_branch_make_default_confirm, ref.substringAfter('/')),
+            confirmLabel = stringResource(R.string.git_branch_make_default_action),
+            danger = false,
+            onConfirm = vm::confirmMakeDefault,
+            onDismiss = vm::dismissMakeDefault,
+        )
+    }
+    ui.remoteDeleteTarget?.let { ref ->
+        GitConfirmDialog(
+            title = stringResource(R.string.git_branch_delete_remote),
+            text = stringResource(R.string.git_branch_delete_remote_confirm, ref),
             confirmLabel = stringResource(R.string.git_branch_delete),
             danger = true,
-            onConfirm = vm::delete,
-            onDismiss = vm::dismissDelete,
+            onConfirm = vm::confirmDeleteRemote,
+            onDismiss = vm::dismissDeleteRemote,
         )
     }
     if (ui.forcePushConfirm) {
@@ -601,10 +760,12 @@ private fun BranchCard(
     onDelete: () -> Unit,
     onPull: () -> Unit,
     onPullRebase: () -> Unit,
+    onDeleteRemote: () -> Unit,
+    onMakeDefault: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 14.dp, end = if (b.isRemote) 14.dp else 4.dp, top = 12.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -673,7 +834,29 @@ private fun BranchCard(
                     maxLines = 1,
                 )
             }
-            if (!b.isRemote) {
+            if (b.isRemote) {
+                var remoteMenuOpen by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { remoteMenuOpen = true }) {
+                        Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
+                    }
+                    DropdownMenu(expanded = remoteMenuOpen, onDismissRequest = { remoteMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.git_branch_make_default)) },
+                            onClick = { remoteMenuOpen = false; onMakeDefault() },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(R.string.git_branch_delete_remote),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            },
+                            onClick = { remoteMenuOpen = false; onDeleteRemote() },
+                        )
+                    }
+                }
+            } else {
                 var menuOpen by remember { mutableStateOf(false) }
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
@@ -690,6 +873,10 @@ private fun BranchCard(
                                 onClick = { menuOpen = false; onPullRebase() },
                             )
                         }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.git_branch_make_default)) },
+                            onClick = { menuOpen = false; onMakeDefault() },
+                        )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.git_branch_rename)) },
                             onClick = { menuOpen = false; onRename() },

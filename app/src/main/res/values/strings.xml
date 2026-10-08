@@ -393,6 +393,12 @@
     <string name="git_branch_filter_local">Local</string>
     <string name="git_branch_filter_remote">Remote</string>
     <string name="git_branch_remote_only">Remote only · checkout creates a local branch</string>
+    <string name="git_branch_delete_remote">Delete from remote</string>
+    <string name="git_branch_delete_remote_confirm">Delete branch \'%1$s\' from the remote? This removes it for everyone who uses it.</string>
+    <string name="git_branch_delete_also_remote">Also delete \'%1$s\' from the remote</string>
+    <string name="git_branch_make_default">Make default on GitHub</string>
+    <string name="git_branch_make_default_action">Make default</string>
+    <string name="git_branch_make_default_confirm">Make \'%1$s\' the default branch of this repository on GitHub? New clones, pull requests and the repo page will use it. Needs a token that can change repository settings.</string>
     <string name="git_branch_pull">Pull</string>
     <string name="git_branch_pull_rebase">Pull (rebase)</string>
     <string name="git_branch_create_from">Create from</string>

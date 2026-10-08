@@ -1240,7 +1240,13 @@ class GitSession(
         Unit
     }
 
-    private fun checkTagPushResults(updates: List<RemoteRefUpdate>, tag: String, remote: String, force: Boolean) {
+    private fun checkTagPushResults(
+        updates: List<RemoteRefUpdate>,
+        tag: String,
+        remote: String,
+        force: Boolean,
+        what: String = "tag",
+    ) {
         val bad = updates.firstOrNull {
             it.status != RemoteRefUpdate.Status.OK &&
                 it.status != RemoteRefUpdate.Status.UP_TO_DATE &&
@@ -1248,9 +1254,28 @@ class GitSession(
         } ?: return
         val hint = if (!force && bad.status.name.startsWith("REJECTED")) " Use Force push to overwrite it." else ""
         throw IllegalStateException(
-            "'$remote' rejected tag '$tag' (${bad.status.name.lowercase().replace('_', ' ')}).$hint" +
+            "'$remote' rejected $what '$tag' (${bad.status.name.lowercase().replace('_', ' ')}).$hint" +
                 (bad.message?.let { " $it" } ?: ""),
         )
+    }
+
+    /** `git push <remote> --delete <branch>`: removes the branch on the server and its local tracking ref. */
+    suspend fun deleteRemoteBranch(
+        remote: String,
+        branch: String,
+        credentials: CredentialsProvider?,
+    ): GitResult<Unit> = ioOp(TITLE_BRANCH) {
+        val b = branch.trim()
+        timedLock {
+            val results = git.push().setRemote(remote).setCredentialsProvider(credentials)
+                .setRefSpecs(RefSpec(":refs/heads/$b")).call()
+            checkTagPushResults(results.flatMap { it.remoteUpdates }, b, remote, force = true, what = "branch")
+            // Best effort: the remote-tracking ref is stale now (a later fetch --prune would drop it anyway).
+            runCatching {
+                repository.updateRef("refs/remotes/$remote/$b").apply { isForceUpdate = true }.delete()
+            }
+        }
+        Unit
     }
 
     /** Tags that exist on [remote] right now (name -> commit/tag object id), via ls-remote. No local refs change. */
