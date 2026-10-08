@@ -20,6 +20,7 @@ import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitConflictSide
 import com.invictus.xcode.core.git.model.MergeOutcome
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.git.model.GitErrorKind
 import com.invictus.xcode.core.git.model.GitFileDiffResult
 import com.invictus.xcode.core.git.model.GitCommitSummary
 import com.invictus.xcode.core.git.model.GitPathChange
@@ -658,9 +659,9 @@ class GitViewModel(
             }
             is GitResult.Err -> {
                 when {
-                    result.error.exceptionClass.endsWith("EmptyCommitException") ->
+                    result.error.kind == GitErrorKind.EMPTY_COMMIT ->
                         message(R.string.git_err_nothing_to_commit)
-                    result.error.exceptionClass.endsWith("GitIdentityMissingException") ->
+                    result.error.kind == GitErrorKind.IDENTITY_MISSING ->
                         openIdentity()
                     else -> _uiState.update { it.copy(error = result.error) }
                 }
@@ -848,11 +849,11 @@ class GitViewModel(
                         )
                     }
                 } else if (action == GitPendingAction.PUSH &&
-                    result.error.exceptionClass.endsWith("GitPushRejectedException")
+                    result.error.kind == GitErrorKind.PUSH_REJECTED
                 ) {
                     _uiState.update { it.copy(pushRejected = true) }
                 } else if (action == GitPendingAction.PUSH &&
-                    result.error.exceptionClass.endsWith("GitUnfetchedCommitsException")
+                    result.error.kind == GitErrorKind.UNFETCHED_COMMITS
                 ) {
                     _uiState.update { it.copy(fetchFirstRemote = remote) }
                 } else {
@@ -985,7 +986,7 @@ class GitViewModel(
                 }
                 is GitResult.Err -> {
                     when {
-                        result.error.exceptionClass.endsWith("GitIdentityMissingException") -> {
+                        result.error.kind == GitErrorKind.IDENTITY_MISSING -> {
                             _uiState.update { it.copy(completeMergeDialog = false) }
                             openIdentity()
                         }
@@ -1007,7 +1008,7 @@ class GitViewModel(
                     refresh()
                 }
                 is GitResult.Err -> {
-                    if (result.error.exceptionClass.endsWith("GitIdentityMissingException")) {
+                    if (result.error.kind == GitErrorKind.IDENTITY_MISSING) {
                         openIdentity()
                     } else {
                         _uiState.update { it.copy(error = result.error) }

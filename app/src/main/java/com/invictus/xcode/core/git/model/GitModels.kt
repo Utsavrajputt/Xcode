@@ -104,6 +104,9 @@ data class GitCommitFile(
     val change: GitCommitFileChange,
 )
 
+/** What went wrong, decided from the exception *type* (release builds rename classes, so names can't be matched). */
+enum class GitErrorKind { OTHER, PUSH_REJECTED, UNFETCHED_COMMITS, EMPTY_COMMIT, IDENTITY_MISSING }
+
 /** Everything the interactive error dialog shows; one-click copy serializes this. */
 data class GitErrorDetails(
     val title: String,
@@ -112,6 +115,7 @@ data class GitErrorDetails(
     val stackTrace: String,
     val timestamp: Long = System.currentTimeMillis(),
     val authFailure: GitAuthFailureType = GitAuthFailureType.NONE,
+    val kind: GitErrorKind = GitErrorKind.OTHER,
 ) {
     fun toCopyableText(): String = buildString {
         appendLine(title)

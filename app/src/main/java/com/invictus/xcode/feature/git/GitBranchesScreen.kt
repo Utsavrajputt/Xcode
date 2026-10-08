@@ -73,6 +73,7 @@ import com.invictus.xcode.core.git.GitTokenCredentialsProvider
 import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitBranchDetail
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.git.model.GitErrorKind
 import com.invictus.xcode.core.git.model.GitRemoteInfo
 import com.invictus.xcode.core.security.GitCredentialStore
 import com.invictus.xcode.ui.icons.XIcons
@@ -152,12 +153,17 @@ class GitBranchesViewModel(
             if (remotes.isEmpty()) return@launch
             _ui.update { it.copy(fetching = true) }
             var fetchedAny = false
+            val failed = mutableListOf<String>()
             for (r in remotes) {
                 val host = session.remoteUrl(r.name)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
                 val cred = host?.let { credentialStore.get(it) }
                 val provider = cred?.let { GitTokenCredentialsProvider(it.username, it.token) }
                 // Private remote without a saved token: skip silently (public ones fetch anonymously).
                 if (session.fetch(r.name, provider) is GitResult.Ok) fetchedAny = true
+                else failed += r.name
+            }
+            if (failed.isNotEmpty()) {
+                _messages.value = "Couldn't fetch ${failed.joinToString()} — remote branches may be out of date"
             }
             _ui.update { it.copy(fetching = false) }
             if (fetchedAny) load("after-fetch")
@@ -325,8 +331,42 @@ class GitBranchesViewModel(
                 is GitResult.Err -> {
                     if (host != null && r.error.authFailure.isAuthError()) {
                         _ui.update { it.copy(tokenHost = host) }
-                    } else if (r.error.exceptionClass.endsWith("GitUnfetchedCommitsException")) {
+                    } else if (r.error.kind == GitErrorKind.UNFETCHED_COMMITS) {
                         _ui.update { it.copy(fetchPromptRemote = remote) }
+                    } else {
+                        _ui.update { it.copy(error = r.error) }
+                    }
+                }
+            }
+            _ui.update { it.copy(busy = false, progressTask = "") }
+        }
+    }
+
+    // ---- pull (current branch) ---------------------------------------------------
+
+    fun pull(rebase: Boolean) {
+        val current = _ui.value.branches.firstOrNull { it.isCurrent } ?: return
+        val remote = current.upstream?.substringBefore('/')
+            ?: _ui.value.remotes.firstOrNull { it.name == "origin" }?.name
+            ?: _ui.value.remotes.firstOrNull()?.name
+            ?: run { _messages.value = "No remote configured"; return }
+        val branch = current.upstream?.substringAfter('/') ?: current.name
+        val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
+        val cred = host?.let { credentialStore.get(it) }
+        if (host != null && cred == null) {
+            _ui.update { it.copy(tokenHost = host) }
+            return
+        }
+        viewModelScope.launch(io) {
+            _ui.update { it.copy(busy = true, progressTask = "") }
+            val provider = cred?.let { GitTokenCredentialsProvider(it.username, it.token) }
+            when (val r = session.pull(remote, branch, provider, rebase) { p ->
+                _ui.update { s -> s.copy(progressTask = p.task) }
+            }) {
+                is GitResult.Ok -> { _messages.value = "Pulled $remote/$branch"; load() }
+                is GitResult.Err -> {
+                    if (host != null && r.error.authFailure.isAuthError()) {
+                        _ui.update { it.copy(tokenHost = host) }
                     } else {
                         _ui.update { it.copy(error = r.error) }
                     }
@@ -463,14 +503,16 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val localCount = ui.branches.count { !it.isRemote }
+                val remoteCount = ui.branches.count { it.isRemote }
                 listOf(
-                    GitBranchesViewModel.BranchFilter.LOCAL to R.string.git_branch_filter_local,
-                    GitBranchesViewModel.BranchFilter.REMOTE to R.string.git_branch_filter_remote,
-                ).forEach { (f, label) ->
+                    Triple(GitBranchesViewModel.BranchFilter.LOCAL, R.string.git_branch_filter_local, localCount),
+                    Triple(GitBranchesViewModel.BranchFilter.REMOTE, R.string.git_branch_filter_remote, remoteCount),
+                ).forEach { (f, label, count) ->
                     FilterChip(
                         selected = ui.filter == f,
                         onClick = { vm.setFilter(f) },
-                        label = { Text(stringResource(label)) },
+                        label = { Text(stringResource(label) + " · " + count) },
                     )
                 }
             }
@@ -482,6 +524,8 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                         onCheckout = { vm.checkout(b) },
                         onRename = { vm.openRename(b.name) },
                         onDelete = { vm.openDelete(b.name) },
+                        onPull = { vm.pull(rebase = false) },
+                        onPullRebase = { vm.pull(rebase = true) },
                     )
                 }
             }
@@ -555,6 +599,8 @@ private fun BranchCard(
     onCheckout: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onPull: () -> Unit,
+    onPullRebase: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
@@ -634,6 +680,16 @@ private fun BranchCard(
                         Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        if (b.isCurrent) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_branch_pull)) },
+                                onClick = { menuOpen = false; onPull() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.git_branch_pull_rebase)) },
+                                onClick = { menuOpen = false; onPullRebase() },
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.git_branch_rename)) },
                             onClick = { menuOpen = false; onRename() },

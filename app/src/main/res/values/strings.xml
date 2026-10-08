@@ -393,6 +393,8 @@
     <string name="git_branch_filter_local">Local</string>
     <string name="git_branch_filter_remote">Remote</string>
     <string name="git_branch_remote_only">Remote only · checkout creates a local branch</string>
+    <string name="git_branch_pull">Pull</string>
+    <string name="git_branch_pull_rebase">Pull (rebase)</string>
     <string name="git_branch_create_from">Create from</string>
     <string name="git_branch_from_head">Current branch</string>
     <string name="git_branch_from_none">No branches fetched yet</string>

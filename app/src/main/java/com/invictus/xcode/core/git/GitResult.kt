@@ -2,6 +2,8 @@ package com.invictus.xcode.core.git
 
 import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitErrorDetails
+import com.invictus.xcode.core.git.model.GitErrorKind
+import org.eclipse.jgit.api.errors.EmptyCommitException
 import org.eclipse.jgit.api.errors.TransportException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -28,7 +30,22 @@ object GitErrorFactory {
             exceptionClass = throwable.javaClass.name,
             stackTrace = throwable.stackTraceToString(),
             authFailure = classifyAuth(throwable),
+            kind = classifyKind(throwable),
         )
+    }
+
+    private fun classifyKind(t: Throwable): GitErrorKind {
+        var cause: Throwable? = t
+        while (cause != null) {
+            when (cause) {
+                is GitPushRejectedException -> return GitErrorKind.PUSH_REJECTED
+                is GitUnfetchedCommitsException -> return GitErrorKind.UNFETCHED_COMMITS
+                is EmptyCommitException -> return GitErrorKind.EMPTY_COMMIT
+                is GitIdentityMissingException -> return GitErrorKind.IDENTITY_MISSING
+            }
+            cause = cause.cause
+        }
+        return GitErrorKind.OTHER
     }
 
     private fun classifyAuth(t: Throwable): GitAuthFailureType {

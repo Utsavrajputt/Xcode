@@ -392,7 +392,7 @@ private fun FileRow(
             if (!row.isRoot) {
                 // Pin / Cut / Copy as a compact icon row on top instead of three list items.
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -564,12 +564,12 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
 /** Compact menu row: icon + text, no forced 112dp minimum width (that was the empty gap on the right). */
 @Composable
 private fun QuickAction(icon: ImageVector, @StringRes label: Int, highlighted: Boolean = false, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
+    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
         Icon(
             icon,
             contentDescription = stringResource(label),
             tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(22.dp),
+            modifier = Modifier.size(20.dp),
         )
     }
 }
