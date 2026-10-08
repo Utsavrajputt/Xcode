@@ -40,6 +40,7 @@ import org.eclipse.jgit.api.MergeResult
 import org.eclipse.jgit.api.RebaseCommand
 import org.eclipse.jgit.api.RebaseResult
 import org.eclipse.jgit.api.ResetCommand
+import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.dircache.DirCacheEditor
 import org.eclipse.jgit.dircache.DirCacheEntry
@@ -1202,6 +1203,64 @@ class GitSession(
     suspend fun deleteTag(name: String): GitResult<Unit> = ioOp(TITLE_TAG) {
         timedLock { git.tagDelete().setTags(name.trim()).call() }
         Unit
+    }
+
+    /** Pushes one tag ("refs/tags/<tag>") to [remote]; [force] overwrites a remote tag that points elsewhere. */
+    suspend fun pushTag(
+        remote: String,
+        tag: String,
+        credentials: CredentialsProvider?,
+        force: Boolean,
+    ): GitResult<Unit> = ioOp(TITLE_TAG) {
+        val t = tag.trim()
+        timedLock {
+            val spec = RefSpec((if (force) "+" else "") + "refs/tags/$t:refs/tags/$t")
+            val results = git.push().setRemote(remote).setCredentialsProvider(credentials)
+                .setRefSpecs(spec).call()
+            checkTagPushResults(results.flatMap { it.remoteUpdates }, t, remote, force)
+        }
+        Unit
+    }
+
+    /** `git push <remote> :refs/tags/<tag>` — removes the tag on the server only. */
+    suspend fun deleteRemoteTag(
+        remote: String,
+        tag: String,
+        credentials: CredentialsProvider?,
+    ): GitResult<Unit> = ioOp(TITLE_TAG) {
+        val t = tag.trim()
+        timedLock {
+            val results = git.push().setRemote(remote).setCredentialsProvider(credentials)
+                .setRefSpecs(RefSpec(":refs/tags/$t")).call()
+            checkTagPushResults(results.flatMap { it.remoteUpdates }, t, remote, force = true)
+        }
+        Unit
+    }
+
+    private fun checkTagPushResults(updates: List<RemoteRefUpdate>, tag: String, remote: String, force: Boolean) {
+        val bad = updates.firstOrNull {
+            it.status != RemoteRefUpdate.Status.OK &&
+                it.status != RemoteRefUpdate.Status.UP_TO_DATE &&
+                it.status != RemoteRefUpdate.Status.NON_EXISTING
+        } ?: return
+        val hint = if (!force && bad.status.name.startsWith("REJECTED")) " Use Force push to overwrite it." else ""
+        throw IllegalStateException(
+            "'$remote' rejected tag '$tag' (${bad.status.name.lowercase().replace('_', ' ')}).$hint" +
+                (bad.message?.let { " $it" } ?: ""),
+        )
+    }
+
+    /** Tags that exist on [remote] right now (name -> commit/tag object id), via ls-remote. No local refs change. */
+    suspend fun listRemoteTags(
+        remote: String,
+        credentials: CredentialsProvider?,
+    ): GitResult<List<Pair<String, String>>> = ioOp(TITLE_TAG) {
+        timedLock {
+            git.lsRemote().setRemote(remote).setTags(true).setHeads(false)
+                .setCredentialsProvider(credentials).call()
+                .filter { it.name.startsWith("refs/tags/") && !it.name.endsWith("^{}") }
+                .map { it.name.removePrefix("refs/tags/") to it.objectId.name }
+        }
     }
 
     // ---- M8: remotes ---------------------------------------------------------------

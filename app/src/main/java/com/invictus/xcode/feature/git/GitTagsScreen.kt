@@ -1,18 +1,32 @@
 package com.invictus.xcode.feature.git
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import com.invictus.xcode.ui.icons.XIcons
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -23,10 +37,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -36,10 +53,15 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.invictus.xcode.R
 import com.invictus.xcode.XcodeApp
+import com.invictus.xcode.core.git.GitCredential
 import com.invictus.xcode.core.git.GitResult
 import com.invictus.xcode.core.git.GitSessionRegistry
+import com.invictus.xcode.core.git.GitTokenCredentialsProvider
+import com.invictus.xcode.core.git.model.GitAuthFailureType
 import com.invictus.xcode.core.git.model.GitErrorDetails
 import com.invictus.xcode.core.git.model.GitTagInfo
+import com.invictus.xcode.core.security.GitCredentialStore
+import com.invictus.xcode.ui.icons.XIcons
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,13 +69,58 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.eclipse.jgit.transport.CredentialsProvider
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+// ---- ordering: newest version first (v1.11.2 > v1.10.1 > v1.2.4), not alphabetical ----------
+
+private class TagVersion(val nums: List<Long>, val pre: String)
+
+private val versionRegex = Regex("""^[vV]?(\d+(?:\.\d+)*)(?:[-+_.]?(.*))?$""")
+
+private fun parseTagVersion(name: String): TagVersion? {
+    val m = versionRegex.matchEntire(name.trim()) ?: return null
+    return TagVersion(
+        nums = m.groupValues[1].split('.').map { it.toLongOrNull() ?: 0L },
+        pre = m.groupValues[2],
+    )
+}
+
+/**
+ * Versions first, highest to lowest, compared number by number; a release ranks above its own
+ * pre-release (v1.0.0 above v1.0.0-beta). Tags that aren't versions follow, Z to A.
+ */
+internal val tagDescending = Comparator<String> { a, b ->
+    val va = parseTagVersion(a)
+    val vb = parseTagVersion(b)
+    when {
+        va != null && vb != null -> {
+            var result = 0
+            for (i in 0 until maxOf(va.nums.size, vb.nums.size)) {
+                val x = va.nums.getOrElse(i) { 0L }
+                val y = vb.nums.getOrElse(i) { 0L }
+                if (x != y) { result = y.compareTo(x); break }
+            }
+            when {
+                result != 0 -> result
+                va.pre.isEmpty() && vb.pre.isEmpty() -> 0
+                va.pre.isEmpty() -> -1
+                vb.pre.isEmpty() -> 1
+                else -> vb.pre.compareTo(va.pre)
+            }
+        }
+        va != null -> -1
+        vb != null -> 1
+        else -> b.compareTo(a)
+    }
+}
+
 class GitTagsViewModel(
     private val projectPath: String,
+    private val credentialStore: GitCredentialStore,
     globalIdentityFile: File,
     private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -64,13 +131,26 @@ class GitTagsViewModel(
         GitSessionRegistry.release(File(projectPath))
     }
 
+    enum class TagFilter { LOCAL, REMOTE }
+
+    data class RemoteTag(val name: String, val commitId: String)
+
     data class UiState(
         val loading: Boolean = true,
         val tags: List<GitTagInfo> = emptyList(),
+        val filter: TagFilter = TagFilter.LOCAL,
+        val remoteTags: List<RemoteTag> = emptyList(),
+        val remoteLoaded: Boolean = false,
+        /** A network operation (push / delete on remote / listing) is running. */
+        val busy: Boolean = false,
         val showCreate: Boolean = false,
         val createName: String = "",
         val createMessage: String = "",
         val deleteTarget: String? = null,
+        val deleteAlsoRemote: Boolean = false,
+        val forceTarget: String? = null,
+        val remoteDeleteTarget: String? = null,
+        val tokenHost: String? = null,
         val error: GitErrorDetails? = null,
     )
 
@@ -80,6 +160,9 @@ class GitTagsViewModel(
     private val _messages = MutableStateFlow<String?>(null)
     val messages: StateFlow<String?> = _messages.asStateFlow()
 
+    /** Re-runs the network action that was waiting for a token. */
+    private var pending: (() -> Unit)? = null
+
     init { load() }
     fun messageHandled() { _messages.value = null }
 
@@ -87,11 +170,20 @@ class GitTagsViewModel(
         viewModelScope.launch(io) {
             _ui.update { it.copy(loading = it.tags.isEmpty()) }
             when (val r = session.listTags()) {
-                is GitResult.Ok -> _ui.update { it.copy(loading = false, tags = r.value) }
+                is GitResult.Ok -> _ui.update {
+                    it.copy(loading = false, tags = r.value.sortedWith { a, b -> tagDescending.compare(a.name, b.name) })
+                }
                 is GitResult.Err -> _ui.update { it.copy(loading = false, error = r.error) }
             }
         }
     }
+
+    fun setFilter(f: TagFilter) {
+        _ui.update { it.copy(filter = f) }
+        if (f == TagFilter.REMOTE && !_ui.value.remoteLoaded) loadRemote()
+    }
+
+    // ---- create ---------------------------------------------------------------
 
     fun openCreate() = _ui.update { it.copy(showCreate = true) }
     fun dismissCreate() =
@@ -114,30 +206,156 @@ class GitTagsViewModel(
         }
     }
 
-    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name) }
-    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null) }
+    // ---- delete (local, optionally also on the remote) --------------------------
+
+    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name, deleteAlsoRemote = false) }
+    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
+    fun setDeleteAlsoRemote(v: Boolean) = _ui.update { it.copy(deleteAlsoRemote = v) }
 
     fun delete() {
         val target = _ui.value.deleteTarget ?: return
+        val alsoRemote = _ui.value.deleteAlsoRemote
         viewModelScope.launch(io) {
             when (val r = session.deleteTag(target)) {
                 is GitResult.Ok -> {
-                    _ui.update { it.copy(deleteTarget = null) }
+                    _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
                     _messages.value = "Tag '$target' deleted"
                     load()
+                    if (alsoRemote) deleteOnRemote(target)
                 }
                 is GitResult.Err -> _ui.update { it.copy(error = r.error) }
             }
         }
     }
 
+    // ---- push / force push / delete on remote -----------------------------------
+
+    fun push(tag: String) = runRemote(
+        block = { remote, creds -> session.pushTag(remote, tag, creds, force = false) },
+        onOk = { _, remote -> _messages.value = "Pushed '$tag' to $remote"; refreshRemoteIfShown() },
+    )
+
+    fun askForcePush(tag: String) = _ui.update { it.copy(forceTarget = tag) }
+    fun dismissForcePush() = _ui.update { it.copy(forceTarget = null) }
+
+    fun forcePush() {
+        val tag = _ui.value.forceTarget ?: return
+        _ui.update { it.copy(forceTarget = null) }
+        runRemote(
+            block = { remote, creds -> session.pushTag(remote, tag, creds, force = true) },
+            onOk = { _, remote -> _messages.value = "Force pushed '$tag' to $remote"; refreshRemoteIfShown() },
+        )
+    }
+
+    fun askDeleteOnRemote(tag: String) = _ui.update { it.copy(remoteDeleteTarget = tag) }
+    fun dismissDeleteOnRemote() = _ui.update { it.copy(remoteDeleteTarget = null) }
+
+    fun confirmDeleteOnRemote() {
+        val tag = _ui.value.remoteDeleteTarget ?: return
+        _ui.update { it.copy(remoteDeleteTarget = null) }
+        deleteOnRemote(tag)
+    }
+
+    private fun deleteOnRemote(tag: String) = runRemote(
+        block = { remote, creds -> session.deleteRemoteTag(remote, tag, creds) },
+        onOk = { _, remote ->
+            _messages.value = "Tag '$tag' deleted from $remote"
+            _ui.update { s -> s.copy(remoteTags = s.remoteTags.filterNot { it.name == tag }) }
+        },
+    )
+
+    fun loadRemote() = runRemote(
+        requireToken = false,
+        block = { remote, creds -> session.listRemoteTags(remote, creds) },
+        onOk = { list, _ ->
+            _ui.update { s ->
+                s.copy(
+                    remoteLoaded = true,
+                    remoteTags = list.map { RemoteTag(it.first, it.second) }
+                        .sortedWith { a, b -> tagDescending.compare(a.name, b.name) },
+                )
+            }
+        },
+    )
+
+    private fun refreshRemoteIfShown() {
+        if (_ui.value.filter == TagFilter.REMOTE) loadRemote()
+    }
+
+    private suspend fun defaultRemote(): String? {
+        val remotes = (session.listRemotes() as? GitResult.Ok)?.value.orEmpty()
+        return remotes.firstOrNull { it.name == "origin" }?.name ?: remotes.firstOrNull()?.name
+    }
+
+    /**
+     * Shared network path: pick the remote (origin first), use the saved token (ask for one when
+     * the host has none and [requireToken]), run [block], and on an auth failure ask for a token
+     * and retry with it.
+     */
+    private fun <T> runRemote(
+        requireToken: Boolean = true,
+        block: suspend (String, CredentialsProvider?) -> GitResult<T>,
+        onOk: suspend (T, String) -> Unit,
+    ) {
+        viewModelScope.launch(io) {
+            val remote = defaultRemote() ?: run {
+                _messages.value = "No remote configured"
+                return@launch
+            }
+            val host = session.remoteUrl(remote)?.let { com.invictus.xcode.core.git.normalizeHost(it) }
+            val cred = host?.let { credentialStore.get(it) }
+            if (host != null && cred == null && requireToken) {
+                pending = { runRemote(requireToken, block, onOk) }
+                _ui.update { it.copy(tokenHost = host) }
+                return@launch
+            }
+            _ui.update { it.copy(busy = true) }
+            val provider = cred?.let { GitTokenCredentialsProvider(it.username, it.token) }
+            when (val r = block(remote, provider)) {
+                is GitResult.Ok -> onOk(r.value, remote)
+                is GitResult.Err -> {
+                    if (host != null && r.error.authFailure.isAuthError()) {
+                        pending = { runRemote(requireToken, block, onOk) }
+                        _ui.update { it.copy(tokenHost = host) }
+                    } else {
+                        _ui.update { it.copy(error = r.error) }
+                    }
+                }
+            }
+            _ui.update { it.copy(busy = false) }
+        }
+    }
+
+    fun saveToken(host: String, username: String, token: String) {
+        credentialStore.put(GitCredential(host, username.ifBlank { DEFAULT_USER }, token))
+        _ui.update { it.copy(tokenHost = null) }
+        pending?.invoke()
+        pending = null
+    }
+
+    fun dismissToken() {
+        pending = null
+        _ui.update { it.copy(tokenHost = null) }
+    }
+
     fun dismissError() = _ui.update { it.copy(error = null) }
 
+    private fun GitAuthFailureType.isAuthError(): Boolean =
+        this == GitAuthFailureType.AUTH_REQUIRED ||
+            this == GitAuthFailureType.INVALID_CREDENTIALS ||
+            this == GitAuthFailureType.EXPIRED_TOKEN ||
+            this == GitAuthFailureType.PERMISSION_DENIED
+
     companion object {
+        private const val DEFAULT_USER = "x-access-token"
         fun factory(projectPath: String) = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as XcodeApp
-                GitTagsViewModel(projectPath, app.container.gitGlobalIdentityFile)
+                GitTagsViewModel(
+                    projectPath = projectPath,
+                    credentialStore = app.container.gitCredentialStore,
+                    globalIdentityFile = app.container.gitGlobalIdentityFile,
+                )
             }
         }
     }
@@ -159,6 +377,8 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
         vm.messages.collect { msg -> msg?.let { snackbar.showSnackbar(it); vm.messageHandled() } }
     }
 
+    val localNames = remember(ui.tags) { ui.tags.map { it.name }.toSet() }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -177,41 +397,62 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-            items(ui.tags, key = { it.name }) { t ->
-                Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(t.name, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                listOfNotNull(
-                                    t.message,
-                                    t.timeMs.takeIf { it > 0 }?.let { tagTimeFormat.format(Date(it)) },
-                                    t.commitId.take(7),
-                                ).joinToString(" · "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        TextButton(onClick = { vm.openDelete(t.name) }) {
-                            Text(
-                                stringResource(R.string.git_tag_delete),
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                    }
-                }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (ui.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            Row(
+                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = ui.filter == GitTagsViewModel.TagFilter.LOCAL,
+                    onClick = { vm.setFilter(GitTagsViewModel.TagFilter.LOCAL) },
+                    label = { Text(stringResource(R.string.git_tag_filter_local)) },
+                )
+                FilterChip(
+                    selected = ui.filter == GitTagsViewModel.TagFilter.REMOTE,
+                    onClick = { vm.setFilter(GitTagsViewModel.TagFilter.REMOTE) },
+                    label = { Text(stringResource(R.string.git_tag_filter_remote)) },
+                )
             }
-            if (!ui.loading && ui.tags.isEmpty()) {
-                item {
-                    Text(
-                        stringResource(R.string.git_tags_empty),
-                        Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            LazyColumn(Modifier.fillMaxSize()) {
+                if (ui.filter == GitTagsViewModel.TagFilter.LOCAL) {
+                    items(ui.tags, key = { "l:" + it.name }) { t ->
+                        TagCard(
+                            name = t.name,
+                            subtitle = listOfNotNull(
+                                t.message,
+                                t.timeMs.takeIf { it > 0 }?.let { tagTimeFormat.format(Date(it)) },
+                                t.commitId.take(7),
+                            ).joinToString(" · "),
+                            primaryLabel = stringResource(R.string.git_tag_push),
+                            onPrimary = { vm.push(t.name) },
+                            menu = listOf(
+                                MenuEntry(R.string.git_tag_force_push, false) { vm.askForcePush(t.name) },
+                                MenuEntry(R.string.git_tag_delete_local, true) { vm.openDelete(t.name) },
+                                MenuEntry(R.string.git_tag_delete_remote, true) { vm.askDeleteOnRemote(t.name) },
+                            ),
+                        )
+                    }
+                    if (!ui.loading && ui.tags.isEmpty()) {
+                        item { EmptyHint(stringResource(R.string.git_tags_empty)) }
+                    }
+                } else {
+                    items(ui.remoteTags, key = { "r:" + it.name }) { t ->
+                        TagCard(
+                            name = t.name,
+                            subtitle = stringResource(
+                                if (t.name in localNames) R.string.git_tag_also_local else R.string.git_tag_remote_only,
+                            ) + " · " + t.commitId.take(7),
+                            primaryLabel = null,
+                            onPrimary = {},
+                            menu = listOf(
+                                MenuEntry(R.string.git_tag_delete_remote, true) { vm.askDeleteOnRemote(t.name) },
+                            ),
+                        )
+                    }
+                    if (ui.remoteLoaded && !ui.busy && ui.remoteTags.isEmpty()) {
+                        item { EmptyHint(stringResource(R.string.git_tags_remote_empty)) }
+                    }
                 }
             }
         }
@@ -234,14 +475,120 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
         )
     }
     ui.deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = vm::dismissDelete,
+            title = { Text(stringResource(R.string.git_tag_delete)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.git_tag_delete_confirm, target))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { vm.setDeleteAlsoRemote(!ui.deleteAlsoRemote) },
+                    ) {
+                        Checkbox(checked = ui.deleteAlsoRemote, onCheckedChange = vm::setDeleteAlsoRemote)
+                        Text(stringResource(R.string.git_tag_delete_also_remote))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = vm::delete) {
+                    Text(stringResource(R.string.git_tag_delete), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissDelete) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    ui.forceTarget?.let { target ->
         GitConfirmDialog(
-            title = stringResource(R.string.git_tag_delete),
-            text = stringResource(R.string.git_tag_delete_confirm, target),
+            title = stringResource(R.string.git_tag_force_push),
+            text = stringResource(R.string.git_tag_force_push_confirm, target),
+            confirmLabel = stringResource(R.string.git_tag_force_push),
+            danger = true,
+            onConfirm = vm::forcePush,
+            onDismiss = vm::dismissForcePush,
+        )
+    }
+    ui.remoteDeleteTarget?.let { target ->
+        GitConfirmDialog(
+            title = stringResource(R.string.git_tag_delete_remote),
+            text = stringResource(R.string.git_tag_delete_remote_confirm, target),
             confirmLabel = stringResource(R.string.git_tag_delete),
             danger = true,
-            onConfirm = vm::delete,
-            onDismiss = vm::dismissDelete,
+            onConfirm = vm::confirmDeleteOnRemote,
+            onDismiss = vm::dismissDeleteOnRemote,
+        )
+    }
+    ui.tokenHost?.let { host ->
+        GitFieldsDialog(
+            title = "Token: $host",
+            fields = listOf("Username" to "x-access-token", "Token" to ""),
+            confirmLabel = stringResource(R.string.action_save),
+            onConfirm = { v, _ -> vm.saveToken(host, v[0], v[1]) },
+            onDismiss = vm::dismissToken,
         )
     }
     ui.error?.let { GitErrorDialog(details = it, onDismiss = vm::dismissError) }
+}
+
+private class MenuEntry(val label: Int, val danger: Boolean, val onClick: () -> Unit)
+
+@Composable
+private fun TagCard(
+    name: String,
+    subtitle: String,
+    primaryLabel: String?,
+    onPrimary: () -> Unit,
+    menu: List<MenuEntry>,
+) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (primaryLabel != null) {
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(
+                    onClick = onPrimary,
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    modifier = Modifier.height(36.dp),
+                ) { Text(primaryLabel, maxLines = 1) }
+            }
+            var open by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { open = true }) {
+                    Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    menu.forEach { e ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(e.label),
+                                    color = if (e.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                )
+                            },
+                            onClick = { open = false; e.onClick() },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyHint(text: String) {
+    Text(text, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
