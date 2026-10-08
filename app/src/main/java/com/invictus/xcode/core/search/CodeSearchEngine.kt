@@ -23,6 +23,8 @@ class CodeSearchEngine {
         val defaultValuesOnly: Boolean = false,
         /** From "text//name": only files whose NAME matches (contains, case-insensitive; * and ? act as wildcards). */
         val fileNameFilter: String = "",
+        /** Exact relative paths (as in [FileResult.relativePath]) skipped for this project. */
+        val excludedPaths: Set<String> = emptySet(),
     )
 
     data class LineMatch(val line: Int, val text: String, val ranges: List<IntRange>)
@@ -59,6 +61,7 @@ class CodeSearchEngine {
                     continue
                 }
                 val rel = child.canonicalPath.removePrefix(rootPath)
+                if (rel in options.excludedPaths) continue
                 if (include != null && !include.matches(rel)) continue
                 if (nameMatcher != null && !nameMatcher(name)) continue
                 if (excludes.any { it.matches(rel) }) continue

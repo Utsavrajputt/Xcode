@@ -137,6 +137,36 @@ class EditorSettingsStore(private val context: Context) {
         context.editorSettingsDataStore.edit { it[Keys.SEARCH_EXTRA_EXCLUDES] = value }
     }
 
+    /**
+     * Per-project code-search excludes ("Exclude this file" on a result card): relative paths,
+     * newline separated, one DataStore entry per project. Lives until the user removes the file
+     * from the Excluded files list or clears app data.
+     */
+    private fun projectExcludesKey(root: java.io.File) =
+        stringPreferencesKey("search_project_excludes:" + root.absolutePath)
+
+    fun projectSearchExcludes(root: java.io.File): Flow<List<String>> {
+        val key = projectExcludesKey(root)
+        return context.editorSettingsDataStore.data
+            .map { prefs -> prefs[key].orEmpty().split('\n').filter { it.isNotBlank() } }
+    }
+
+    suspend fun addProjectSearchExclude(root: java.io.File, relativePath: String) {
+        val key = projectExcludesKey(root)
+        context.editorSettingsDataStore.edit { prefs ->
+            val list = prefs[key].orEmpty().split('\n').filter { it.isNotBlank() }
+            if (relativePath !in list) prefs[key] = (list + relativePath).joinToString("\n")
+        }
+    }
+
+    suspend fun removeProjectSearchExclude(root: java.io.File, relativePath: String) {
+        val key = projectExcludesKey(root)
+        context.editorSettingsDataStore.edit { prefs ->
+            val list = prefs[key].orEmpty().split('\n').filter { it.isNotBlank() && it != relativePath }
+            if (list.isEmpty()) prefs.remove(key) else prefs[key] = list.joinToString("\n")
+        }
+    }
+
     /** Settings "Search" > max file size (MB) that code search will open. */
     val searchMaxFileMb: Flow<Int> = context.editorSettingsDataStore.data
         .map { (it[Keys.SEARCH_MAX_FILE_MB] ?: DEFAULT_SEARCH_MAX_FILE_MB).coerceIn(1, 100) }

@@ -183,6 +183,10 @@
     <string name="search_matches_summary">%2$d फ़ाइलों में %1$d मैच</string>
     <string name="search_locate_in_tree">File tree में दिखाएँ</string>
     <string name="search_exclude_file">इस file को exclude करें</string>
+    <string name="search_excluded_files">Excluded files (%1$d)</string>
+    <string name="search_excluded_files_title">Excluded files</string>
+    <string name="search_excluded_remove">फिर से शामिल करें</string>
+    <string name="search_excluded_done">हो गया</string>
     <string name="search_invalid_regex">गलत regex: %1$s</string>
     <string name="search_no_file_matches">कोई फ़ाइल नहीं मिली</string>
     <string name="search_no_folder_matches">कोई फ़ोल्डर नहीं मिला</string>

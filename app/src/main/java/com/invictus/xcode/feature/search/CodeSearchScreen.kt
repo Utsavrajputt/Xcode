@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
@@ -104,6 +105,8 @@ class CodeSearchViewModel(
         val wholeWord: Boolean = false,
         val includeGlob: String = "",
         val excludeGlob: String = "",
+        /** Files excluded for this project via the result card's 3-dot menu (persisted). */
+        val excludedFiles: List<String> = emptyList(),
         val searching: Boolean = false,
         val results: List<CodeSearchEngine.FileResult> = emptyList(),
         val fileCount: Int = 0,
@@ -120,6 +123,11 @@ class CodeSearchViewModel(
     private val dismissedPaths = mutableSetOf<String>()
 
     init {
+        viewModelScope.launch {
+            settingsStore.projectSearchExcludes(root).collect { list ->
+                _uiState.update { it.copy(excludedFiles = list) }
+            }
+        }
         viewModelScope.launch {
             history.observe(SearchKind.CODE).collect { items ->
                 _uiState.update { it.copy(history = items) }
@@ -171,6 +179,7 @@ class CodeSearchViewModel(
             delay(300)
             val extra = settingsStore.searchExtraExcludes.first()
             val options = base.copy(
+                excludedPaths = settingsStore.projectSearchExcludes(root).first().toSet(),
                 defaultValuesOnly = settingsStore.searchDefaultStringsOnly.first(),
                 maxFileSizeBytes = settingsStore.searchMaxFileMb.first() * 1024L * 1024L,
                 excludeGlob = listOf(base.excludeGlob, extra).filter { it.isNotBlank() }.joinToString(","),
@@ -209,12 +218,19 @@ class CodeSearchViewModel(
     fun setInclude(v: String) = applyOption { it.copy(includeGlob = v) }
     fun setExclude(v: String) = applyOption { it.copy(excludeGlob = v) }
 
-    /** 3-dot on a file card: add that file's relative path to the exclude filter and re-run. */
+    /** 3-dot on a file card: exclude this file for the whole project (persisted) and re-run. */
     fun excludeFile(relativePath: String) {
-        val current = _uiState.value.excludeGlob
-        val entries = current.split(',', '\n').map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
-        if (relativePath in entries) return
-        setExclude(if (current.isBlank()) relativePath else current.trimEnd().trimEnd(',') + "," + relativePath)
+        viewModelScope.launch {
+            settingsStore.addProjectSearchExclude(root, relativePath)
+            onQueryChange(_uiState.value.query)
+        }
+    }
+
+    fun includeFileAgain(relativePath: String) {
+        viewModelScope.launch {
+            settingsStore.removeProjectSearchExclude(root, relativePath)
+            onQueryChange(_uiState.value.query)
+        }
     }
 
     private fun applyOption(transform: (UiState) -> UiState) {
@@ -375,7 +391,9 @@ fun CodeSearchScreen(
 
             // Options row: toggles on the left, "more" on the right reveals include/exclude.
             var showFilters by rememberSaveable { mutableStateOf(false) }
-            val filtersActive = state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank()
+            val filtersActive = state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank() ||
+                state.excludedFiles.isNotEmpty()
+            var showExcludedDialog by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -439,7 +457,13 @@ fun CodeSearchScreen(
                             onValueChange = viewModel::setExclude,
                             label = stringResource(R.string.search_exclude_glob),
                         )
-                        if (filtersActive) {
+                        if (state.excludedFiles.isNotEmpty()) {
+                            TextButton(
+                                onClick = { showExcludedDialog = true },
+                                modifier = Modifier.align(Alignment.Start),
+                            ) { Text(stringResource(R.string.search_excluded_files, state.excludedFiles.size)) }
+                        }
+                        if (state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank()) {
                             TextButton(
                                 onClick = {
                                     viewModel.setInclude("")
@@ -450,6 +474,40 @@ fun CodeSearchScreen(
                         }
                     }
                 }
+            }
+
+            if (showExcludedDialog && state.excludedFiles.isNotEmpty()) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showExcludedDialog = false },
+                    title = { Text(stringResource(R.string.search_excluded_files_title)) },
+                    text = {
+                        LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                            items(state.excludedFiles, key = { it }) { path ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = path.removePrefix("/"),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(onClick = { viewModel.includeFileAgain(path) }) {
+                                        Icon(
+                                            XIcons.Close,
+                                            contentDescription = stringResource(R.string.search_excluded_remove),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showExcludedDialog = false }) {
+                            Text(stringResource(R.string.search_excluded_done))
+                        }
+                    },
+                )
             }
 
             state.error?.let { err ->
