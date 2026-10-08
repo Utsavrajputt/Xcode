@@ -147,9 +147,6 @@ class GitTagsViewModel(
         val createName: String = "",
         val createMessage: String = "",
         val deleteTarget: String? = null,
-        val deleteAlsoRemote: Boolean = false,
-        val forceTarget: String? = null,
-        val remoteDeleteTarget: String? = null,
         val tokenHost: String? = null,
         val error: GitErrorDetails? = null,
     )
@@ -206,60 +203,40 @@ class GitTagsViewModel(
         }
     }
 
-    // ---- delete (local, optionally also on the remote) --------------------------
+    // ---- delete: removes the tag from this device AND from the remote ----------
 
-    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name, deleteAlsoRemote = false) }
-    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
-    fun setDeleteAlsoRemote(v: Boolean) = _ui.update { it.copy(deleteAlsoRemote = v) }
+    fun openDelete(name: String) = _ui.update { it.copy(deleteTarget = name) }
+    fun dismissDelete() = _ui.update { it.copy(deleteTarget = null) }
 
     fun delete() {
         val target = _ui.value.deleteTarget ?: return
-        val alsoRemote = _ui.value.deleteAlsoRemote
+        _ui.update { it.copy(deleteTarget = null) }
         viewModelScope.launch(io) {
-            when (val r = session.deleteTag(target)) {
-                is GitResult.Ok -> {
-                    _ui.update { it.copy(deleteTarget = null, deleteAlsoRemote = false) }
-                    _messages.value = "Tag '$target' deleted"
-                    load()
-                    if (alsoRemote) deleteOnRemote(target)
+            // A tag seen only on the remote has no local copy to delete.
+            val hasLocal = _ui.value.tags.any { it.name == target }
+            if (hasLocal) {
+                when (val r = session.deleteTag(target)) {
+                    is GitResult.Ok -> load()
+                    is GitResult.Err -> {
+                        _ui.update { it.copy(error = r.error) }
+                        return@launch
+                    }
                 }
-                is GitResult.Err -> _ui.update { it.copy(error = r.error) }
             }
+            deleteOnRemote(target, alsoLocal = hasLocal)
         }
     }
-
-    // ---- push / force push / delete on remote -----------------------------------
 
     fun push(tag: String) = runRemote(
         block = { remote, creds -> session.pushTag(remote, tag, creds, force = false) },
         onOk = { _, remote -> _messages.value = "Pushed '$tag' to $remote"; refreshRemoteIfShown() },
     )
 
-    fun askForcePush(tag: String) = _ui.update { it.copy(forceTarget = tag) }
-    fun dismissForcePush() = _ui.update { it.copy(forceTarget = null) }
-
-    fun forcePush() {
-        val tag = _ui.value.forceTarget ?: return
-        _ui.update { it.copy(forceTarget = null) }
-        runRemote(
-            block = { remote, creds -> session.pushTag(remote, tag, creds, force = true) },
-            onOk = { _, remote -> _messages.value = "Force pushed '$tag' to $remote"; refreshRemoteIfShown() },
-        )
-    }
-
-    fun askDeleteOnRemote(tag: String) = _ui.update { it.copy(remoteDeleteTarget = tag) }
-    fun dismissDeleteOnRemote() = _ui.update { it.copy(remoteDeleteTarget = null) }
-
-    fun confirmDeleteOnRemote() {
-        val tag = _ui.value.remoteDeleteTarget ?: return
-        _ui.update { it.copy(remoteDeleteTarget = null) }
-        deleteOnRemote(tag)
-    }
-
-    private fun deleteOnRemote(tag: String) = runRemote(
+    private fun deleteOnRemote(tag: String, alsoLocal: Boolean) = runRemote(
         block = { remote, creds -> session.deleteRemoteTag(remote, tag, creds) },
         onOk = { _, remote ->
-            _messages.value = "Tag '$tag' deleted from $remote"
+            _messages.value = if (alsoLocal) "Tag '$tag' deleted locally and from $remote"
+            else "Tag '$tag' deleted from $remote"
             _ui.update { s -> s.copy(remoteTags = s.remoteTags.filterNot { it.name == tag }) }
         },
     )
@@ -424,13 +401,8 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
                                 t.timeMs.takeIf { it > 0 }?.let { tagTimeFormat.format(Date(it)) },
                                 t.commitId.take(7),
                             ).joinToString(" · "),
-                            primaryLabel = stringResource(R.string.git_tag_push),
-                            onPrimary = { vm.push(t.name) },
-                            menu = listOf(
-                                MenuEntry(R.string.git_tag_force_push, false) { vm.askForcePush(t.name) },
-                                MenuEntry(R.string.git_tag_delete_local, true) { vm.openDelete(t.name) },
-                                MenuEntry(R.string.git_tag_delete_remote, true) { vm.askDeleteOnRemote(t.name) },
-                            ),
+                            onDelete = { vm.openDelete(t.name) },
+                            menu = listOf(MenuEntry(R.string.git_tag_push) { vm.push(t.name) }),
                         )
                     }
                     if (!ui.loading && ui.tags.isEmpty()) {
@@ -443,11 +415,8 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
                             subtitle = stringResource(
                                 if (t.name in localNames) R.string.git_tag_also_local else R.string.git_tag_remote_only,
                             ) + " · " + t.commitId.take(7),
-                            primaryLabel = null,
-                            onPrimary = {},
-                            menu = listOf(
-                                MenuEntry(R.string.git_tag_delete_remote, true) { vm.askDeleteOnRemote(t.name) },
-                            ),
+                            onDelete = { vm.openDelete(t.name) },
+                            menu = emptyList(),
                         )
                     }
                     if (ui.remoteLoaded && !ui.busy && ui.remoteTags.isEmpty()) {
@@ -475,49 +444,13 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
         )
     }
     ui.deleteTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = vm::dismissDelete,
-            title = { Text(stringResource(R.string.git_tag_delete)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.git_tag_delete_confirm, target))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { vm.setDeleteAlsoRemote(!ui.deleteAlsoRemote) },
-                    ) {
-                        Checkbox(checked = ui.deleteAlsoRemote, onCheckedChange = vm::setDeleteAlsoRemote)
-                        Text(stringResource(R.string.git_tag_delete_also_remote))
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = vm::delete) {
-                    Text(stringResource(R.string.git_tag_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = vm::dismissDelete) { Text(stringResource(R.string.action_cancel)) }
-            },
-        )
-    }
-    ui.forceTarget?.let { target ->
         GitConfirmDialog(
-            title = stringResource(R.string.git_tag_force_push),
-            text = stringResource(R.string.git_tag_force_push_confirm, target),
-            confirmLabel = stringResource(R.string.git_tag_force_push),
-            danger = true,
-            onConfirm = vm::forcePush,
-            onDismiss = vm::dismissForcePush,
-        )
-    }
-    ui.remoteDeleteTarget?.let { target ->
-        GitConfirmDialog(
-            title = stringResource(R.string.git_tag_delete_remote),
-            text = stringResource(R.string.git_tag_delete_remote_confirm, target),
+            title = stringResource(R.string.git_tag_delete),
+            text = stringResource(R.string.git_tag_delete_both_confirm, target),
             confirmLabel = stringResource(R.string.git_tag_delete),
             danger = true,
-            onConfirm = vm::confirmDeleteOnRemote,
-            onDismiss = vm::dismissDeleteOnRemote,
+            onConfirm = vm::delete,
+            onDismiss = vm::dismissDelete,
         )
     }
     ui.tokenHost?.let { host ->
@@ -532,19 +465,23 @@ fun GitTagsScreen(projectPath: String, onBack: () -> Unit) {
     ui.error?.let { GitErrorDialog(details = it, onDismiss = vm::dismissError) }
 }
 
-private class MenuEntry(val label: Int, val danger: Boolean, val onClick: () -> Unit)
+private class MenuEntry(val label: Int, val onClick: () -> Unit)
 
 @Composable
 private fun TagCard(
     name: String,
     subtitle: String,
-    primaryLabel: String?,
-    onPrimary: () -> Unit,
+    onDelete: () -> Unit,
     menu: List<MenuEntry>,
 ) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+            Modifier.fillMaxWidth().padding(
+                start = 14.dp,
+                end = if (menu.isEmpty()) 8.dp else 4.dp,
+                top = 8.dp,
+                bottom = 8.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
@@ -557,30 +494,22 @@ private fun TagCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (primaryLabel != null) {
-                Spacer(Modifier.width(8.dp))
-                OutlinedButton(
-                    onClick = onPrimary,
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    modifier = Modifier.height(36.dp),
-                ) { Text(primaryLabel, maxLines = 1) }
+            TextButton(onClick = onDelete) {
+                Text(stringResource(R.string.git_tag_delete), color = MaterialTheme.colorScheme.error)
             }
-            var open by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { open = true }) {
-                    Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
-                }
-                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                    menu.forEach { e ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    stringResource(e.label),
-                                    color = if (e.danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                )
-                            },
-                            onClick = { open = false; e.onClick() },
-                        )
+            if (menu.isNotEmpty()) {
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { open = true }) {
+                        Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
+                    }
+                    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                        menu.forEach { e ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(e.label)) },
+                                onClick = { open = false; e.onClick() },
+                            )
+                        }
                     }
                 }
             }

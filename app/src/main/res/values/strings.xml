@@ -432,6 +432,7 @@
     <string name="git_tag_delete_confirm">Delete tag \'%1$s\'?</string>
     <string name="git_tags_empty">No tags.</string>
     <string name="git_tag_push">Push</string>
+    <string name="git_tag_delete_both_confirm">Delete tag \'%1$s\' from the remote and from this device?</string>
     <string name="git_tag_force_push">Force push</string>
     <string name="git_tag_delete_local">Delete locally</string>
     <string name="git_tag_delete_remote">Delete from remote</string>
