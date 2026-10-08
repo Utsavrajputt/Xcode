@@ -633,8 +633,6 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
                         onCheckout = { vm.checkout(b) },
                         onRename = { vm.openRename(b.name) },
                         onDelete = { vm.openDelete(b.name) },
-                        onPull = { vm.pull(rebase = false) },
-                        onPullRebase = { vm.pull(rebase = true) },
                         onDeleteRemote = { vm.openDeleteRemote(b.name) },
                         onMakeDefault = { vm.askMakeDefault(b) },
                     )
@@ -758,8 +756,6 @@ private fun BranchCard(
     onCheckout: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
-    onPull: () -> Unit,
-    onPullRebase: () -> Unit,
     onDeleteRemote: () -> Unit,
     onMakeDefault: () -> Unit,
 ) {
@@ -863,16 +859,6 @@ private fun BranchCard(
                         Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.git_branch_more))
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        if (b.isCurrent) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.git_branch_pull)) },
-                                onClick = { menuOpen = false; onPull() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.git_branch_pull_rebase)) },
-                                onClick = { menuOpen = false; onPullRebase() },
-                            )
-                        }
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.git_branch_make_default)) },
                             onClick = { menuOpen = false; onMakeDefault() },

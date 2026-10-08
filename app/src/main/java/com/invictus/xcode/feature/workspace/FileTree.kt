@@ -390,30 +390,43 @@ private fun FileRow(
         ) {
             val close = { menuOpen = false }
             if (!row.isRoot) {
-                // Pin / Cut / Copy as a compact icon row on top instead of three list items.
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    QuickAction(
-                        icon = XIcons.Pin,
-                        label = if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin,
-                        highlighted = isPinned,
+                val pinRes = if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin
+                if (row.isDirectory) {
+                    // Folders: Pin / Cut / Copy as a compact icon row on top.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        QuickAction(icon = XIcons.Pin, label = pinRes, highlighted = isPinned) {
+                            close()
+                            onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
+                        }
+                        QuickAction(icon = XIcons.ContentCut, label = R.string.tree_menu_cut) {
+                            close()
+                            onEvent(FileTreeEvent.Cut(row.file))
+                        }
+                        QuickAction(icon = XIcons.ContentCopy, label = R.string.tree_menu_copy) {
+                            close()
+                            onEvent(FileTreeEvent.Copy(row.file))
+                        }
+                    }
+                    HorizontalDivider()
+                } else {
+                    // Files: normal one-per-row list items.
+                    MenuItem(XIcons.Pin, pinRes) {
                         close()
                         onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
                     }
-                    QuickAction(icon = XIcons.ContentCut, label = R.string.tree_menu_cut) {
+                    MenuItem(XIcons.ContentCut, R.string.tree_menu_cut) {
                         close()
                         onEvent(FileTreeEvent.Cut(row.file))
                     }
-                    QuickAction(icon = XIcons.ContentCopy, label = R.string.tree_menu_copy) {
+                    MenuItem(XIcons.ContentCopy, R.string.tree_menu_copy) {
                         close()
                         onEvent(FileTreeEvent.Copy(row.file))
                     }
                 }
-                HorizontalDivider()
             }
             if (row.isDirectory) {
                 MenuItem(XIcons.NoteAdd, R.string.tree_menu_new_file) {
