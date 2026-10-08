@@ -167,6 +167,14 @@ class FileTreeViewModel(
             is FileTreeEvent.ProjectDeleted -> onProjectDeleted(event.dir)
             is FileTreeEvent.TogglePin -> togglePin(event.file, event.isDirectory)
             is FileTreeEvent.Reveal -> reveal(event.file, event.isDirectory)
+            is FileTreeEvent.StartUpload -> _effects.trySend(FileTreeEffect.PickUploadFiles(event.dir))
+            is FileTreeEvent.UploadFinished -> onUploadFinished(event.dir, event.files)
+            is FileTreeEvent.SetDeleteAfterExtract -> publish {
+                val d = dialog
+                if (d is TreeDialog.ExtractZip) copy(dialog = d.copy(deleteAfter = event.value)) else this
+            }
+            FileTreeEvent.ConfirmExtract -> confirmExtract()
+            FileTreeEvent.SkipExtract -> nextZipOrClose()
         }
     }
 
@@ -558,6 +566,53 @@ class FileTreeViewModel(
                 }
                 is FsResult.Err -> _effects.send(FileTreeEffect.Message(result.toUiText()))
             }
+        }
+    }
+
+    // endregion
+
+    // region upload / extract
+
+    private fun onUploadFinished(dir: File, files: List<File>) {
+        if (files.isEmpty()) {
+            _effects.trySend(FileTreeEffect.Message(UiText(R.string.msg_upload_failed)))
+            return
+        }
+        expanded += dir.path
+        loadDir(dir)
+        syncWatcher()
+        _effects.trySend(FileTreeEffect.Message(UiText(R.string.msg_uploaded, listOf(files.size))))
+        val zips = files.filter { it.extension.equals("zip", ignoreCase = true) }
+        if (zips.isNotEmpty()) {
+            publish { copy(dialog = TreeDialog.ExtractZip(zips.first(), dir, zips.drop(1))) }
+        }
+    }
+
+    /** After Done / a finished extraction: ask about the next uploaded zip, or close the dialog. */
+    private fun nextZipOrClose() {
+        val d = _uiState.value.dialog as? TreeDialog.ExtractZip ?: return
+        val next = d.queue.firstOrNull()
+        publish { copy(dialog = next?.let { TreeDialog.ExtractZip(it, d.targetDir, d.queue.drop(1)) }) }
+    }
+
+    private fun confirmExtract() {
+        val d = _uiState.value.dialog as? TreeDialog.ExtractZip ?: return
+        if (d.busy) return
+        publish { copy(dialog = d.copy(busy = true)) }
+        viewModelScope.launch {
+            val result = withContext(io) { runCatching { UploadOps.extractZip(d.zip, d.targetDir) } }
+            result.onSuccess { extracted ->
+                if (d.deleteAfter) withContext(io) { d.zip.delete() }
+                expanded += d.targetDir.path
+                loadDir(d.targetDir)
+                syncWatcher()
+                _effects.send(
+                    FileTreeEffect.Message(UiText(R.string.msg_extracted, listOf(extracted.folder.name, extracted.fileCount))),
+                )
+            }.onFailure {
+                _effects.send(FileTreeEffect.Message(UiText(R.string.msg_extract_failed, listOf(d.zip.name))))
+            }
+            nextZipOrClose()
         }
     }
 

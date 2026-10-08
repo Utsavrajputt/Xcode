@@ -50,6 +50,15 @@ sealed interface TreeDialog {
     data class Create(val parent: File, val isFolder: Boolean, val error: UiText? = null) : TreeDialog
     data class ConfirmDelete(val file: File, val isDirectory: Boolean) : TreeDialog
     data class OpenWarning(val file: File, val decision: OpenDecision) : TreeDialog
+
+    /** A zip was just uploaded into [targetDir]; [queue] = further uploaded zips still to ask about. */
+    data class ExtractZip(
+        val zip: File,
+        val targetDir: File,
+        val queue: List<File> = emptyList(),
+        val deleteAfter: Boolean = false,
+        val busy: Boolean = false,
+    ) : TreeDialog
 }
 
 /** Inline rename in progress for [file]; [error] is shown under the field (name clash etc.). */
@@ -118,6 +127,18 @@ sealed interface FileTreeEvent {
 
     /** Expand down to [file] and scroll to it (a directory is expanded too). */
     data class Reveal(val file: File, val isDirectory: Boolean) : FileTreeEvent
+
+    /** Menu "Upload": ask the screen to open the system file picker for [dir]. */
+    data class StartUpload(val dir: File) : FileTreeEvent
+
+    /** The screen copied the picked files into [dir]. */
+    data class UploadFinished(val dir: File, val files: List<File>) : FileTreeEvent
+
+    data class SetDeleteAfterExtract(val value: Boolean) : FileTreeEvent
+    data object ConfirmExtract : FileTreeEvent
+
+    /** "Done": leave the uploaded zip as it is and move on to the next one (if any). */
+    data object SkipExtract : FileTreeEvent
 }
 
 /** One-shot things the screen must react to. */
@@ -125,4 +146,5 @@ sealed interface FileTreeEffect {
     data class Message(val text: UiText) : FileTreeEffect
     data class OpenFile(val file: File) : FileTreeEffect
     data class ScrollTo(val path: String) : FileTreeEffect
+    data class PickUploadFiles(val dir: File) : FileTreeEffect
 }

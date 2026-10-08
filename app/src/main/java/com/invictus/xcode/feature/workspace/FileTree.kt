@@ -396,6 +396,10 @@ private fun FileRow(
                     close()
                     onEvent(FileTreeEvent.StartCreate(row.file, isFolder = true))
                 }
+                MenuItem(XIcons.CloudUpload, R.string.tree_menu_upload) {
+                    close()
+                    onEvent(FileTreeEvent.StartUpload(row.file))
+                }
             }
             if (!row.isRoot) {
                 MenuItem(XIcons.Edit, R.string.tree_menu_rename) {

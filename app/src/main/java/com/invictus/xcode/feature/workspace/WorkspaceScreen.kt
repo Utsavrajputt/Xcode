@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.invictus.xcode.ui.components.expressiveClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -114,6 +116,19 @@ fun WorkspaceScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    // Tree menu "Upload": system picker -> copy into the chosen folder -> (zip) extract dialog.
+    var uploadDir by remember { mutableStateOf<File?>(null) }
+    val uploadPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        val dir = uploadDir
+        uploadDir = null
+        if (dir != null && uris.isNotEmpty()) {
+            scope.launch {
+                val files = withContext(Dispatchers.IO) { UploadOps.copyUris(context.contentResolver, uris, dir) }
+                viewModel.onEvent(FileTreeEvent.UploadFinished(dir, files))
+            }
+        }
+    }
+
     // Changes made outside the app (or missed by the watcher) show up when the user comes back.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onEvent(FileTreeEvent.Refresh) }
 
@@ -124,6 +139,10 @@ fun WorkspaceScreen(
             when (effect) {
                 is FileTreeEffect.Message ->
                     scope.launch { snackbarHostState.showSnackbar(effect.text.resolve(context)) }
+                is FileTreeEffect.PickUploadFiles -> {
+                    uploadDir = effect.dir
+                    uploadPicker.launch(arrayOf("*/*"))
+                }
                 is FileTreeEffect.ScrollTo -> {
                     val index = viewModel.uiState.value.rows
                         .indexOfFirst { it is TreeRow.Entry && it.file.path == effect.path }

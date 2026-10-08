@@ -50,6 +50,17 @@
     <string name="menu_collapse_all">Collapse all</string>
     <string name="tree_menu_new_file">New file</string>
     <string name="tree_menu_new_folder">New folder</string>
+    <string name="tree_menu_upload">Upload</string>
+    <string name="msg_uploaded">Uploaded %1$d file(s)</string>
+    <string name="msg_upload_failed">Upload failed</string>
+    <string name="msg_extracted">Extracted %2$d files into \'%1$s\'</string>
+    <string name="msg_extract_failed">Couldn\'t extract %1$s</string>
+    <string name="dialog_extract_title">Extract zip?</string>
+    <string name="dialog_extract_body">%1$s was uploaded. Extract it into a folder next to it?</string>
+    <string name="dialog_extract_delete_after">Delete zip after extraction</string>
+    <string name="dialog_extracting">Extracting…</string>
+    <string name="action_extract">Extract</string>
+    <string name="action_done">Done</string>
     <string name="tree_menu_rename">Rename</string>
     <string name="tree_menu_duplicate">Duplicate</string>
     <string name="tree_menu_cut">Cut</string>
