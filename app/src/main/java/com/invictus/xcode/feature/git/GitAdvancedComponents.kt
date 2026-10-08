@@ -198,3 +198,40 @@ fun GitHostTokenDialog(
         },
     )
 }
+
+
+/** File names (last path segment) used by more than one changed path in the working tree. */
+internal fun GitViewModel.UiState.duplicateChangeNames(): Set<String> =
+    status?.changes?.map { it.repoRelativePath }?.distinct().orEmpty()
+        .groupingBy { it.substringAfterLast('/') }.eachCount()
+        .filterValues { it > 1 }.keys
+
+/** Just the file name, or "parent/name" when another change has the same file name. */
+internal fun shortChangeLabel(path: String, duplicateNames: Set<String>): String {
+    val name = path.substringAfterLast('/')
+    if (name !in duplicateNames) return name
+    val parent = path.substringBeforeLast('/', "").substringAfterLast('/')
+    return if (parent.isEmpty()) name else "$parent/$name"
+}
+
+/**
+ * A changed file's path: shown in full while it fits on one line; once it would run off the
+ * screen, only the file name (with its parent folder when the name isn't unique).
+ */
+@Composable
+internal fun ChangePathText(
+    path: String,
+    duplicateNames: Set<String>,
+    style: androidx.compose.ui.text.TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    var tooLong by remember(path) { mutableStateOf(false) }
+    Text(
+        text = if (tooLong) shortChangeLabel(path, duplicateNames) else path,
+        style = style,
+        maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        modifier = modifier,
+        onTextLayout = { if (!tooLong && it.hasVisualOverflow) tooLong = true },
+    )
+}

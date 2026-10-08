@@ -304,6 +304,7 @@ private fun LazyListScope.drawerSection(
     onEvent: (GitEvent) -> Unit,
 ) {
     if (changes.isEmpty()) return
+    val duplicateNames = state.duplicateChangeNames()
     val expanded = key in state.expandedSections
     item("$key:header") {
         Row(
@@ -339,6 +340,7 @@ private fun LazyListScope.drawerSection(
         itemsIndexed(changes, key = { index, change -> "$key:${change.repoRelativePath}:$index" }) { _, change ->
             DrawerChangeItem(
                 change = change,
+                duplicateNames = duplicateNames,
                 diff = state.diffs[change.repoRelativePath],
                 diffLoading = change.repoRelativePath in state.diffLoading,
                 onEvent = onEvent,
@@ -351,6 +353,7 @@ private fun LazyListScope.drawerSection(
 @Composable
 private fun DrawerChangeItem(
     change: GitPathChange,
+    duplicateNames: Set<String>,
     diff: GitFileDiffResult?,
     diffLoading: Boolean,
     onEvent: (GitEvent) -> Unit,
@@ -373,10 +376,10 @@ private fun DrawerChangeItem(
                 .padding(start = 28.dp, end = 12.dp, top = 3.dp, bottom = 3.dp),
         ) {
             Box(Modifier.padding(end = 10.dp).size(8.dp).background(color, CircleShape))
-            Text(
-                path,
+            ChangePathText(
+                path = path,
+                duplicateNames = duplicateNames,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             Text(

@@ -406,6 +406,7 @@ private fun LazyListScope.changeSection(
     onEvent: (GitEvent) -> Unit,
 ) {
     if (changes.isEmpty()) return
+    val duplicateNames = state.duplicateChangeNames()
     item(key = "$keyPrefix:header") {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -424,6 +425,7 @@ private fun LazyListScope.changeSection(
     itemsIndexed(changes, key = { index, change -> "$keyPrefix:${change.repoRelativePath}:$index" }) { _, change ->
         ChangeRow(
             change = change,
+            duplicateNames = duplicateNames,
             isStagedSection = isStagedSection,
             diff = state.diffs[change.repoRelativePath],
             diffLoading = change.repoRelativePath in state.diffLoading,
@@ -436,6 +438,7 @@ private fun LazyListScope.changeSection(
 @Composable
 private fun ChangeRow(
     change: GitPathChange,
+    duplicateNames: Set<String>,
     isStagedSection: Boolean,
     diff: GitFileDiffResult?,
     diffLoading: Boolean,
@@ -479,11 +482,10 @@ private fun ChangeRow(
             ) {
                 Box(Modifier.size(8.dp).background(color, CircleShape))
             }
-            Text(
-                text = path,
+            ChangePathText(
+                path = path,
+                duplicateNames = duplicateNames,
                 style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
             Text(

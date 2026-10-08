@@ -181,7 +181,7 @@ internal fun ProjectCardRow(
                 Text(
                     text = item.file.path,
                     maxLines = 1,
-                    overflow = TextOverflow.StartEllipsis,
+                    overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
