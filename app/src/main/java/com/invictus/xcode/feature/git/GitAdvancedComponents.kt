@@ -56,6 +56,22 @@ fun GitConfirmDialog(
     )
 }
 
+/** A force push was refused because [remote] has commits that were never fetched here. */
+@Composable
+fun GitFetchFirstDialog(remote: String, onFetch: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.git_force_needs_fetch_title)) },
+        text = { Text(stringResource(R.string.git_force_needs_fetch_body, remote)) },
+        confirmButton = {
+            TextButton(onClick = onFetch) { Text(stringResource(R.string.git_push_rejected_fetch)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
+}
+
 /** Multi-field text dialog; har field ek Pair(label, initialValue). */
 @Composable
 fun GitFieldsDialog(

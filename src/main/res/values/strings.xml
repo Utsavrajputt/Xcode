@@ -288,7 +288,7 @@
     <string name="git_pull_rebase">Pull (rebase)</string>
     <string name="git_fetch">Fetch</string>
     <string name="git_push_rejected_title">Push rejected</string>
-    <string name="git_push_rejected_body">The remote has commits you don\'t have yet. Pull first, then try pushing again.</string>
+    <string name="git_push_rejected_body">The remote has commits you don\'t have yet. Fetch to see what changed, or pull first and then push again.</string>
     <string name="git_push_rejected_pull">Pull</string>
     <string name="git_push_rejected_fetch">Fetch</string>
     <string name="git_force_needs_fetch_title">Fetch first</string>

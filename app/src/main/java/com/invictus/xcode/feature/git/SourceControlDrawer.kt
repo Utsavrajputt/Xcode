@@ -155,6 +155,16 @@ fun SourceControlDrawerSheet(
             onDismiss = { onEvent(GitEvent.DismissPushRejected) },
         )
     }
+    state.fetchFirstRemote?.let { remote ->
+        GitFetchFirstDialog(
+            remote = remote,
+            onFetch = {
+                onEvent(GitEvent.DismissFetchFirst)
+                onEvent(GitEvent.Fetch)
+            },
+            onDismiss = { onEvent(GitEvent.DismissFetchFirst) },
+        )
+    }
 }
 
 @Composable

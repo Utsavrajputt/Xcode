@@ -188,6 +188,16 @@ fun GitScreen(
             onDismiss = { viewModel.onEvent(GitEvent.DismissPushRejected) },
         )
     }
+    state.fetchFirstRemote?.let { remote ->
+        GitFetchFirstDialog(
+            remote = remote,
+            onFetch = {
+                viewModel.onEvent(GitEvent.DismissFetchFirst)
+                viewModel.onEvent(GitEvent.Fetch)
+            },
+            onDismiss = { viewModel.onEvent(GitEvent.DismissFetchFirst) },
+        )
+    }
 
     Scaffold(
         topBar = {

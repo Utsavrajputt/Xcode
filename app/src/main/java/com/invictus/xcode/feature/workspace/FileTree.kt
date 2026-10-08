@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
@@ -33,6 +34,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -387,6 +389,32 @@ private fun FileRow(
             offset = menuOffset,
         ) {
             val close = { menuOpen = false }
+            if (!row.isRoot) {
+                // Pin / Cut / Copy as a compact icon row on top instead of three list items.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    QuickAction(
+                        icon = XIcons.Pin,
+                        label = if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin,
+                        highlighted = isPinned,
+                    ) {
+                        close()
+                        onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
+                    }
+                    QuickAction(icon = XIcons.ContentCut, label = R.string.tree_menu_cut) {
+                        close()
+                        onEvent(FileTreeEvent.Cut(row.file))
+                    }
+                    QuickAction(icon = XIcons.ContentCopy, label = R.string.tree_menu_copy) {
+                        close()
+                        onEvent(FileTreeEvent.Copy(row.file))
+                    }
+                }
+                HorizontalDivider()
+            }
             if (row.isDirectory) {
                 MenuItem(XIcons.NoteAdd, R.string.tree_menu_new_file) {
                     close()
@@ -409,18 +437,6 @@ private fun FileRow(
                 MenuItem(XIcons.FileCopy, R.string.tree_menu_duplicate) {
                     close()
                     onEvent(FileTreeEvent.Duplicate(row.file))
-                }
-                MenuItem(XIcons.ContentCut, R.string.tree_menu_cut) {
-                    close()
-                    onEvent(FileTreeEvent.Cut(row.file))
-                }
-                MenuItem(XIcons.ContentCopy, R.string.tree_menu_copy) {
-                    close()
-                    onEvent(FileTreeEvent.Copy(row.file))
-                }
-                MenuItem(XIcons.Pin, if (isPinned) R.string.tree_menu_unpin else R.string.tree_menu_pin) {
-                    close()
-                    onEvent(FileTreeEvent.TogglePin(row.file, row.isDirectory))
                 }
             }
             if (canPaste) {
@@ -523,7 +539,7 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.StartEllipsis,
                     )
                 }
             }
@@ -546,6 +562,18 @@ private fun PinnedRow(row: TreeRow.Pinned, onEvent: (FileTreeEvent) -> Unit, onC
 }
 
 /** Compact menu row: icon + text, no forced 112dp minimum width (that was the empty gap on the right). */
+@Composable
+private fun QuickAction(icon: ImageVector, @StringRes label: Int, highlighted: Boolean = false, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            icon,
+            contentDescription = stringResource(label),
+            tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
 @Composable
 private fun MenuItem(icon: ImageVector, @StringRes textRes: Int, onClick: () -> Unit) {
     val tint = if (textRes == R.string.tree_menu_delete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface

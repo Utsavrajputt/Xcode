@@ -524,7 +524,7 @@ private fun BrowseHeader(dir: File, onUp: () -> Unit, onOpen: () -> Unit) {
                 text = dir.path,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.StartEllipsis,
                 modifier = Modifier.weight(1f),
             )
             OpenPill(onClick = onOpen)
@@ -682,7 +682,7 @@ private fun RecentRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.StartEllipsis,
                 )
             }
             when {

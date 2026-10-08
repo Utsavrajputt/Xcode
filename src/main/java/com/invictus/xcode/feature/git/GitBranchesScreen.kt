@@ -533,7 +533,17 @@ fun GitBranchesScreen(projectPath: String, onBack: () -> Unit) {
         )
     }
     ui.fetchPromptRemote?.let { remote ->
-        GitFetchFirstDialog(remote = remote, onFetch = vm::fetchFromPrompt, onDismiss = vm::dismissFetchPrompt)
+        AlertDialog(
+            onDismissRequest = vm::dismissFetchPrompt,
+            title = { Text(stringResource(R.string.git_force_needs_fetch_title)) },
+            text = { Text(stringResource(R.string.git_force_needs_fetch_body, remote)) },
+            confirmButton = {
+                TextButton(onClick = vm::fetchFromPrompt) { Text(stringResource(R.string.git_push_rejected_fetch)) }
+            },
+            dismissButton = {
+                TextButton(onClick = vm::dismissFetchPrompt) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
     }
     ui.tokenHost?.let { host ->
         GitFieldsDialog(

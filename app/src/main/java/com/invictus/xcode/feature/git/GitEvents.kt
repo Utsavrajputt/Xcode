@@ -27,6 +27,7 @@ sealed interface GitEvent {
     data object Fetch : GitEvent
     /** "Remote has commits you don't have" dialog shown after a rejected push. */
     data object DismissPushRejected : GitEvent
+    data object DismissFetchFirst : GitEvent
     data object PullThenRetryPush : GitEvent
     // M7 drawer
     data class ToggleSection(val name: String) : GitEvent

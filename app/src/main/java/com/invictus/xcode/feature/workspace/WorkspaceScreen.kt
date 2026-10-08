@@ -333,13 +333,13 @@ private fun WorkspaceTopBar(
             IconButton(onClick = { onEvent(FileTreeEvent.Refresh) }) {
                 Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
             }
+            IconButton(onClick = onOpenCodeSearch) {
+                Icon(XIcons.Search, contentDescription = stringResource(R.string.search_code_title))
+            }
             if (onOpenGit != null) {
                 IconButton(onClick = onOpenGit) {
                     Icon(XIcons.Commit, contentDescription = stringResource(R.string.git_title))
                 }
-            }
-            IconButton(onClick = onOpenCodeSearch) {
-                Icon(XIcons.Search, contentDescription = stringResource(R.string.search_code_title))
             }
             Box {
                 IconButton(onClick = { menuOpen = true }) {

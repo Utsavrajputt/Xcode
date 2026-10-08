@@ -153,6 +153,8 @@ class GitViewModel(
         val rebaseLoading: Boolean = false,
         /** Shown when a plain (non-force) push is rejected — remote has commits we don't. */
         val pushRejected: Boolean = false,
+        /** Remote whose unfetched commits made a force push refuse: offer Fetch. */
+        val fetchFirstRemote: String? = null,
         // Quick branch switcher dropdown
         val branchMenuOpen: Boolean = false,
         val branchMenuItems: List<String> = emptyList(),
@@ -263,6 +265,7 @@ class GitViewModel(
             GitEvent.PullRebase -> pull(rebase = true)
             GitEvent.Fetch -> fetch()
             GitEvent.DismissPushRejected -> _uiState.update { it.copy(pushRejected = false) }
+            GitEvent.DismissFetchFirst -> _uiState.update { it.copy(fetchFirstRemote = null) }
             GitEvent.PullThenRetryPush -> {
                 _uiState.update { it.copy(pushRejected = false) }
                 pull(rebase = false, thenPush = true)
@@ -848,6 +851,10 @@ class GitViewModel(
                     result.error.exceptionClass.endsWith("GitPushRejectedException")
                 ) {
                     _uiState.update { it.copy(pushRejected = true) }
+                } else if (action == GitPendingAction.PUSH &&
+                    result.error.exceptionClass.endsWith("GitUnfetchedCommitsException")
+                ) {
+                    _uiState.update { it.copy(fetchFirstRemote = remote) }
                 } else {
                     _uiState.update { it.copy(error = result.error) }
                 }
