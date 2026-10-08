@@ -2,7 +2,9 @@ package com.invictus.xcode.feature.home
 
 import android.os.Environment
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -61,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -80,6 +84,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.PI
+import kotlin.math.sin
 import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.invictus.xcode.R
@@ -402,6 +408,15 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(6800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "b",
     )
+    // Slow linear loop: drives the glass sheen sweep, scan line and window-dot pulse.
+    val t by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing), RepeatMode.Restart),
+        label = "t",
+    )
+    // One-shot entrance: the glass panels rise in one after another.
+    val intro = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { intro.animateTo(1f, tween(1500, easing = FastOutSlowInEasing)) }
     val shape = RoundedCornerShape(28.dp)
 
     // GitHub-profile style "typing" intro: kicker, then line 1 and 2, then line 3 cycles words.
@@ -455,7 +470,7 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
             .background(Brush.linearGradient(listOf(Color(0xFF030716), Color(0xFF071445), Color(0xFF040B26)))),
     ) {
         val s = maxWidth.value / 328f
-        Canvas(Modifier.fillMaxSize()) { drawHeroArt(a, b) }
+        Canvas(Modifier.fillMaxSize()) { drawHeroArt(a, b, t, intro.value) }
         Column(Modifier.align(Alignment.CenterStart).padding(start = (26 * s).dp)) {
             Text(
                 text = buildAnnotatedString {
@@ -510,7 +525,7 @@ private fun HeroBanner(modifier: Modifier = Modifier) {
     }
 }
 
-private fun DrawScope.drawHeroArt(a: Float, b: Float) {
+private fun DrawScope.drawHeroArt(a: Float, b: Float, t: Float, intro: Float) {
     val w = size.width
     val h = size.height
     val drift = 12.dp.toPx()
@@ -539,7 +554,28 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
         drawCircle(dot, 1.2.dp.toPx(), Offset(w * 0.14f + c * gap, h * 0.80f + r * gap))
     }
 
-    // Three stacked glass panels, each bobbing on its own phase.
+    fun ease(x: Float) = x * x * (3f - 2f * x)
+
+    // Soft glow behind the stack and a ground shadow under it.
+    val stackC = Offset(w * 0.72f, h * 0.52f)
+    drawCircle(
+        brush = Brush.radialGradient(
+            listOf(Color(0xFF3A6BFF).copy(alpha = (0.22f + 0.14f * b) * intro), Color.Transparent),
+            center = stackC, radius = w * 0.30f,
+        ),
+        radius = w * 0.30f, center = stackC,
+    )
+    val shadowC = Offset(w * 0.72f, h * 0.93f)
+    drawOval(
+        brush = Brush.radialGradient(
+            listOf(Color(0x77000010).copy(alpha = 0.45f * intro), Color.Transparent),
+            center = shadowC, radius = w * 0.20f,
+        ),
+        topLeft = Offset(shadowC.x - w * 0.20f, shadowC.y - h * 0.045f),
+        size = Size(w * 0.40f, h * 0.09f),
+    )
+
+    // Three stacked glass panels, each bobbing on its own phase and rising in on start.
     val panelW = w * 0.27f
     val rise = h * 0.20f
     val panelH = h * 0.36f
@@ -553,35 +589,55 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
     val edges = listOf(Color(0xCC8FE3FF), Color(0x887FA8FF), Color(0xAA9FB4FF))
     var frontX = 0f
     var frontY = 0f
+    var frontP = 0f
     for (k in 0..2) {
+        val p = ease(((intro - 0.16f * k) / 0.58f).coerceIn(0f, 1f))
         val phase = when (k) { 0 -> b; 1 -> a; else -> 1f - b }
         val x0 = w * (0.51f + 0.055f * k)
-        val y0 = h * (0.36f + 0.04f * k) + (phase - 0.5f) * 2f * bob * (0.6f + 0.2f * k)
-        val quad = listOf(
-            Offset(x0, y0),
-            Offset(x0 + panelW, y0 - rise),
-            Offset(x0 + panelW, y0 - rise + panelH),
-            Offset(x0, y0 + panelH),
-        )
-        val path = roundedPolygon(quad, corner)
+        val y0 = h * (0.36f + 0.04f * k) + (phase - 0.5f) * 2f * bob * (0.6f + 0.2f * k) + (1f - p) * h * 0.16f
+        fun pt(u: Float, v: Float) = Offset(x0 + panelW * u, y0 - rise * u + panelH * v)
+        val path = roundedPolygon(listOf(pt(0f, 0f), pt(1f, 0f), pt(1f, 1f), pt(0f, 1f)), corner)
         drawPath(
             path,
             Brush.linearGradient(fills[k], start = Offset(x0, y0 - rise), end = Offset(x0 + panelW, y0 + panelH)),
+            alpha = p,
         )
-        drawPath(path, edges[k], style = Stroke(width = 1.5.dp.toPx(), join = StrokeJoin.Round))
+        drawPath(path, edges[k], alpha = p, style = Stroke(width = 1.5.dp.toPx(), join = StrokeJoin.Round))
+        clipPath(path) {
+            // Bright rim along the top edge, like light catching the glass.
+            drawLine(
+                Color.White.copy(alpha = 0.40f * p), pt(0.05f, 0.025f), pt(0.95f, 0.025f),
+                strokeWidth = 1.6.dp.toPx(), cap = StrokeCap.Round,
+            )
+            // Diagonal sheen sweeping across, staggered per panel, then resting.
+            val sp = (((t + 0.13f * k) % 1f) / 0.5f).coerceIn(0f, 1f)
+            if (sp > 0f && sp < 1f) {
+                val sx = -0.45f + 1.9f * sp
+                drawPath(
+                    path,
+                    Brush.linearGradient(
+                        listOf(Color.Transparent, Color.White.copy(alpha = 0.30f * p), Color.Transparent),
+                        start = pt(sx - 0.22f, 0f), end = pt(sx + 0.04f, 0.4f),
+                    ),
+                )
+            }
+        }
         if (k == 2) {
             frontX = x0
             frontY = y0
+            frontP = p
         }
     }
 
-    // Window dots along the front panel's top edge.
+    // Window dots along the front panel's top edge (soft traffic-light tints, gently pulsing).
+    val dotColors = listOf(Color(0xFFFF9B9B), Color(0xFFFFD98A), Color(0xFF8AF5B5))
     for (i in 0..2) {
-        val t = 0.68f + 0.10f * i
+        val tt = 0.68f + 0.10f * i
+        val pulse = 0.65f + 0.35f * (0.5f + 0.5f * sin(2f * PI.toFloat() * (t * 3f + i * 0.33f)))
         drawCircle(
-            Color(0xCCBFD8FF),
+            dotColors[i].copy(alpha = 0.9f * pulse * frontP),
             radius = 3.dp.toPx(),
-            center = Offset(frontX + panelW * t, frontY - rise * t + h * 0.05f),
+            center = Offset(frontX + panelW * tt, frontY - rise * tt + h * 0.05f),
         )
     }
 
@@ -594,25 +650,39 @@ private fun DrawScope.drawHeroArt(a: Float, b: Float) {
     val br = Offset(tr.x, frontY - rise * (1 - t0) + panelH - bottom)
     val bl = Offset(tl.x, frontY - rise * t0 + panelH - bottom)
     val screen = roundedPolygon(listOf(tl, tr, br, bl), 5.dp.toPx())
-    drawPath(screen, Color(0x33081250))
-    drawPath(screen, Color(0x445F8CFF), style = Stroke(width = 1.dp.toPx(), join = StrokeJoin.Round))
+    drawPath(screen, Color(0x33081250), alpha = frontP)
+    drawPath(screen, Color(0x445F8CFF), alpha = frontP, style = Stroke(width = 1.dp.toPx(), join = StrokeJoin.Round))
+
+    // Thin scan line travelling down the screen, fading at both ends.
+    clipPath(screen) {
+        val sp = ((t * 2f) % 1f)
+        val fade = sin(PI.toFloat() * sp)
+        val yl = tl.y + (bl.y - tl.y) * sp
+        val yr = tr.y + (br.y - tr.y) * sp
+        drawLine(
+            Color(0xFF7FEBFF).copy(alpha = 0.35f * fade * frontP), Offset(tl.x, yl), Offset(tr.x, yr),
+            strokeWidth = 1.4.dp.toPx(), cap = StrokeCap.Round,
+        )
+    }
 
     val cx = (tl.x + tr.x) / 2f
     val cy = (tl.y + tr.y + br.y + bl.y) / 4f
     val u = w * 0.02f
     val slope = -rise / panelW // same lean as the panel's top edge
-    fun pt(x: Float, y: Float) = Offset(cx + x * u, cy + y * u + x * u * slope)
+    fun gpt(x: Float, y: Float) = Offset(cx + x * u, cy + y * u + x * u * slope)
     val glyph = Path().apply {
-        val a1 = pt(-1.4f, -1.9f); val a2 = pt(-3.3f, 0f); val a3 = pt(-1.4f, 1.9f)
+        val a1 = gpt(-1.4f, -1.9f); val a2 = gpt(-3.3f, 0f); val a3 = gpt(-1.4f, 1.9f)
         moveTo(a1.x, a1.y); lineTo(a2.x, a2.y); lineTo(a3.x, a3.y)
-        val s1 = pt(0.6f, -2.6f); val s2 = pt(-0.6f, 2.6f)
+        val s1 = gpt(0.6f, -2.6f); val s2 = gpt(-0.6f, 2.6f)
         moveTo(s1.x, s1.y); lineTo(s2.x, s2.y)
-        val c1 = pt(1.4f, -1.9f); val c2 = pt(3.3f, 0f); val c3 = pt(1.4f, 1.9f)
+        val c1 = gpt(1.4f, -1.9f); val c2 = gpt(3.3f, 0f); val c3 = gpt(1.4f, 1.9f)
         moveTo(c1.x, c1.y); lineTo(c2.x, c2.y); lineTo(c3.x, c3.y)
     }
-    // Soft glow (pulses with [b]) under a thin bright stroke.
-    drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = 0.10f + 0.15f * b), style = Stroke(width = w * 0.02f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-    drawPath(glyph, Color(0xFF5FF3FF), style = Stroke(width = w * 0.0085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    // Soft glow (pulses with [b]) under a thin bright stroke; the stroke fades in last.
+    val glyphIn = ease(((intro - 0.55f) / 0.45f).coerceIn(0f, 1f))
+    drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = (0.10f + 0.18f * b) * glyphIn), style = Stroke(width = w * 0.026f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(glyph, Color(0xFF4FF0FF).copy(alpha = 0.16f * glyphIn), style = Stroke(width = w * 0.015f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+    drawPath(glyph, Color(0xFF5FF3FF), alpha = glyphIn, style = Stroke(width = w * 0.0085f, cap = StrokeCap.Round, join = StrokeJoin.Round))
 }
 
 /** Polygon with every corner rounded by [radius] (quadratic curve through the original vertex). */
