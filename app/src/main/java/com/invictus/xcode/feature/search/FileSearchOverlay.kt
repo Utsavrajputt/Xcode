@@ -1,10 +1,13 @@
 package com.invictus.xcode.feature.search
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -28,7 +33,9 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -179,14 +186,21 @@ class FileSearchViewModel(
     }
 }
 
-/** Quick-open overlay: top se, fuzzy file search; result tap -> [onOpen]. */
+/**
+ * Quick-open overlay: top se, fuzzy file search; result tap -> [onOpen]. Long-press on a result
+ * (when [onLocateInTree] is given) offers "Show in tree".
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileSearchOverlay(
     root: File,
     onOpen: (File) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onLocateInTree: ((File) -> Unit)? = null,
 ) {
+    // File whose long-press menu is open (recent rows and result rows share it).
+    var menuFile by remember { mutableStateOf<File?>(null) }
     val viewModel = FileSearchViewModel.get(root, LocalViewModelStoreOwner.current!!)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val focusRequester = remember { FocusRequester() }
@@ -311,10 +325,14 @@ fun FileSearchOverlay(
                                 color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
+                                Box {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { onOpen(file) }
+                                        .combinedClickable(
+                                            onClick = { onOpen(file) },
+                                            onLongClick = { if (onLocateInTree != null) menuFile = file },
+                                        )
                                         .padding(horizontal = 16.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
@@ -329,6 +347,8 @@ fun FileSearchOverlay(
                                             overflow = TextOverflow.StartEllipsis,
                                         )
                                     }
+                                }
+                                ShowInTreeMenu(menuFile == file, { menuFile = null }) { onLocateInTree?.invoke(file) }
                                 }
                             }
                         }
@@ -394,13 +414,17 @@ fun FileSearchOverlay(
                             color = MaterialTheme.colorScheme.surfaceContainerLow,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
+                            Box {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.recordHistory()
-                                        onOpen(result.file)
-                                    }
+                                    .combinedClickable(
+                                        onClick = {
+                                            viewModel.recordHistory()
+                                            onOpen(result.file)
+                                        },
+                                        onLongClick = { if (onLocateInTree != null) menuFile = result.file },
+                                    )
                                     .padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -419,6 +443,8 @@ fun FileSearchOverlay(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                 }
+                            }
+                            ShowInTreeMenu(menuFile == result.file, { menuFile = null }) { onLocateInTree?.invoke(result.file) }
                             }
                         }
                     }
@@ -454,3 +480,17 @@ internal fun highlightedName(result: FileSearchEngine.Result): AnnotatedString =
         }
         if (cursor < result.name.length) append(result.name.substring(cursor))
     }
+
+/** Long-press menu on a file-search row: reveal the file in the project tree. */
+@Composable
+private fun ShowInTreeMenu(expanded: Boolean, onDismiss: () -> Unit, onShow: () -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.search_show_in_tree)) },
+            onClick = {
+                onDismiss()
+                onShow()
+            },
+        )
+    }
+}

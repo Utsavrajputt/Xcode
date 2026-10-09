@@ -473,6 +473,12 @@ fun EditorScreen(
                 viewModel.onEvent(EditorEvent.Open(file))
             },
             onDismiss = { showFileSearch = false },
+            onLocateInTree = { file ->
+                // Same hand-off as code search: the workspace reveals it when we pop back to it.
+                showFileSearch = false
+                com.invictus.xcode.feature.search.SearchBus.requestReveal(file)
+                onBack()
+            },
         )
         androidx.activity.compose.BackHandler { showFileSearch = false }
     }

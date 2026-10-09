@@ -625,6 +625,7 @@
     <string name="settings_search_clear_recent">Clear recent files</string>
     <string name="search_locate_in_tree">Locate in file tree</string>
     <string name="search_exclude_file">Exclude this file</string>
+    <string name="search_show_in_tree">Show in tree</string>
     <string name="search_excluded_files">Excluded files (%1$d)</string>
     <string name="search_excluded_files_title">Excluded files</string>
     <string name="search_excluded_remove">Include again</string>

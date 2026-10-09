@@ -9,9 +9,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -250,8 +254,10 @@ class CodeSearchViewModel(
                     regex = o.optBoolean("regex"),
                     caseSensitive = o.optBoolean("case"),
                     wholeWord = o.optBoolean("word"),
-                    includeGlob = o.optString("include"),
-                    excludeGlob = o.optString("exclude"),
+                    // Include/exclude globs have no UI any more, so old entries must not
+                    // bring back an invisible filter.
+                    includeGlob = "",
+                    excludeGlob = "",
                 )
             }
         }
@@ -389,10 +395,8 @@ fun CodeSearchScreen(
                 }
             }
 
-            // Options row: toggles on the left, "more" on the right reveals include/exclude.
-            var showFilters by rememberSaveable { mutableStateOf(false) }
-            val filtersActive = state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank() ||
-                state.excludedFiles.isNotEmpty()
+            // Options row: toggles on the left; the 3-dot (only when files are excluded) manages them.
+            var showExcludedMenu by remember { mutableStateOf(false) }
             var showExcludedDialog by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
@@ -418,59 +422,23 @@ fun CodeSearchScreen(
                     shape = RoundedCornerShape(50),
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { showFilters = !showFilters }) {
-                    BadgedBox(badge = { if (filtersActive) Badge() }) {
-                        Icon(
-                            XIcons.MoreVert,
-                            contentDescription = stringResource(R.string.search_filters),
-                            tint = if (showFilters || filtersActive) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-            }
-            AnimatedVisibility(
-                visible = showFilters,
-                enter = expandVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
-                exit = shrinkVertically(spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut(),
-            ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = 1.dp,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        FilterField(
-                            value = state.includeGlob,
-                            onValueChange = viewModel::setInclude,
-                            label = stringResource(R.string.search_include_glob),
-                        )
-                        FilterField(
-                            value = state.excludeGlob,
-                            onValueChange = viewModel::setExclude,
-                            label = stringResource(R.string.search_exclude_glob),
-                        )
-                        if (state.excludedFiles.isNotEmpty()) {
-                            TextButton(
-                                onClick = { showExcludedDialog = true },
-                                modifier = Modifier.align(Alignment.Start),
-                            ) { Text(stringResource(R.string.search_excluded_files, state.excludedFiles.size)) }
+                if (state.excludedFiles.isNotEmpty()) {
+                    Box {
+                        IconButton(onClick = { showExcludedMenu = true }) {
+                            Icon(
+                                XIcons.MoreVert,
+                                contentDescription = stringResource(R.string.search_filters),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        if (state.includeGlob.isNotBlank() || state.excludeGlob.isNotBlank()) {
-                            TextButton(
+                        DropdownMenu(expanded = showExcludedMenu, onDismissRequest = { showExcludedMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.search_excluded_files, state.excludedFiles.size)) },
                                 onClick = {
-                                    viewModel.setInclude("")
-                                    viewModel.setExclude("")
+                                    showExcludedMenu = false
+                                    showExcludedDialog = true
                                 },
-                                modifier = Modifier.align(Alignment.End),
-                            ) { Text(stringResource(R.string.search_clear_filters)) }
+                            )
                         }
                     }
                 }
@@ -528,7 +496,14 @@ fun CodeSearchScreen(
                 )
             }
 
+            // A new query or option change starts the list from the top; otherwise the old scroll
+            // offset is kept and the new results open somewhere in the middle.
+            val listState = rememberLazyListState()
+            LaunchedEffect(state.query, state.regex, state.caseSensitive, state.wholeWord) {
+                listState.scrollToItem(0)
+            }
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -649,6 +624,7 @@ fun CodeSearchScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileResultHeader(
     fileResult: CodeSearchEngine.FileResult,
@@ -657,51 +633,62 @@ private fun FileResultHeader(
     onExclude: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { menuOpen = true }
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        FileTypeIcon(name = fileResult.file.name, isDirectory = false)
-        Column(modifier = Modifier.weight(1f).padding(horizontal = 8.dp)) {
-            Text(
-                text = fileResult.file.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+    // Long-press anywhere on the header opens the file's menu (no 3-dot button any more).
+    Box {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
+                .padding(start = 16.dp, end = 12.dp, top = 8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FileTypeIcon(name = fileResult.file.name, isDirectory = false)
+                Text(
+                    text = fileResult.file.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                // Count + small red cross, pinned to the top of the row.
+                Row(
+                    modifier = Modifier.align(Alignment.Top),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "${fileResult.matches.size}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 4.dp),
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            XIcons.Close,
+                            contentDescription = stringResource(R.string.search_dismiss_file),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+                }
+            }
+            // Full-width path under the header row, so long paths get the whole card width.
             FolderPathSubtitle(relativePath = fileResult.relativePath)
         }
-        Text(
-            text = "${fileResult.matches.size}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.action_more))
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.search_locate_in_tree)) },
-                    onClick = {
-                        menuOpen = false
-                        onLocateInTree()
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.search_exclude_file)) },
-                    onClick = {
-                        menuOpen = false
-                        onExclude()
-                    },
-                )
-            }
-        }
-        IconButton(onClick = onDismiss) {
-            Icon(XIcons.Close, contentDescription = stringResource(R.string.search_dismiss_file))
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.search_locate_in_tree)) },
+                onClick = {
+                    menuOpen = false
+                    onLocateInTree()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.search_exclude_file)) },
+                onClick = {
+                    menuOpen = false
+                    onExclude()
+                },
+            )
         }
     }
 }

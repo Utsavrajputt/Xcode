@@ -183,6 +183,7 @@
     <string name="search_matches_summary">%2$d फ़ाइलों में %1$d मैच</string>
     <string name="search_locate_in_tree">File tree में दिखाएँ</string>
     <string name="search_exclude_file">इस file को exclude करें</string>
+    <string name="search_show_in_tree">Tree में दिखाएँ</string>
     <string name="search_excluded_files">Excluded files (%1$d)</string>
     <string name="search_excluded_files_title">Excluded files</string>
     <string name="search_excluded_remove">फिर से शामिल करें</string>

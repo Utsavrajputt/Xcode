@@ -268,6 +268,10 @@ fun WorkspaceScreen(
                 onOpenFile?.invoke(file)
             },
             onDismiss = { showFileSearch = false },
+            onLocateInTree = { file ->
+                showFileSearch = false
+                SearchBus.requestReveal(file)
+            },
         )
         androidx.activity.compose.BackHandler { showFileSearch = false }
     }
