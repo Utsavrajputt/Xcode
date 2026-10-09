@@ -11,7 +11,7 @@
 </p>
 
 > [!NOTE]
-> **Xcode 1.0.0 is out.** Grab the APK for your phone from the
+> **Xcode 1.1.0 is out.** Grab the APK for your phone from the
 > [latest release](https://github.com/Utsavrajputt/Xcode/releases/latest) — see
 > [APK variants](#-apk-variants) if you're not sure which one — and read what's new in
 > [CHANGELOG.md](CHANGELOG.md).
@@ -66,6 +66,7 @@ left to GitHub Actions or a PC — that is a different (and much heavier) proble
 | **File tree** | Expand/collapse with lazy loading; expansion state is kept across sessions |
 | **File operations** | Create, rename, delete, move, copy and numbered duplicate, all from a long-press menu |
 | **Git status stripe** | Coloured marker per file/folder — modified, added, untracked, conflicted |
+| **Open with Xcode** | Appears in other apps' "Open with" for 145 file extensions and well-known names (`LICENSE`, `NOTICE`, `.gitignore`, `.editorconfig`, …), also inside dotted folders like `.Modxzone` |
 | **Open Project sheet** | Search, type a path by hand, or browse folders with editable shortcuts |
 | **Recent projects** | Home and *All projects* lists with search and sort. Per-project menu: **pin to top**, **rename**, **delete** (with confirmation), **project info** (size, files, last modified/opened, Git branch), copy path, remove from recents |
 | **Backup as ZIP** | One-tap project backup from the recents menu |
@@ -120,8 +121,8 @@ Not planned: GPG commit signing, submodules, SSH auth.
 |---|---|
 | **Preview** | Markdown (theme toggle), HTML (split mode, JS off by default), SVG, images and video as in-editor tabs |
 | **Vector XML preview** | Any `.xml` with a `<vector>` root gets the same Editor / Split / Preview toggle. Live render (groups, clip-paths, strokes, alpha), light/dark canvas switch, and **PNG**, **SVG** and **Copy SVG** buttons — exports land in `Downloads/` |
-| **File search** | Fuzzy filename match, recents, extension/folder filters |
-| **Code search** | Whole-workspace content search with regex/case/whole word, include/exclude globs and streamed, grouped results |
+| **File search** | Fuzzy filename match, recents, extension/folder filters. Long-press a result for **Show in tree** |
+| **Code search** | Whole-workspace content search with regex/case/whole word and streamed, grouped results. Long-press a file for *Locate in file tree* or **Exclude this file** (saved per project, restorable from the *Excluded files* list) |
 | **Search history** | Separate history for file and code search |
 
 </details>
@@ -246,9 +247,9 @@ to `main` runs `.github/workflows/android-build.yml` and uploads the signed APKs
 Two tag-triggered workflows build signed APKs and publish them to GitHub Releases, with SHA-256
 checksums and notes pulled from `CHANGELOG.md`:
 
-- **`.github/workflows/release.yml`** — stable releases, tags matching `vX.Y.Z` (e.g. `v1.0.0`, the current release).
+- **`.github/workflows/release.yml`** — stable releases, tags matching `vX.Y.Z` (e.g. `v1.1.0`, the current release).
 - **`.github/workflows/prerelease.yml`** — pre-releases, tags matching `vX.Y.Z-suffix` (e.g.
-  `v1.0.0-beta.1`, `v1.0.0-rc.2`). The GitHub Release is flagged **Pre-release** automatically.
+  `v1.1.0-beta.1`, `v1.1.0-rc.2`). The GitHub Release is flagged **Pre-release** automatically.
 
 Both fail if any signing secret is missing — a release is never published unsigned.
 
@@ -260,12 +261,12 @@ To cut a release:
 
    ```bash
    # stable
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v1.1.0
+   git push origin v1.1.0
 
    # pre-release
-   git tag v1.0.0-beta.1
-   git push origin v1.0.0-beta.1
+   git tag v1.1.0-beta.1
+   git push origin v1.1.0-beta.1
    ```
 
 3. The matching job publishes the GitHub Release with all three APKs attached.
@@ -296,5 +297,5 @@ a plugin system and a real Compose/XML/Flutter layout preview.
 ---
 
 <div align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/Utsavrajputt">Invictus</a></sub>
+  <sub>Built with ⚡ by <a href="https://github.com/Utsavrajputt">Utsav</a></sub>
 </div>

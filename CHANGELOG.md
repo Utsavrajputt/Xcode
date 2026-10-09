@@ -5,7 +5,47 @@ The format loosely follows [Keep a Changelog](https://keepachangelog.com/), and 
 [SemVer](https://semver.org/) with pre-release identifiers (`-alpha.N`, `-beta.N`, `-rc.N`) leading up to
 stable releases.
 
-When cutting a release, rename `## [Unreleased]
+When cutting a release, rename `## [Unreleased]` to `## [x.y.z] - YYYY-MM-DD`; the release workflows
+pick the matching section as the GitHub Release notes.
+
+## [Unreleased]
+
+_Nothing yet._
+
+## [1.1.0] - 2026-10-09
+
+🔎 **Search & polish release.** Code search gets cleaner result cards and a persistent per-project
+exclude list, "Open with Xcode" finally works for files in dotted and nested folders, and the Home
+banner gets a livelier glass-panel animation.
+
+### ✨ Highlights
+- 🚫 **Exclude this file** in code search — saved per project, survives app restarts, easy to undo.
+- 👆 **Long-press file menus** in code search and file search (**Show in tree**).
+- 📂 **Open with Xcode** now matches `.releaserc`, `NOTICE`, `LICENSE`, `.gitignore`, `.editorconfig` and friends, including files inside folders like `.Modxzone`.
+- 🏠 Livelier **Home hero** animation.
+
+### ✨ Added
+- 🚫 **Exclude this file** — long-press a file card in code search to drop it from every search in that project. The choice is stored per project (it stays until you remove it or clear app data) and is independent of search history. A small 3-dot menu appears next to the option chips once something is excluded, with an **Excluded files (N)** list where each file can be included again. English and Hindi strings.
+- 🌳 **Show in tree** — long-press any result or recent file in file search to reveal it in the project tree. Works from the workspace and from the editor (it returns to the workspace and reveals the file).
+- 📂 **Wider "Open with" coverage** — 145 extensions (everything the editor highlights, plus common config / build / web / scripting types) and 40 well-known extensionless names (`README`, `LICENSE` / `LICENCE`, `NOTICE`, `CHANGELOG`, `Dockerfile`, `Makefile`, `CODEOWNERS`, `Jenkinsfile`, …), including hidden files such as `.gitignore`, `.gitattributes`, `.releaserc`, `.npmrc` and `.editorconfig`.
+- 🏠 **Home hero polish** — soft glow and ground shadow behind the glass panels, a rim light on every panel edge, a diagonal sheen that sweeps across the panels, a scan line on the front screen, softly pulsing tinted window dots, a double-glow `</>` and a staggered rise-in when the screen opens. Everything is drawn in the draw phase, so it costs no recomposition.
+
+### 🎨 Changed
+- 🔎 **Code search result cards** — the per-file 3-dot button is gone; **long-press the file header** for *Locate in file tree* and *Exclude this file*. The dismiss cross is now smaller, red and sits at the top of the card, and the folder path runs on its own full-width line under the header so long paths get the whole card (it still glides when it does not fit).
+- 📜 **Code search list position** — a new query or a changed option (regex / case / whole word) starts the list from the top; returning from an opened result keeps your place.
+- 🌿 **Branch menu** — *Make default on GitHub* is now just **Set default**.
+- 🗂️ **File tree menu** — the compact Pin / Cut / Copy icon row is only used for folders; files get normal one-per-row items.
+- 📲 **Manifest** — VIEW and EDIT now share the same intent filters (fewer, smaller filters); `MAIN` / `LAUNCHER` is untouched.
+- 🏷️ Version bumped to **1.1.0** (`versionCode` default `1010099`; tagged builds still derive both from the tag).
+
+### 🐞 Fixed
+- 📂 **"Open with Xcode" missing for many files** — Android's glob matcher does not backtrack, so `.*\.kt` only matched paths with a single dot and `.*/LICENSE` only matched a file in the root. Files under dotted folders (for example `/Documents/.Modxzone/…`) and extensionless names in nested folders never listed Xcode. Each extension is now declared for paths with 1–4 dots and each well-known name for 1–12 path segments (the same approach Markor uses).
+- 🔎 Code search results sometimes opening in the middle of the list, scrollable both up and down.
+
+### 🗑️ Removed
+- 🌿 *Pull* and *Pull (rebase)* from the local branch menu (pull stays available from the Git screen).
+- 🔎 The include / exclude glob fields and *Clear filters* from the code-search options panel — replaced by the per-file exclude above. Old history entries no longer restore invisible globs. The *Extra excludes* setting under Settings → Search still applies.
+- 🔎 The per-file 3-dot button in code search results (replaced by long-press).
 
 ## [1.0.0] - 2026-10-05
 

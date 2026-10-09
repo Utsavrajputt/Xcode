@@ -15,8 +15,8 @@ android {
         targetSdk = 36
         // CI passes these on tag builds (v1.2.3 -> name 1.2.3, code derived from the tag
         // by .github/scripts/version-from-tag.sh so pre-releases always sort below the stable).
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1000099 // 1.0.0 stable (see version-from-tag.sh)
-        versionName = (project.findProperty("appVersionName") as String?) ?: "1.0.0"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1010099 // 1.1.0 stable (see version-from-tag.sh)
+        versionName = (project.findProperty("appVersionName") as String?) ?: "1.1.0"
     }
 
     buildTypes {
