@@ -496,11 +496,16 @@ fun CodeSearchScreen(
                 )
             }
 
-            // A new query or option change starts the list from the top; otherwise the old scroll
-            // offset is kept and the new results open somewhere in the middle.
+            // A NEW query or option change starts the list from the top (otherwise the old scroll
+            // offset is kept and the new results open somewhere in the middle). Coming back from an
+            // opened result must keep the position, so the last-seen key is saved across
+            // navigation and the first run after re-entering never scrolls.
             val listState = rememberLazyListState()
+            var lastSearchKey by rememberSaveable { mutableStateOf<String?>(null) }
             LaunchedEffect(state.query, state.regex, state.caseSensitive, state.wholeWord) {
-                listState.scrollToItem(0)
+                val key = "${state.query}\u0000${state.regex}\u0000${state.caseSensitive}\u0000${state.wholeWord}"
+                if (lastSearchKey != null && lastSearchKey != key) listState.scrollToItem(0)
+                lastSearchKey = key
             }
             LazyColumn(
                 state = listState,

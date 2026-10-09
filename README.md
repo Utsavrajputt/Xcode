@@ -296,5 +296,5 @@ a plugin system and a real Compose/XML/Flutter layout preview.
 ---
 
 <div align="center">
-  <sub>Built with ⚡ by <a href="https://github.com/Utsavrajputt">Utsav</a></sub>
+  <sub>Built with ❤️ by <a href="https://github.com/Utsavrajputt">Invictus</a></sub>
 </div>
