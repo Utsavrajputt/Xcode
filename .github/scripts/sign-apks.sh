@@ -5,7 +5,7 @@
 #
 # Reads from the environment: KEYSTORE_BASE64, KEY_ALIAS, KEYSTORE_PASSWORD, KEY_PASSWORD.
 # Input : app/build/outputs/apk/release/app-<abi>-release-unsigned.apk
-# Output: app/build/outputs/apk/signed/xcode-<abi>.apk   (xcode-<abi>-unsigned.apk if unsigned)
+# Output: app/build/outputs/apk/signed/kodex-<abi>.apk   (kodex-<abi>-unsigned.apk if unsigned)
 #
 # Without --require-secrets (normal CI builds, fork PRs) missing secrets just leave the APKs
 # unsigned. With it (release / pre-release) any missing secret fails the job.
@@ -36,7 +36,7 @@ if [[ -z "${KEYSTORE_BASE64:-}" ]]; then
   fi
   echo "KEYSTORE_BASE64 is not set (expected for fork PRs); leaving APKs unsigned."
   for apk in "${unsigned[@]}"; do
-    cp "$apk" "$out_dir/xcode-$(abi_of "$apk")-unsigned.apk"
+    cp "$apk" "$out_dir/kodex-$(abi_of "$apk")-unsigned.apk"
   done
   ls -l "$out_dir"
   exit 0
@@ -55,7 +55,7 @@ echo "$KEYSTORE_BASE64" | base64 -d > release.jks
 trap 'rm -f release.jks' EXIT
 
 for apk in "${unsigned[@]}"; do
-  signed="$out_dir/xcode-$(abi_of "$apk").apk"
+  signed="$out_dir/kodex-$(abi_of "$apk").apk"
   "$apksigner" sign \
     --ks release.jks \
     --ks-key-alias "$KEY_ALIAS" \

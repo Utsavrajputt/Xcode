@@ -61,23 +61,23 @@ jobs:
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-arm64-v8a-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/signed/xcode-arm64-v8a*.apk
+          name: kodex-arm64-v8a-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/kodex-arm64-v8a*.apk
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload armeabi-v7a APK
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-armeabi-v7a-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/signed/xcode-armeabi-v7a*.apk
+          name: kodex-armeabi-v7a-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/kodex-armeabi-v7a*.apk
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload universal APK
         uses: actions/upload-artifact@v4
         with:
-          name: xcode-universal-${{ env.SHORT_SHA }}
-          path: app/build/outputs/apk/signed/xcode-universal*.apk
+          name: kodex-universal-${{ env.SHORT_SHA }}
+          path: app/build/outputs/apk/signed/kodex-universal*.apk
           if-no-files-found: error
           retention-days: 14

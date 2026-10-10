@@ -1,6 +1,6 @@
 # 📜 Changelog
 
-All notable changes to **Xcode** are documented in this file.
+All notable changes to **Kodex** are documented in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/) with pre-release identifiers (`-alpha.N`, `-beta.N`, `-rc.N`) leading up to
 stable releases.
@@ -15,13 +15,13 @@ _Nothing yet._
 ## [1.1.0] - 2026-10-09
 
 🔎 **Search & polish release.** Code search gets cleaner result cards and a persistent per-project
-exclude list, "Open with Xcode" finally works for files in dotted and nested folders, and the Home
+exclude list, "Open with Kodex" finally works for files in dotted and nested folders, and the Home
 banner gets a livelier glass-panel animation.
 
 ### ✨ Highlights
 - 🚫 **Exclude this file** in code search — saved per project, survives app restarts, easy to undo.
 - 👆 **Long-press file menus** in code search and file search (**Show in tree**).
-- 📂 **Open with Xcode** now matches `.releaserc`, `NOTICE`, `LICENSE`, `.gitignore`, `.editorconfig` and friends, including files inside folders like `.Modxzone`.
+- 📂 **Open with Kodex** now matches `.releaserc`, `NOTICE`, `LICENSE`, `.gitignore`, `.editorconfig` and friends, including files inside folders like `.Modxzone`.
 - 🏠 Livelier **Home hero** animation.
 
 ### ✨ Added
@@ -39,7 +39,7 @@ banner gets a livelier glass-panel animation.
 - 🏷️ Version bumped to **1.1.0** (`versionCode` default `1010099`; tagged builds still derive both from the tag).
 
 ### 🐞 Fixed
-- 📂 **"Open with Xcode" missing for many files** — Android's glob matcher does not backtrack, so `.*\.kt` only matched paths with a single dot and `.*/LICENSE` only matched a file in the root. Files under dotted folders (for example `/Documents/.Modxzone/…`) and extensionless names in nested folders never listed Xcode. Each extension is now declared for paths with 1–4 dots and each well-known name for 1–12 path segments (the same approach Markor uses).
+- 📂 **"Open with Kodex" missing for many files** — Android's glob matcher does not backtrack, so `.*\.kt` only matched paths with a single dot and `.*/LICENSE` only matched a file in the root. Files under dotted folders (for example `/Documents/.Modxzone/…`) and extensionless names in nested folders never listed Kodex. Each extension is now declared for paths with 1–4 dots and each well-known name for 1–12 path segments (the same approach Markor uses).
 - 🔎 Code search results sometimes opening in the middle of the list, scrollable both up and down.
 
 ### 🗑️ Removed
@@ -82,7 +82,7 @@ banner gets a livelier glass-panel animation.
 - ⚡ **Quick actions** menu: select all, cut / copy / paste, duplicate / delete / move line, comment toggle (incl. XML / CSS block comments), **Copy file content**.
 - 💡 Keyword, word and learned-word autocomplete; custom text-selection popup with labels; undo / redo glow; stronger selection highlight.
 - 🔄 External-change prompt (*Reload / keep my edits*) with an optional auto-reload mode; paged loading for large files; an *Auto-preview* setting for Markdown / HTML.
-- 🎨 TextMate syntax highlighting for C, C++, CSS, Dart, Groovy, HTML, Java, JavaScript, JSON, Kotlin, Markdown, Properties, Python, Shell, Smali, TOML, XML and YAML, with light/dark editor theme pairs and theme families (One Dark Pro, GitHub — the default —, Solarized, Monokai, Ayu, Darcula, VS Code, Xcode).
+- 🎨 TextMate syntax highlighting for C, C++, CSS, Dart, Groovy, HTML, Java, JavaScript, JSON, Kotlin, Markdown, Properties, Python, Shell, Smali, TOML, XML and YAML, with light/dark editor theme pairs and theme families (One Dark Pro, GitHub — the default —, Solarized, Monokai, Ayu, Darcula, VS Code, Kodex).
 - 📌 Fixed, swipeable editor top bar with pinned search / save.
 
 #### 🌳 Git (JGit, HTTPS + token)
@@ -108,7 +108,7 @@ banner gets a livelier glass-panel animation.
 #### 🎨 UI & settings
 - 🎨 **Material 3 Expressive** conversion: Material Symbols Rounded icons, expressive motion, system-bar tint, splash match, five app themes (Default, Aurora, Catppuccin, Nord, Rose Pine) and a true-black AMOLED toggle.
 - ⚙️ **Settings** with category cards (Appearance, Editing, Behavior, Diagnostics, GitHub, About).
-- ℹ️ **About** screen — animated identity card with version, GitHub and Libraries buttons, Support (UPI), GitHub contributors (cached 72 h) and the AGPL-3.0 notice, plus a **Libraries** screen listing what Xcode is built on. English and Hindi strings.
+- ℹ️ **About** screen — animated identity card with version, GitHub and Libraries buttons, Support (UPI), GitHub contributors (cached 72 h) and the AGPL-3.0 notice, plus a **Libraries** screen listing what Kodex is built on. English and Hindi strings.
 - 🩺 On-device crash handler and crash / Git log viewers under Settings → Diagnostics.
 
 #### 🛠️ CI & docs

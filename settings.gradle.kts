@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "xcode"
+rootProject.name = "kodex"
 include(":app")

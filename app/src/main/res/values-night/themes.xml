@@ -2,7 +2,7 @@
 <resources>
     <!-- Dark counterpart of values/themes.xml, same style name, resolved
          automatically by the system's night-mode setting. -->
-    <style name="Theme.Xcode" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Kodex" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/window_background_dark</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

@@ -2,7 +2,7 @@
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="140" height="140" />
 </p>
 
-<h1 align="center">Xcode — Code · Edit · Build</h1>
+<h1 align="center">Kodex — Code · Edit · Build</h1>
 
 <p align="center">
   <b>A native Android code editor with real Git — fast editing, source control and previews, with no bundled toolchain.</b>
@@ -11,46 +11,46 @@
 </p>
 
 > [!NOTE]
-> **Xcode 1.1.0 is out.** Grab the APK for your phone from the
-> [latest release](https://github.com/Utsavrajputt/Xcode/releases/latest) — see
+> **Kodex 1.1.0 is out.** Grab the APK for your phone from the
+> [latest release](https://github.com/Utsavrajputt/Kodex/releases/latest) — see
 > [APK variants](#-apk-variants) if you're not sure which one — and read what's new in
 > [CHANGELOG.md](CHANGELOG.md).
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android%2011%2B-brightgreen.svg" />
   <img src="https://img.shields.io/badge/Kotlin-Compose%20%2F%20Material%203-7F52FF.svg?logo=kotlin&logoColor=white" />
-  <img src="https://img.shields.io/github/v/release/Utsavrajputt/xcode.svg?logo=github&label=Release&include_prereleases&cacheSeconds=3600" />
-  <img src="https://img.shields.io/github/downloads/Utsavrajputt/xcode/total?logo=github&cacheSeconds=3600" />
+  <img src="https://img.shields.io/github/v/release/Utsavrajputt/kodex.svg?logo=github&label=Release&include_prereleases&cacheSeconds=3600" />
+  <img src="https://img.shields.io/github/downloads/Utsavrajputt/kodex/total?logo=github&cacheSeconds=3600" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/android-build.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/android-build.yml?branch=main&logo=github&label=Build" />
+  <a href="https://github.com/Utsavrajputt/kodex/actions/workflows/android-build.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/kodex/android-build.yml?branch=main&logo=github&label=Build" />
   </a>
-  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/release.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/release.yml?logo=github&label=Release%20Build" />
+  <a href="https://github.com/Utsavrajputt/kodex/actions/workflows/release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/kodex/release.yml?logo=github&label=Release%20Build" />
   </a>
-  <a href="https://github.com/Utsavrajputt/xcode/actions/workflows/prerelease.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/xcode/prerelease.yml?logo=github&label=Pre-release%20Build" />
+  <a href="https://github.com/Utsavrajputt/kodex/actions/workflows/prerelease.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/Utsavrajputt/kodex/prerelease.yml?logo=github&label=Pre-release%20Build" />
   </a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/Utsavrajputt/xcode?style=flat&logo=github&color=gold" />
-  <img src="https://img.shields.io/github/forks/Utsavrajputt/xcode?style=flat&logo=github&color=blue" />
-  <img src="https://img.shields.io/github/last-commit/Utsavrajputt/xcode?style=flat&logo=github" />
-  <img src="https://img.shields.io/github/issues/Utsavrajputt/xcode?style=flat&logo=github&color=orange" />
+  <img src="https://img.shields.io/github/stars/Utsavrajputt/kodex?style=flat&logo=github&color=gold" />
+  <img src="https://img.shields.io/github/forks/Utsavrajputt/kodex?style=flat&logo=github&color=blue" />
+  <img src="https://img.shields.io/github/last-commit/Utsavrajputt/kodex?style=flat&logo=github" />
+  <img src="https://img.shields.io/github/issues/Utsavrajputt/kodex?style=flat&logo=github&color=orange" />
 </p>
 
 <p align="center">
-  <sub>⭐ • 🍴 • 🕓 • 🐛 &nbsp;—&nbsp; if Xcode's useful to you, a star helps more than you'd think</sub>
+  <sub>⭐ • 🍴 • 🕓 • 🐛 &nbsp;—&nbsp; if Kodex's useful to you, a star helps more than you'd think</sub>
 </p>
 
 ---
 
-## 💡 Why Xcode?
+## 💡 Why Kodex?
 
-Closed-source editors cover this niche already. Xcode is an open, from-scratch take on the part that
+Closed-source editors cover this niche already. Kodex is an open, from-scratch take on the part that
 matters on a phone: **editing code and managing it with Git**. Building and running is deliberately
 left to GitHub Actions or a PC — that is a different (and much heavier) problem.
 
@@ -66,7 +66,7 @@ left to GitHub Actions or a PC — that is a different (and much heavier) proble
 | **File tree** | Expand/collapse with lazy loading; expansion state is kept across sessions |
 | **File operations** | Create, rename, delete, move, copy and numbered duplicate, all from a long-press menu |
 | **Git status stripe** | Coloured marker per file/folder — modified, added, untracked, conflicted |
-| **Open with Xcode** | Appears in other apps' "Open with" for 145 file extensions and well-known names (`LICENSE`, `NOTICE`, `.gitignore`, `.editorconfig`, …), also inside dotted folders like `.Modxzone` |
+| **Open with Kodex** | Appears in other apps' "Open with" for 145 file extensions and well-known names (`LICENSE`, `NOTICE`, `.gitignore`, `.editorconfig`, …), also inside dotted folders like `.Modxzone` |
 | **Open Project sheet** | Search, type a path by hand, or browse folders with editable shortcuts |
 | **Recent projects** | Home and *All projects* lists with search and sort. Per-project menu: **pin to top**, **rename**, **delete** (with confirmation), **project info** (size, files, last modified/opened, Git branch), copy path, remove from recents |
 | **Backup as ZIP** | One-tap project backup from the recents menu |
@@ -134,7 +134,7 @@ Not planned: GPG commit signing, submodules, SSH auth.
 |---|---|
 | **Material 3 Expressive UI** | Jetpack Compose throughout, with expressive motion and pill-shaped components |
 | **5 app themes** | Default, Aurora, Catppuccin, Nord and Rose Pine, plus an **AMOLED** true-black toggle |
-| **Editor themes** | Light/dark pairs including One Dark Pro, GitHub, Solarized, Monokai, Ayu, Darcula, VS Code and Xcode |
+| **Editor themes** | Light/dark pairs including One Dark Pro, GitHub, Solarized, Monokai, Ayu, Darcula, VS Code and Kodex |
 | **Crash & Git logs** | On-device crash log and Git log viewers under Settings → Diagnostics |
 | **About** | Version, GitHub and Libraries buttons, Support, GitHub contributors and the AGPL-3.0 license under Settings → About |
 
@@ -160,7 +160,7 @@ Not planned: GPG commit signing, submodules, SSH auth.
 ## 📁 Project structure
 
 ```
-app/src/main/java/com/invictus/xcode/
+app/src/main/java/com/invictus/kodex/
  ├─ core/
  │   ├─ fs/          # file operations, directory/external-change watchers, storage permission
  │   ├─ git/         # JGit session, auth, cloner, conflict parser
@@ -194,14 +194,14 @@ work runs on `Dispatchers.IO`, never the main thread.
 
 ## 🧩 APK variants
 
-Xcode ships one app, split per CPU architecture so you only download the native libraries your phone
+Kodex ships one app, split per CPU architecture so you only download the native libraries your phone
 can actually use:
 
 | APK | For |
 |---|---|
-| `xcode-<tag>-arm64-v8a.apk` | Almost every phone from the last decade — **pick this one** |
-| `xcode-<tag>-armeabi-v7a.apk` | Older 32-bit ARM devices |
-| `xcode-<tag>-universal.apk` | Both ARM ABIs in one file — larger, use it if you're unsure |
+| `kodex-<tag>-arm64-v8a.apk` | Almost every phone from the last decade — **pick this one** |
+| `kodex-<tag>-armeabi-v7a.apk` | Older 32-bit ARM devices |
+| `kodex-<tag>-universal.apk` | Both ARM ABIs in one file — larger, use it if you're unsure |
 
 x86 / x86_64 builds are intentionally not produced.
 
@@ -212,7 +212,7 @@ x86 / x86_64 builds are intentionally not produced.
 Requires JDK 17 and the Android SDK (compileSdk 36, minSdk 30).
 
 ```bash
-./gradlew assembleDebug      # debug APK (installs next to release as com.invictus.xcode.debug)
+./gradlew assembleDebug      # debug APK (installs next to release as com.invictus.kodex.debug)
 ./gradlew assembleRelease    # unsigned release APKs, one per ABI + universal (sign with apksigner)
 ./gradlew lintDebug          # Android lint
 ```
@@ -226,7 +226,7 @@ you sign explicitly with `apksigner`:
 
 ```bash
 apksigner sign --ks your-release.jks --ks-key-alias <alias> \
-  --out xcode-arm64-v8a.apk app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
+  --out kodex-arm64-v8a.apk app/build/outputs/apk/release/app-arm64-v8a-release-unsigned.apk
 ```
 
 CI does this for you through [`.github/scripts/sign-apks.sh`](.github/scripts/sign-apks.sh). Every push
@@ -283,7 +283,7 @@ Run workflow** and typing the tag name, without pushing a tag first.
 
 ## 🔐 Permissions
 
-- `MANAGE_EXTERNAL_STORAGE` — "All files access", so Xcode can work directly on your project folders
+- `MANAGE_EXTERNAL_STORAGE` — "All files access", so Kodex can work directly on your project folders
 - `INTERNET` — Git clone/push/pull over HTTPS and GitHub profile lookups
 - `POST_NOTIFICATIONS` — clone and sync progress
 

@@ -1,0 +1,172 @@
+package com.invictus.kodex.core.search
+
+import java.io.File
+import java.util.regex.Pattern
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.flow.flowOn
+import kotlin.coroutines.coroutineContext
+
+/** Plan 3.6 code search: poora open workspace, plain/regex, globs, results Flow se stream. */
+class CodeSearchEngine {
+    data class Options(
+        val regex: Boolean = false,
+        val caseSensitive: Boolean = false,
+        val wholeWord: Boolean = false,
+        val includeGlob: String = "",
+        val excludeGlob: String = "",
+        val maxFileSizeBytes: Long = 2L * 1024 * 1024,
+        val defaultValuesOnly: Boolean = false,
+        /** From "text//name": only files whose NAME matches (contains, case-insensitive; * and ? act as wildcards). */
+        val fileNameFilter: String = "",
+        /** Exact relative paths (as in [FileResult.relativePath]) skipped for this project. */
+        val excludedPaths: Set<String> = emptySet(),
+    )
+
+    data class LineMatch(val line: Int, val text: String, val ranges: List<IntRange>)
+    data class FileResult(val file: File, val relativePath: String, val matches: List<LineMatch>)
+
+    /**
+     * Walk is sequential (cheap), but the per-file scan runs in parallel on IO (bounded by
+     * [PARALLELISM]); results are streamed as each file finishes, so order is not guaranteed.
+     */
+    fun search(root: File, query: String, options: Options): Flow<FileResult> = channelFlow {
+        if (query.isBlank()) return@channelFlow
+        val pattern = buildPattern(query, options)
+        val include = options.includeGlob.takeIf { it.isNotBlank() }?.let { globToRegex(it) }
+        val nameMatcher = fileNameMatcher(options.fileNameFilter)
+        val userExcludes = options.excludeGlob
+            .split(',', '\n').map { it.trim().removePrefix("!") }.filter { it.isNotEmpty() }
+        val excludes = (DEFAULT_EXCLUDES + userExcludes).map { globToRegex(it) }
+        val rootPath = root.canonicalPath
+        val gate = Semaphore(PARALLELISM)
+        val stack = ArrayDeque<File>()
+        stack.add(root)
+        while (stack.isNotEmpty()) {
+            coroutineContext.ensureActive()
+            val dir = stack.removeLast()
+            val children = dir.listFiles() ?: continue
+            for (child in children) {
+                coroutineContext.ensureActive()
+                val name = child.name
+                if (name.startsWith(".")) continue // .git waghera hamesha skip
+                if (child.isDirectory) {
+                    if (name in DEFAULT_SKIPPED_DIRS) continue
+                    if (options.defaultValuesOnly && FileSearchEngine.isLocalizedValuesDir(name)) continue
+                    stack.add(child)
+                    continue
+                }
+                val rel = child.canonicalPath.removePrefix(rootPath)
+                if (rel in options.excludedPaths) continue
+                if (include != null && !include.matches(rel)) continue
+                if (nameMatcher != null && !nameMatcher(name)) continue
+                if (excludes.any { it.matches(rel) }) continue
+                if (child.length() > options.maxFileSizeBytes || isBinary(child)) continue
+                gate.acquire()
+                launch {
+                    try {
+                        val matches = scan(child, pattern)
+                        if (matches.isNotEmpty()) send(FileResult(child, rel, matches))
+                    } finally {
+                        gate.release()
+                    }
+                }
+            }
+        }
+    }.flowOn(Dispatchers.IO)
+
+    private fun fileNameMatcher(filter: String): ((String) -> Boolean)? {
+        val f = filter.trim()
+        if (f.isEmpty()) return null
+        if (f.none { it == '*' || it == '?' }) return { name -> name.contains(f, ignoreCase = true) }
+        val sb = StringBuilder()
+        f.forEach { c ->
+            when (c) {
+                '*' -> sb.append(".*")
+                '?' -> sb.append('.')
+                else -> sb.append(Pattern.quote(c.toString()))
+            }
+        }
+        val re = Regex(sb.toString(), RegexOption.IGNORE_CASE)
+        return { name -> re.containsMatchIn(name) }
+    }
+
+    private fun buildPattern(query: String, options: Options): Pattern {
+        var src = if (options.regex) query else Pattern.quote(query)
+        if (options.wholeWord) src = "\\b(?:$src)\\b"
+        val flags = if (options.caseSensitive) 0 else Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE
+        return Pattern.compile(src, flags)
+    }
+
+    /** Pehle 8KB me null byte -> binary; text search me skip. */
+    private fun isBinary(file: File): Boolean = runCatching {
+        file.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            val n = input.read(buf)
+            if (n < 0) return@runCatching false
+            for (i in 0 until n) {
+                if (buf[i].toInt() == 0) return@runCatching true
+            }
+            false
+        }
+    }.getOrDefault(true)
+
+    private fun scan(file: File, pattern: Pattern): List<LineMatch> {
+        val out = ArrayList<LineMatch>()
+        file.bufferedReader(Charsets.UTF_8).use { reader ->
+            var lineNo = 0
+            while (out.size < MAX_MATCHES_PER_FILE) {
+                val line = reader.readLine() ?: break
+                lineNo++
+                val matcher = pattern.matcher(line)
+                val ranges = ArrayList<IntRange>(8)
+                while (matcher.find()) {
+                    ranges.add(matcher.start() until matcher.end())
+                    if (ranges.size >= 8) break
+                }
+                if (ranges.isNotEmpty()) out.add(LineMatch(lineNo, line.take(500), ranges))
+            }
+        }
+        return out
+    }
+
+    /** Glob -> regex: `*` = ek path segment, `**` = kuch bhi, `?` = single char. */
+    fun globToRegex(glob: String): Regex {
+        val s = glob.trim().replace('\\', '/')
+        val sb = StringBuilder()
+        var i = 0
+        while (i < s.length) {
+            when (val ch = s[i]) {
+                '*' -> if (i + 1 < s.length && s[i + 1] == '*') {
+                    sb.append(".*")
+                    i++
+                } else {
+                    sb.append("[^/]*")
+                }
+                '?' -> sb.append("[^/]")
+                '.', '(', ')', '+', '^', '$', '|', '[', ']', '{', '}' -> {
+                    sb.append('\\')
+                    sb.append(ch)
+                }
+                else -> sb.append(ch)
+            }
+            i++
+        }
+        return Regex("(?i).*(?:^|/)" + sb + "$")
+    }
+
+    companion object {
+        val DEFAULT_SKIPPED_DIRS = setOf(".git", "build", "node_modules", ".gradle")
+        val DEFAULT_EXCLUDES = listOf(
+            ".git/**", "build/**", "node_modules/**",
+            "*.apk", "*.zip", "*.jar", "*.aar", "*.png", "*.jpg", "*.jpeg", "*.webp",
+            "*.gif", "*.class", "*.dex", "*.so", "*.ttf", "*.otf", "*.woff", "*.woff2",
+        )
+        const val MAX_MATCHES_PER_FILE = 200
+        private const val PARALLELISM = 4
+    }
+}

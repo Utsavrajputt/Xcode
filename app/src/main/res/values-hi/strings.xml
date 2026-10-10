@@ -207,9 +207,9 @@
     <string name="about_tagline">Git के साथ नेटिव Android कोड एडिटर</string>
     <string name="about_version_format">वर्ज़न %1$s</string>
     <string name="about_license_title">लाइसेंस</string>
-    <string name="about_license_body">GNU Affero General Public License v3.0 (AGPL-3.0) के तहत जारी। Xcode फ़्री और ओपन-सोर्स सॉफ़्टवेयर है — आप इसे इस्तेमाल, स्टडी, शेयर और मॉडिफ़ाई कर सकते हैं।</string>
+    <string name="about_license_body">GNU Affero General Public License v3.0 (AGPL-3.0) के तहत जारी। Kodex फ़्री और ओपन-सोर्स सॉफ़्टवेयर है — आप इसे इस्तेमाल, स्टडी, शेयर और मॉडिफ़ाई कर सकते हैं।</string>
     <string name="about_libraries_title">लाइब्रेरी</string>
-    <string name="about_credits_hint">Xcode इन ओपन-सोर्स प्रोजेक्ट्स के कंधों पर खड़ा है</string>
+    <string name="about_credits_hint">Kodex इन ओपन-सोर्स प्रोजेक्ट्स के कंधों पर खड़ा है</string>
     <string name="about_credit_sora_desc">कोड एडिटर विजेट</string>
     <string name="about_credit_textmate_desc">सिंटैक्स हाइलाइटिंग के लिए TextMate ग्रामर</string>
     <string name="about_credit_jgit_desc">क्लोन, कमिट, पुश और पुल के लिए Pure-Java Git इंजन</string>
@@ -224,8 +224,8 @@
     <string name="about_credit_coroutines_desc">Asynchronous काम</string>
     <string name="about_developers_title">डेवलपर्स</string>
     <string name="about_support_title">सपोर्ट</string>
-    <string name="about_support_heading">Xcode को सपोर्ट करें</string>
-    <string name="about_support_body">Xcode फ़्री और ओपन-सोर्स है। अगर यह आपका समय बचाता है, तो एक छोटा सा सहयोग इसे चलते रहने में मदद करता है। हर योगदान मायने रखता है!</string>
+    <string name="about_support_heading">Kodex को सपोर्ट करें</string>
+    <string name="about_support_body">Kodex फ़्री और ओपन-सोर्स है। अगर यह आपका समय बचाता है, तो एक छोटा सा सहयोग इसे चलते रहने में मदद करता है। हर योगदान मायने रखता है!</string>
     <string name="about_upi_id_label">UPI ID</string>
     <string name="about_upi_copy">UPI ID कॉपी करें</string>
     <string name="about_upi_copied">UPI ID कॉपी हो गई!</string>

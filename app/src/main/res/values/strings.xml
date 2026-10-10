@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- strings.xml -->
-    <string name="app_name">Xcode</string>
+    <string name="app_name">Kodex</string>
     <string name="home_open_project">Open Project</string>
     <string name="home_recent">Recent Projects</string>
     <string name="home_no_recents">No projects yet — open one to get started.</string>
 
     <!-- strings_m1.xml -->
     <string name="permission_title">All files access needed</string>
-    <string name="permission_body">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git[...]</string>
+    <string name="permission_body">Kodex works directly on the folders and Git repositories on your device, so Android needs to grant it All files access. Nothing leaves your device except the Git[...]</string>
     <string name="permission_button">Grant access</string>
     <string name="permission_hint">This opens system settings. Turn on Allow access to manage all files, then come back.</string>
     <string name="workspace_title">Workspace</string>
@@ -21,7 +21,7 @@
     <string name="startup_onboarding_permission_required_hint">All files access is required to continue</string>
 
     <string name="startup_onboarding_title_storage">All files access</string>
-    <string name="startup_onboarding_desc_storage">Xcode works directly on the folders and Git repositories on your device, so Android needs to grant it All files access.</string>
+    <string name="startup_onboarding_desc_storage">Kodex works directly on the folders and Git repositories on your device, so Android needs to grant it All files access.</string>
     <string name="startup_onboarding_grant_storage">Grant access</string>
     <string name="startup_onboarding_storage_granted">Access granted</string>
 
@@ -657,7 +657,7 @@
     <string name="git_progress_resetting">Resetting…</string>
     <string name="git_progress_count">%1$d / %2$d</string>
     <string name="git_progress_wait">Large repos can take a moment. Please wait.</string>
-    <string name="home_hero_kicker">WELCOME TO XCODE</string>
+    <string name="home_hero_kicker">WELCOME TO KODEX</string>
     <string name="home_hero_line1">Code</string>
     <string name="home_hero_line2">Your Ideas</string>
     <string name="home_hero_line3">Anywhere</string>
@@ -692,11 +692,11 @@
     <string name="about_tagline">Native Android code editor with Git</string>
     <string name="about_version_format">Version %1$s</string>
     <string name="about_github">GitHub</string>
-    <string name="about_github_url" translatable="false">https://github.com/Utsavrajputt/xcode</string>
+    <string name="about_github_url" translatable="false">https://github.com/Utsavrajputt/kodex</string>
     <string name="about_license_title">License</string>
-    <string name="about_license_body">Released under the GNU Affero General Public License v3.0 (AGPL-3.0). Xcode is free and open-source software — you are free to use, study, share, and modify it.</string>
+    <string name="about_license_body">Released under the GNU Affero General Public License v3.0 (AGPL-3.0). Kodex is free and open-source software — you are free to use, study, share, and modify it.</string>
     <string name="about_libraries_title">Libraries</string>
-    <string name="about_credits_hint">Xcode is built on the shoulders of these open-source projects</string>
+    <string name="about_credits_hint">Kodex is built on the shoulders of these open-source projects</string>
     <string name="about_credit_sora_desc">Code editor widget</string>
     <string name="about_credit_textmate_desc">TextMate grammars for syntax highlighting</string>
     <string name="about_credit_jgit_desc">Pure-Java Git engine for clone, commit, push and pull</string>
@@ -711,8 +711,8 @@
     <string name="about_credit_coroutines_desc">Asynchronous work</string>
     <string name="about_developers_title">Developers</string>
     <string name="about_support_title">Support</string>
-    <string name="about_support_heading">Support Xcode</string>
-    <string name="about_support_body">Xcode is free and open-source. If it saves you time, a small contribution helps keep it going. Every bit counts!</string>
+    <string name="about_support_heading">Support Kodex</string>
+    <string name="about_support_body">Kodex is free and open-source. If it saves you time, a small contribution helps keep it going. Every bit counts!</string>
     <string name="about_upi_id_label">UPI ID</string>
     <string name="about_upi_id" translatable="false">utsavrajput@yesfam</string>
     <string name="about_upi_copy">Copy UPI ID</string>

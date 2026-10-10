@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.invictus.xcode"
+    namespace = "com.invictus.kodex"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.invictus.xcode"
+        applicationId = "com.invictus.kodex"
         minSdk = 30
         targetSdk = 36
         // CI passes these on tag builds (v1.2.3 -> name 1.2.3, code derived from the tag
