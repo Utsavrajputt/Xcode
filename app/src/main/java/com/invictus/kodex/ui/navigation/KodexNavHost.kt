@@ -24,7 +24,10 @@ import androidx.navigation.compose.rememberNavController
 import com.invictus.kodex.feature.editor.EditorEvent
 import com.invictus.kodex.feature.editor.EditorScreen
 import com.invictus.kodex.feature.editor.EditorViewModel
+import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import com.invictus.kodex.github.ui.GitHubManagerScreen
+import com.invictus.kodex.github.ui.RunLogScreen
 import com.invictus.kodex.feature.git.GitBranchesScreen
 import com.invictus.kodex.feature.git.GitCloneScreen
 import com.invictus.kodex.feature.git.GitCredentialsScreen
@@ -134,6 +137,7 @@ fun KodexNavHost(
                 onOpenCodeSearch = { root ->
                     navController.navigate(Routes.codeSearch(root.path))
                 },
+                onOpenGitHub = { root -> navController.navigate(Routes.github(root.path)) },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
@@ -292,6 +296,29 @@ fun KodexNavHost(
                     projectPath = path,
                     onDone = { navController.popBackStack() },
                 )
+            }
+        }
+        composable(Routes.GITHUB) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            if (path != null) {
+                GitHubManagerScreen(
+                    projectPath = path,
+                    onBack = { navController.popBackStack() },
+                    onOpenRunLog = { runId -> navController.navigate(Routes.githubRunLog(path, runId)) },
+                    onOpenRemotes = { navController.navigate(Routes.gitRemotes(path)) },
+                    onGitSetup = { navController.navigate(Routes.gitOnboarding(path)) },
+                    onOpenGitHubSettings = { navController.navigate(Routes.SETTINGS_GITHUB) },
+                )
+            }
+        }
+        composable(
+            route = Routes.GITHUB_RUN_LOG,
+            arguments = listOf(navArgument("runId") { type = NavType.LongType }),
+        ) { entry ->
+            val path = entry.arguments?.getString("projectPath")
+            val runId = entry.arguments?.getLong("runId")
+            if (path != null && runId != null) {
+                RunLogScreen(projectPath = path, runId = runId, onBack = { navController.popBackStack() })
             }
         }
         composable(Routes.CODE_SEARCH) { entry ->

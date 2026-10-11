@@ -19,6 +19,15 @@ import com.invictus.kodex.core.search.CodeSearchEngine
 import com.invictus.kodex.core.search.FileSearchEngine
 import com.invictus.kodex.core.search.SearchHistoryStore
 import com.invictus.kodex.core.security.GitCredentialStore
+import com.invictus.kodex.github.api.GhRepoRef
+import com.invictus.kodex.github.api.GitHubApi
+import com.invictus.kodex.github.api.GitHubHttp
+import com.invictus.kodex.github.auth.GitHubTokenProvider
+import com.invictus.kodex.github.data.GitHubProjectResolver
+import com.invictus.kodex.github.data.GitHubRepository
+import com.invictus.kodex.github.prefs.GitHubPrefs
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import java.io.File
 
 /**
@@ -59,6 +68,23 @@ class AppContainer(context: Context) {
     // GitHub profile on token cards: live /user fetch (24h refresh) + avatar loader (72h disk cache).
     val gitHubProfileRepository: GitHubProfileRepository by lazy { GitHubProfileRepository(appContext) }
     val avatarImageLoader: coil.ImageLoader by lazy { AvatarImageLoader.create(appContext) }
+
+    // M15 GitHub Manager: reuses the git token (no second store); one shared HTTP stack.
+    val gitHubTokenProvider: GitHubTokenProvider by lazy { GitHubTokenProvider(gitCredentialStore) }
+    val gitHubPrefs: GitHubPrefs by lazy { GitHubPrefs(appContext) }
+    val gitHubProjectResolver: GitHubProjectResolver by lazy { GitHubProjectResolver(gitHubTokenProvider) }
+    private val gitHubOkHttp: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /** Fresh repository (own ETag cache) bound to one project's repo. */
+    fun gitHubRepository(repo: GhRepoRef): GitHubRepository {
+        val http = GitHubHttp(gitHubOkHttp, token = { gitHubTokenProvider.token() })
+        return GitHubRepository(GitHubApi(http, repo), repo, java.io.File(appContext.cacheDir, "gh_logs"))
+    }
 
     // M11 search: fuzzy file search + workspace grep + Room-backed search history.
     val fileSearchEngine: FileSearchEngine by lazy { FileSearchEngine() }

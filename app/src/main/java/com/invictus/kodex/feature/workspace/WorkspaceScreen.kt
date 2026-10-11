@@ -90,6 +90,7 @@ fun WorkspaceScreen(
     onOpenGit: (File) -> Unit = {},
     onGitSetup: (File) -> Unit = {},
     onOpenCodeSearch: (File) -> Unit = {},
+    onOpenGitHub: (File) -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -212,6 +213,7 @@ fun WorkspaceScreen(
                 onBackup = { projectsViewModel.onEvent(ProjectsEvent.Backup(state.root)) },
                 onOpenGit = if (isGitRepo) ({ onOpenGit(state.root) }) else null,
                 onOpenCodeSearch = { onOpenCodeSearch(state.root) },
+                onOpenGitHub = { onOpenGitHub(state.root) },
                 onOpenSettings = onOpenSettings,
             )
         },
@@ -307,6 +309,7 @@ private fun WorkspaceTopBar(
     onBackup: () -> Unit,
     onOpenGit: (() -> Unit)? = null,
     onOpenCodeSearch: () -> Unit = {},
+    onOpenGitHub: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -376,6 +379,15 @@ private fun WorkspaceTopBar(
                         onClick = {
                             menuOpen = false
                             onEvent(FileTreeEvent.CollapseAll)
+                        },
+                    )
+                    // M15: always shown; the manager itself explains a missing repo / remote / token.
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.gh_menu_github)) },
+                        leadingIcon = { Icon(XIcons.Cloud, contentDescription = null) },
+                        onClick = {
+                            menuOpen = false
+                            onOpenGitHub()
                         },
                     )
                     DropdownMenuItem(

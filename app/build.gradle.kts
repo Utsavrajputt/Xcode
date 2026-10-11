@@ -116,4 +116,8 @@ dependencies {
     implementation(libs.compose.material.symbols)
     implementation(libs.compose.material.symbols.rounded.filled)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Unit tests for pure logic (M15). org.json: android.jar only ships stubs on the JVM.
+    testImplementation(libs.junit)
+    testImplementation(libs.org.json)
 }
