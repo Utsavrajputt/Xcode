@@ -70,6 +70,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.invictus.kodex.R
 import com.invictus.kodex.KodexApp
+import com.invictus.kodex.github.api.GhArtifact
+import com.invictus.kodex.github.api.GhDeployment
 import com.invictus.kodex.github.api.GhRun
 import com.invictus.kodex.github.api.RunDisplayStatus
 import com.invictus.kodex.github.data.RunStatusFilter
@@ -94,6 +96,7 @@ fun GitHubManagerScreen(
     ),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val toolsState by viewModel.tools.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -122,6 +125,19 @@ fun GitHubManagerScreen(
                         IconButton(onClick = viewModel::refresh) {
                             Icon(XIcons.Refresh, contentDescription = stringResource(R.string.action_refresh))
                         }
+                        var menuOpen by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.gh_more))
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.gh_cleanup_title)) },
+                                    leadingIcon = { Icon(XIcons.Delete, contentDescription = null) },
+                                    onClick = { menuOpen = false; viewModel.tools.openCleanup() },
+                                )
+                            }
+                        }
                     }
                 },
             )
@@ -143,7 +159,10 @@ fun GitHubManagerScreen(
                     title = R.string.gh_empty_no_token_title, body = R.string.gh_empty_no_token_body,
                     action = R.string.gh_empty_no_token_action, onAction = onOpenGitHubSettings,
                 )
-                GitHubGate.Ready -> ReadyContent(state, viewModel, onOpenRunLog, onOpenGitHubSettings)
+                GitHubGate.Ready -> {
+                    ReadyContent(state, toolsState, viewModel, onOpenRunLog, onOpenGitHubSettings)
+                    GitHubToolsHost(toolsState, viewModel.tools, state.workflows, state.repo?.defaultBranch)
+                }
             }
         }
     }
@@ -201,6 +220,7 @@ private fun EmptyState(title: Int, body: Int, action: Int, onAction: () -> Unit)
 @Composable
 private fun ReadyContent(
     state: GitHubManagerState,
+    toolsState: GitHubToolsState,
     vm: GitHubManagerViewModel,
     onOpenRunLog: (Long) -> Unit,
     onOpenGitHubSettings: () -> Unit,
@@ -208,12 +228,27 @@ private fun ReadyContent(
     var showAll by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<GhRun?>(null) }
     var pendingCancel by remember { mutableStateOf<GhRun?>(null) }
+    var showAllArtifacts by rememberSaveable { mutableStateOf(false) }
+    var showAllDeployments by rememberSaveable { mutableStateOf(false) }
+    var pendingArtifactDelete by remember { mutableStateOf<GhArtifact?>(null) }
+    var pendingDeploymentDelete by remember { mutableStateOf<GhDeployment?>(null) }
+    val tools = vm.tools
+    val latestApkId = (toolsState.apk as? ApkCardState.Found)?.candidate?.artifact?.id
+    val onRunShortcut = {
+        val wf = tools.effectiveWorkflow(state.workflows, toolsState.run.selectedWorkflowId)
+        val ref = toolsState.run.selectedBranch ?: state.repo?.defaultBranch
+        if (wf != null && ref != null) tools.onRunPressed(wf, ref)
+    }
     val visible = if (showAll) state.runs else state.runs.take(COLLAPSED_COUNT)
 
     PullToRefreshBox(isRefreshing = state.refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.banner?.let { b -> item(key = "banner") { BannerCard(b, onOpenGitHubSettings) } }
             item(key = "header") { RepoHeaderCard(state) }
+            item(key = "run_workflow") {
+                RunWorkflowCard(toolsState.run, state.workflows, state.repo?.defaultBranch, tools)
+            }
+            item(key = "apk") { ApkCard(toolsState, tools, onRunShortcut) }
             item(key = "runs_header") {
                 SectionHeader(
                     title = stringResource(R.string.gh_runs_title),
@@ -264,7 +299,35 @@ private fun ReadyContent(
                     }
                 }
             }
+            deploymentsSection(toolsState, showAllDeployments, { showAllDeployments = true }, tools) { pendingDeploymentDelete = it }
+            artifactsSection(toolsState, showAllArtifacts, { showAllArtifacts = true }, latestApkId, tools) { pendingArtifactDelete = it }
+            item(key = "cleanup") {
+                OutlinedButton(onClick = tools::openCleanup, modifier = Modifier.fillMaxWidth()) {
+                    Icon(XIcons.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.gh_cleanup_title))
+                }
+            }
         }
+    }
+
+    pendingArtifactDelete?.let { a ->
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.gh_artifact_delete_title),
+            body = stringResource(R.string.gh_artifact_delete_body, a.name),
+            confirm = stringResource(R.string.action_delete),
+            onDismiss = { pendingArtifactDelete = null },
+            onConfirm = { pendingArtifactDelete = null; tools.deleteArtifact(a) },
+        )
+    }
+    pendingDeploymentDelete?.let { d ->
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.gh_deployment_delete_title),
+            body = stringResource(R.string.gh_deployment_delete_body, d.environment, d.ref),
+            confirm = stringResource(R.string.action_delete),
+            onDismiss = { pendingDeploymentDelete = null },
+            onConfirm = { pendingDeploymentDelete = null; tools.deleteDeployment(d) },
+        )
     }
 
     pendingDelete?.let { run ->
@@ -301,6 +364,25 @@ private fun ReadyContent(
             dismissButton = { TextButton(onClick = { pendingCancel = null }) { Text(stringResource(R.string.gh_keep_running)) } },
         )
     }
+}
+
+@Composable
+private fun ConfirmDeleteDialog(title: String, body: String, confirm: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(body) },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+            ) { Text(confirm) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable
@@ -362,7 +444,7 @@ private fun RepoHeaderCard(state: GitHubManagerState) {
 }
 
 @Composable
-private fun SectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+internal fun SectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onToggle).padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -419,7 +501,7 @@ private val IntrinsicWidthCap = 140.dp
 private const val COLLAPSED_COUNT = 5
 
 @Composable
-private fun ErrorBlock(message: String, onRetry: () -> Unit) {
+internal fun ErrorBlock(message: String, onRetry: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         TextButton(onClick = onRetry) { Text(stringResource(R.string.gh_retry)) }

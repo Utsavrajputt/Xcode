@@ -2,7 +2,9 @@ package com.invictus.kodex.github.api
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -14,6 +16,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.CoroutineContext
 
 /**
  * Thin OkHttp wrapper (plan section 3): standard headers, typed errors, GET retry/backoff,
@@ -42,12 +45,16 @@ class GitHubHttp(
     fun clearCache() = etags.clear()
 
     /** GET returning the JSON body text. Retries transient failures (IO, 5xx) up to 3 times. */
-    suspend fun getJson(path: String, query: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
+    suspend fun getJson(
+        path: String,
+        query: Map<String, String> = emptyMap(),
+        accept: String = ACCEPT_JSON,
+    ): String = withContext(Dispatchers.IO) {
         val url = buildUrl(path, query)
         var attempt = 0
         while (true) {
             try {
-                return@withContext getJsonOnce(url)
+                return@withContext getJsonOnce(url, accept)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: GitHubError.Http) {
@@ -64,8 +71,8 @@ class GitHubHttp(
         error("unreachable")
     }
 
-    private fun getJsonOnce(url: String): String {
-        val b = request(url).header("Accept", ACCEPT_JSON)
+    private fun getJsonOnce(url: String, accept: String): String {
+        val b = request(url).header("Accept", accept)
         etags[url]?.let { b.header("If-None-Match", it.etag) }
         api.newCall(b.build()).execute().use { res ->
             capture(res)
@@ -125,6 +132,78 @@ class GitHubHttp(
         } catch (e: IOException) {
             dest.delete()
             throw GitHubError.Offline()
+        }
+    }
+
+    /**
+     * Downloads a binary endpoint (artifact zip) into [dest], reporting bytes written. Like
+     * [downloadText] the 302 target is fetched WITHOUT credentials. Cancelling the coroutine stops
+     * the copy and removes [dest]. Throws [GitHubError.BadDownload] over [maxBytes] or when fewer
+     * than [expectedSize] bytes arrive (a truncated file is never handed on).
+     */
+    suspend fun downloadBinary(
+        path: String,
+        dest: File,
+        maxBytes: Long,
+        expectedSize: Long,
+        onProgress: (Long) -> Unit,
+    ): Unit = withContext(Dispatchers.IO) {
+        val ctx = currentCoroutineContext()
+        try {
+            val first = request(buildUrl(path, emptyMap())).header("Accept", ACCEPT_JSON).build()
+            api.newCall(first).execute().use { res ->
+                capture(res)
+                when {
+                    res.isRedirect -> {
+                        val loc = res.header("Location") ?: throw GitHubError.Http(res.code, "Missing redirect")
+                        val plain = Request.Builder().url(loc.toHttpUrl()).header("User-Agent", UA).build()
+                        api.newCall(plain).execute().use { r2 ->
+                            if (!r2.isSuccessful) throw GitHubError.from(r2.code, null)
+                            copyBinary(r2, dest, maxBytes, expectedSize, onProgress, ctx)
+                        }
+                    }
+                    res.isSuccessful -> copyBinary(res, dest, maxBytes, expectedSize, onProgress, ctx)
+                    else -> throw toError(res)
+                }
+            }
+        } catch (e: GitHubError) {
+            dest.delete()
+            throw e
+        } catch (e: CancellationException) {
+            dest.delete()
+            throw e
+        } catch (e: IOException) {
+            dest.delete()
+            throw GitHubError.Offline()
+        }
+    }
+
+    private fun copyBinary(
+        res: Response,
+        dest: File,
+        maxBytes: Long,
+        expectedSize: Long,
+        onProgress: (Long) -> Unit,
+        ctx: CoroutineContext,
+    ) {
+        dest.parentFile?.mkdirs()
+        var total = 0L
+        res.body!!.byteStream().use { input ->
+            dest.outputStream().use { out ->
+                val buf = ByteArray(32 * 1024)
+                while (true) {
+                    ctx.ensureActive()
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    total += n
+                    if (total > maxBytes) throw GitHubError.BadDownload(GitHubError.BadDownload.Reason.TooLarge)
+                    out.write(buf, 0, n)
+                    onProgress(total)
+                }
+            }
+        }
+        if (expectedSize > 0 && total < expectedSize) {
+            throw GitHubError.BadDownload(GitHubError.BadDownload.Reason.Incomplete)
         }
     }
 

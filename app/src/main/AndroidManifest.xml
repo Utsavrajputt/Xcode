@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Foreground/status notifications (clone & sync progress, future background work). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- GitHub Manager: install the APK built by Actions (always after an explicit tap). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".KodexApp"
@@ -1108,5 +1110,20 @@
                 <data android:pathPattern=".*/.*/.*/.*/.*/.*/.*/.*/.*/.*/.*/.*/CODE_OF_CONDUCT" />
             </intent-filter>
         </activity>
+
+        <!-- GitHub Manager: PackageInstaller status callback + the cache dir share used as fallback. -->
+        <receiver
+            android:name=".github.install.InstallResultReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.ghfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

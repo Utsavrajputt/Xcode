@@ -1,0 +1,520 @@
+package com.invictus.kodex.github.ui
+
+import android.text.format.DateUtils
+import android.text.format.Formatter
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.invictus.kodex.R
+import com.invictus.kodex.github.api.GhArtifact
+import com.invictus.kodex.github.api.GhDeployment
+import com.invictus.kodex.github.api.GhWorkflow
+import com.invictus.kodex.github.install.ArtifactZip
+import com.invictus.kodex.github.install.InstallDecision
+import com.invictus.kodex.github.install.InstallKind
+import com.invictus.kodex.ui.icons.XIcons
+import java.time.Instant
+
+private const val COLLAPSED_COUNT = 5
+
+// ---- Run Workflow row (plan 6.1 card 2 / 8.2) ---------------------------------------------
+
+@Composable
+fun RunWorkflowCard(
+    state: RunWorkflowState,
+    workflows: List<GhWorkflow>,
+    defaultBranch: String?,
+    tools: GitHubToolsController,
+) {
+    val workflow = tools.effectiveWorkflow(workflows, state.selectedWorkflowId)
+    val ref = state.selectedBranch ?: defaultBranch
+    LaunchedEffect(workflow?.id, ref) {
+        if (workflow != null && ref != null) tools.ensureDispatchInfo(workflow, ref)
+    }
+    val info = state.info
+    val supported = (info as? DispatchInfoState.Loaded)?.info?.supported
+    val canRun = workflow != null && ref != null && !state.dispatching &&
+        (supported == true || info is DispatchInfoState.Failed)
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(stringResource(R.string.gh_run_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PickerButton(
+                    label = workflow?.name ?: stringResource(R.string.gh_run_pick_workflow),
+                    enabled = workflows.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                ) { close ->
+                    workflows.forEach { w ->
+                        DropdownMenuItem(
+                            text = { Text(w.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            onClick = { close(); tools.selectWorkflow(w.id) },
+                        )
+                    }
+                }
+                PickerButton(
+                    label = ref ?: stringResource(R.string.gh_run_pick_branch),
+                    enabled = ref != null || state.branches.isNotEmpty(),
+                    modifier = Modifier.weight(0.8f),
+                ) { close ->
+                    val names = state.branches.ifEmpty { listOfNotNull(defaultBranch) }
+                    names.forEach { b ->
+                        DropdownMenuItem(
+                            text = { Text(b, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            onClick = { close(); tools.selectBranch(b) },
+                        )
+                    }
+                    if (state.branchesHasMore) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.gh_load_more)) },
+                            onClick = { tools.loadMoreBranches() }, // keep the menu open
+                        )
+                    }
+                }
+                FilledIconButton(
+                    onClick = { if (workflow != null && ref != null) tools.onRunPressed(workflow, ref) },
+                    enabled = canRun,
+                ) {
+                    if (state.dispatching) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(XIcons.PlayArrow, contentDescription = stringResource(R.string.gh_run_action))
+                    }
+                }
+            }
+            val note = when {
+                workflow == null -> null
+                info is DispatchInfoState.Loading -> R.string.gh_run_checking
+                supported == false -> R.string.gh_run_no_manual_trigger_note
+                info is DispatchInfoState.Failed -> R.string.gh_run_inputs_unreadable
+                else -> null
+            }
+            if (note != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PickerButton(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier,
+    content: @Composable (close: () -> Unit) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier) {
+        OutlinedButton(
+            onClick = { open = true },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Icon(XIcons.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) { content { open = false } }
+    }
+}
+
+// ---- Latest APK card (plan 6.1 card 3 / 8.3 / 8.4) ----------------------------------------------
+
+@Composable
+fun ApkCard(
+    state: GitHubToolsState,
+    tools: GitHubToolsController,
+    onRunShortcut: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            when (val apk = state.apk) {
+                ApkCardState.Loading -> {
+                    CardTitle(R.string.gh_apk_title)
+                    LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                }
+                ApkCardState.None -> {
+                    CardTitle(R.string.gh_apk_title)
+                    Muted(stringResource(R.string.gh_apk_none))
+                    TextButton(onClick = onRunShortcut) { Text(stringResource(R.string.gh_run_action_label)) }
+                }
+                is ApkCardState.AllExpired -> {
+                    CardTitle(R.string.gh_apk_title)
+                    val date = apk.newestAt?.let { dateOf(it) }
+                    Muted(if (date != null) stringResource(R.string.gh_apk_expired_on, date) else stringResource(R.string.gh_apk_expired))
+                    TextButton(onClick = onRunShortcut) { Text(stringResource(R.string.gh_run_action_label)) }
+                }
+                is ApkCardState.Error -> {
+                    CardTitle(R.string.gh_apk_title)
+                    Text(apk.message.resolve(LocalContext.current), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = tools::loadArtifactsAndApk) { Text(stringResource(R.string.gh_retry)) }
+                }
+                is ApkCardState.Found -> FoundApk(apk, state, tools)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FoundApk(found: ApkCardState.Found, state: GitHubToolsState, tools: GitHubToolsController) {
+    val context = LocalContext.current
+    val a = found.candidate.artifact
+    CardTitle(if (found.candidate.universal) R.string.gh_apk_title_universal else R.string.gh_apk_title)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Pill(if (found.candidate.universal) "universal" else "arm64-v8a")
+        Muted(
+            listOf(
+                a.shortSha,
+                a.createdAt?.let { dateOf(it) }.orEmpty(),
+                Formatter.formatShortFileSize(context, a.sizeBytes),
+            ).filter { it.isNotBlank() }.joinToString(" • "),
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+
+    val transfer = state.transfer?.takeIf { it.fromApkCard && it.artifactId == a.id }
+    val ready = state.ready?.takeIf { it.fromApkCard && it.artifactId == a.id }
+    when {
+        transfer != null -> TransferRow(transfer, onCancel = tools::cancelTransfer)
+        ready != null -> ReadyApkBody(
+            ready = ready,
+            installing = state.installing,
+            onInstall = tools::onInstallTapped,
+            onSave = tools::saveReadyApk,
+            onDismiss = tools::dismissReady,
+        )
+        else -> Button(onClick = { tools.downloadApk(found.candidate) }, enabled = state.transfer == null) {
+            Icon(XIcons.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.gh_apk_download))
+        }
+    }
+}
+
+@Composable
+private fun TransferRow(t: Transfer, onCancel: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                stringResource(if (t.purpose == TransferPurpose.Install) R.string.gh_transfer_downloading else R.string.gh_transfer_preparing_save),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            val p = t.progress
+            if (p == null) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
+            else LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        }
+        TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
+    }
+}
+
+/** Verified APK waiting for the user's tap (plan 8.4): facts, warnings, Install / Save / Close. */
+@Composable
+fun ReadyApkBody(
+    ready: ReadyApk,
+    installing: Boolean,
+    onInstall: () -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val r = ready.inspect
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            stringResource(R.string.gh_ready_version, r.info.versionName.ifBlank { "?" }, r.info.versionCode),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        Muted(r.info.packageName)
+        Text(
+            stringResource(
+                when (r.kind) {
+                    InstallKind.Install -> R.string.gh_ready_install
+                    InstallKind.Update -> R.string.gh_ready_update
+                    InstallKind.Reinstall -> R.string.gh_ready_reinstall
+                    InstallKind.Downgrade -> R.string.gh_ready_downgrade
+                    InstallKind.SignatureMismatch -> R.string.gh_ready_signature
+                },
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (r.kind == InstallKind.Downgrade || r.kind == InstallKind.SignatureMismatch) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+        )
+        if (!r.abiCompatible) {
+            Text(stringResource(R.string.gh_ready_abi_warning), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        if (r.isSelf) {
+            Muted(stringResource(R.string.gh_ready_self_note))
+        }
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = onInstall, enabled = !installing && !InstallDecision.isBlocked(r.kind)) {
+                if (installing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(R.string.gh_install))
+            }
+            OutlinedButton(onClick = onSave) { Text(stringResource(R.string.gh_save_to_folder)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.gh_close)) }
+        }
+    }
+}
+
+// ---- Artifacts section (plan 6.1 card 6 / 8.5) -----------------------------------------------
+
+fun LazyListScope.artifactsSection(
+    state: GitHubToolsState,
+    showAll: Boolean,
+    onShowAll: () -> Unit,
+    latestId: Long?,
+    tools: GitHubToolsController,
+    onDelete: (GhArtifact) -> Unit,
+) {
+    item(key = "artifacts_header") {
+        SectionHeader(
+            title = stringResource(R.string.gh_artifacts_title),
+            expanded = state.artifactsExpanded,
+            onToggle = { tools.setArtifactsExpanded(!state.artifactsExpanded) },
+        )
+    }
+    if (!state.artifactsExpanded) return
+    when {
+        state.artifactsLoading -> item(key = "artifacts_loading") {
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        }
+        state.artifactsError != null && state.artifacts.isEmpty() -> item(key = "artifacts_error") {
+            ErrorBlock(state.artifactsError.resolve(LocalContext.current), tools::loadArtifactsAndApk)
+        }
+        state.artifacts.isEmpty() -> item(key = "artifacts_empty") {
+            Muted(stringResource(R.string.gh_artifacts_empty), Modifier.padding(16.dp))
+        }
+        else -> {
+            val visible = if (showAll) state.artifacts else state.artifacts.take(COLLAPSED_COUNT)
+            items(visible, key = { "artifact_${it.id}" }) { a ->
+                ArtifactRow(
+                    a = a,
+                    isLatest = a.id == latestId,
+                    busy = a.id in state.busyArtifactIds,
+                    transfer = state.transfer?.takeIf { it.artifactId == a.id && !it.fromApkCard },
+                    anyTransfer = state.transfer != null || state.pendingSave != null || state.installing,
+                    tools = tools,
+                    onDelete = { onDelete(a) },
+                )
+            }
+            item(key = "artifacts_more") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    if (!showAll && state.artifacts.size > COLLAPSED_COUNT) {
+                        TextButton(onClick = onShowAll) { Text(stringResource(R.string.gh_show_all, state.artifacts.size)) }
+                    } else if (state.artifactsHasMore) {
+                        if (state.artifactsLoadingMore) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else TextButton(onClick = tools::loadMoreArtifacts) { Text(stringResource(R.string.gh_load_more)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArtifactRow(
+    a: GhArtifact,
+    isLatest: Boolean,
+    busy: Boolean,
+    transfer: Transfer?,
+    anyTransfer: Boolean,
+    tools: GitHubToolsController,
+    onDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val now = remember { Instant.now() }
+    val expired = a.isExpiredAt(now)
+    var menu by remember { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth().alpha(if (expired) 0.55f else 1f)) {
+        Column(Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(a.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                        if (isLatest) Pill(stringResource(R.string.gh_artifact_latest))
+                    }
+                    Muted(
+                        listOf(
+                            Formatter.formatShortFileSize(context, a.sizeBytes),
+                            a.branch.orEmpty(),
+                            a.shortSha,
+                            if (expired) stringResource(R.string.gh_artifact_expired_label)
+                            else a.expiresAt?.let { stringResource(R.string.gh_artifact_expires, relative(it)) }.orEmpty(),
+                        ).filter { it.isNotBlank() }.joinToString(" • "),
+                    )
+                }
+                if (busy) {
+                    CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+                } else {
+                    Box {
+                        IconButton(onClick = { menu = true }) {
+                            Icon(XIcons.MoreVert, contentDescription = stringResource(R.string.gh_artifact_actions, a.name))
+                        }
+                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            if (!expired && ArtifactZip.looksLikeApk(a.name)) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.gh_install)) },
+                                    leadingIcon = { Icon(XIcons.Download, contentDescription = null) },
+                                    enabled = !anyTransfer,
+                                    onClick = { menu = false; tools.installFromArtifact(a) },
+                                )
+                            }
+                            if (!expired) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.gh_save_to_folder)) },
+                                    leadingIcon = { Icon(XIcons.Save, contentDescription = null) },
+                                    enabled = !anyTransfer,
+                                    onClick = { menu = false; tools.saveArtifact(a) },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(XIcons.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { menu = false; onDelete() },
+                            )
+                        }
+                    }
+                }
+            }
+            if (transfer != null) TransferRow(transfer, onCancel = tools::cancelTransfer)
+        }
+    }
+}
+
+// ---- Deployments section (plan 6.1 card 5 / 7.4) -----------------------------------------------
+
+fun LazyListScope.deploymentsSection(
+    state: GitHubToolsState,
+    showAll: Boolean,
+    onShowAll: () -> Unit,
+    tools: GitHubToolsController,
+    onDelete: (GhDeployment) -> Unit,
+) {
+    item(key = "deployments_header") {
+        SectionHeader(
+            title = stringResource(R.string.gh_deployments_title),
+            expanded = state.deploymentsExpanded,
+            onToggle = { tools.setDeploymentsExpanded(!state.deploymentsExpanded) },
+        )
+    }
+    if (!state.deploymentsExpanded) return
+    when {
+        state.deploymentsLoading -> item(key = "deployments_loading") {
+            LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+        }
+        state.deploymentsError != null && state.deployments.isEmpty() -> item(key = "deployments_error") {
+            ErrorBlock(state.deploymentsError.resolve(LocalContext.current), tools::loadDeployments)
+        }
+        state.deployments.isEmpty() -> item(key = "deployments_empty") {
+            Muted(stringResource(R.string.gh_deployments_empty), Modifier.padding(16.dp))
+        }
+        else -> {
+            val visible = if (showAll) state.deployments else state.deployments.take(COLLAPSED_COUNT)
+            items(visible, key = { "deployment_${it.id}" }) { d ->
+                DeploymentRow(d, busy = d.id in state.busyDeploymentIds, onDelete = { onDelete(d) })
+            }
+            if (!showAll && state.deployments.size > COLLAPSED_COUNT) {
+                item(key = "deployments_more") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        TextButton(onClick = onShowAll) { Text(stringResource(R.string.gh_show_all, state.deployments.size)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeploymentRow(d: GhDeployment, busy: Boolean, onDelete: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(start = 12.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(d.environment.ifBlank { "deployment" }, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Muted(
+                    listOf(d.ref, d.shortSha, d.latestState.orEmpty(), d.createdAt?.let { relative(it) }.orEmpty())
+                        .filter { it.isNotBlank() }.joinToString(" • "),
+                )
+            }
+            if (busy) {
+                CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        XIcons.Delete,
+                        contentDescription = stringResource(R.string.gh_deployment_delete_desc, d.environment),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ---- shared small pieces ------------------------------------------------------------------------
+
+@Composable
+private fun CardTitle(res: Int) {
+    Text(stringResource(res), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Spacer(Modifier.height(4.dp))
+}
+
+@Composable
+internal fun Muted(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text, modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun Pill(text: String) {
+    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+        Text(text, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), maxLines = 1)
+    }
+}
+
+internal fun dateOf(i: Instant): String =
+    java.text.DateFormat.getDateInstance(java.text.DateFormat.MEDIUM).format(java.util.Date(i.toEpochMilli()))
+
+internal fun relative(i: Instant): String =
+    DateUtils.getRelativeTimeSpanString(i.toEpochMilli(), System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString()

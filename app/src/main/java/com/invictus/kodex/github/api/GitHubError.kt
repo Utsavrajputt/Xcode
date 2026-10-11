@@ -31,6 +31,11 @@ sealed class GitHubError(message: String) : IOException(message) {
     /** No connectivity / DNS / timeout (after retries). */
     class Offline(message: String = "No connection") : GitHubError(message)
 
+    /** A download that cannot be trusted: over the size cap, or cut short (M16). */
+    class BadDownload(val reason: Reason) : GitHubError(reason.name) {
+        enum class Reason { TooLarge, Incomplete }
+    }
+
     /** Anything else (5xx, unexpected). */
     class Http(val code: Int, message: String) : GitHubError(message)
 

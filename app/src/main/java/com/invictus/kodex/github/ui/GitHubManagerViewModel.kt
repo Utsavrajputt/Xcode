@@ -1,5 +1,6 @@
 package com.invictus.kodex.github.ui
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
@@ -38,6 +39,7 @@ class GitHubManagerViewModel(
     private val prefs: GitHubPrefs,
     private val tokens: GitHubTokenProvider,
     private val profiles: GitHubProfileRepository,
+    appContext: Context,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GitHubManagerState())
@@ -47,6 +49,21 @@ class GitHubManagerViewModel(
     val events: SharedFlow<GhEvent> = _events.asSharedFlow()
 
     private var repository: GitHubRepository? = null
+
+    /** M16: Run Workflow, APK, artifacts, deployments, cleanup. */
+    val tools = GitHubToolsController(
+        scope = viewModelScope,
+        appContext = appContext.applicationContext,
+        projectPath = projectPath,
+        prefs = prefs,
+        repoProvider = { repository },
+        repoRefProvider = { _state.value.repo },
+        workflowsProvider = { _state.value.workflows },
+        emit = { _events.tryEmit(it) },
+        onError = { applyBanner(it) },
+        onRunsChanged = { loadRuns(reset = true) },
+    )
+
     private var runsJob: Job? = null
     private var page = 1
     private var resumed = false
@@ -60,6 +77,7 @@ class GitHubManagerViewModel(
 
     /** Re-detect on every return to the screen (Remotes / Settings may have changed the answer). */
     fun onResume() {
+        tools.onResume()
         if (!resumed) { resumed = true; return }
         if (_state.value.gate != GitHubGate.Resolving) load()
     }
@@ -89,6 +107,7 @@ class GitHubManagerViewModel(
                     loadProfile()
                     loadOverview()
                     loadRuns(reset = true)
+                    tools.onRepoReady(changed)
                 }
             }
         }
@@ -96,6 +115,7 @@ class GitHubManagerViewModel(
 
     private fun setGate(gate: GitHubGate) {
         repository = null
+        tools.onGateLost()
         _state.update { GitHubManagerState(gate = gate, runsExpanded = it.runsExpanded) }
     }
 
@@ -132,6 +152,7 @@ class GitHubManagerViewModel(
         _state.update { it.copy(refreshing = true) }
         loadOverview()
         loadRuns(reset = true)
+        tools.refresh()
     }
 
     fun loadMore() {
@@ -285,6 +306,7 @@ class GitHubManagerViewModel(
 
     override fun onCleared() {
         runsJob?.cancel()
+        tools.onCleared()
     }
 
     companion object {
@@ -303,6 +325,7 @@ class GitHubManagerViewModel(
                     prefs = c.gitHubPrefs,
                     tokens = c.gitHubTokenProvider,
                     profiles = c.gitHubProfileRepository,
+                    appContext = app.applicationContext,
                 )
             }
         }
@@ -317,6 +340,9 @@ fun describe(e: GitHubError): GhText = when (e) {
     is GitHubError.NotFound -> GhText.Res(R.string.gh_err_not_found)
     is GitHubError.Gone -> GhText.Res(R.string.gh_err_gone)
     is GitHubError.Offline -> GhText.Res(R.string.gh_err_offline)
+    is GitHubError.BadDownload -> GhText.Res(
+        if (e.reason == GitHubError.BadDownload.Reason.TooLarge) R.string.gh_download_too_large else R.string.gh_download_incomplete,
+    )
     is GitHubError.Conflict, is GitHubError.Validation -> GhText.Raw(e.message.orEmpty())
     is GitHubError.Http -> GhText.Res(R.string.gh_err_http, listOf(e.code))
 }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M16: only the GitHub APK cache is shareable (install fallback via ACTION_VIEW). -->
+<paths>
+    <cache-path name="gh_apk" path="gh_apk/" />
+</paths>

@@ -1,10 +1,13 @@
 package com.invictus.kodex.github.data
 
+import com.invictus.kodex.github.api.GhArtifact
+import com.invictus.kodex.github.api.GhDeployment
 import com.invictus.kodex.github.api.GhJob
 import com.invictus.kodex.github.api.GhRepoRef
 import com.invictus.kodex.github.api.GhRun
 import com.invictus.kodex.github.api.GhWorkflow
 import com.invictus.kodex.github.api.GitHubApi
+import com.invictus.kodex.github.api.GitHubError
 import com.invictus.kodex.github.api.Page
 import com.invictus.kodex.github.api.RateLimit
 import java.io.File
@@ -48,6 +51,80 @@ class GitHubRepository(
     suspend fun rerunFailed(runId: Long) = api.rerunFailedJobs(runId)
     suspend fun delete(runId: Long) = api.deleteRun(runId)
 
+    // ---- M16: dispatch ---------------------------------------------------------------
+
+    suspend fun branches(page: Int): Page<String> = api.listBranches(page)
+
+    suspend fun workflowFile(workflow: GhWorkflow, ref: String?): String = api.getWorkflowFileText(workflow.path, ref)
+
+    suspend fun dispatch(workflowId: Long, ref: String, inputs: Map<String, String>) =
+        api.dispatch(workflowId, ref, inputs)
+
+    /** Latest dispatch-triggered runs of [workflowId] on [ref]; used to spot the run a dispatch created. */
+    suspend fun dispatchRuns(workflowId: Long, ref: String): List<GhRun> =
+        api.listRuns(page = 1, perPage = 5, workflowId = workflowId, event = "workflow_dispatch", branch = ref).items
+
+    // ---- M16: artifacts --------------------------------------------------------------
+
+    suspend fun artifacts(page: Int): Page<GhArtifact> = api.listArtifacts(page)
+
+    suspend fun downloadArtifact(artifact: GhArtifact, dest: File, onProgress: (Long) -> Unit) =
+        api.downloadArtifactZip(artifact, dest, MAX_ARTIFACT_BYTES, onProgress)
+
+    suspend fun deleteArtifact(id: Long) = api.deleteArtifact(id)
+
+    // ---- M16: deployments ------------------------------------------------------------
+
+    suspend fun deployments(page: Int): Page<GhDeployment> = api.listDeployments(page)
+
+    /** Latest status per deployment id; ids whose lookup fails are simply missing. */
+    suspend fun deploymentStates(ids: List<Long>): Map<Long, String?> {
+        val out = LinkedHashMap<Long, String?>()
+        for (id in ids) {
+            try {
+                out[id] = api.latestDeploymentState(id)
+            } catch (e: GitHubError.Offline) {
+                throw e
+            } catch (e: GitHubError) {
+                // best-effort decoration only
+            }
+        }
+        return out
+    }
+
+    /** GitHub refuses to delete an active deployment (422): mark it inactive first, then retry once. */
+    suspend fun deleteDeployment(id: Long) {
+        try {
+            api.deleteDeployment(id)
+        } catch (e: GitHubError.Validation) {
+            api.setDeploymentInactive(id)
+            api.deleteDeployment(id)
+        }
+    }
+
+    // ---- M16: cleanup scans (plan 8.6: 100 per page, bounded) ----------------------------
+
+    suspend fun scanCompletedRuns(maxPages: Int = SCAN_MAX_PAGES): List<GhRun> =
+        scan(maxPages) { api.listRuns(page = it, perPage = 100, status = "completed") }
+
+    suspend fun scanArtifacts(maxPages: Int = SCAN_MAX_PAGES): List<GhArtifact> =
+        scan(maxPages) { api.listArtifacts(page = it, perPage = 100) }
+
+    suspend fun scanDeployments(maxPages: Int = SCAN_MAX_PAGES): List<GhDeployment> =
+        scan(maxPages) { api.listDeployments(page = it, perPage = 100) }
+
+    private suspend fun <T> scan(maxPages: Int, fetch: suspend (Int) -> Page<T>): List<T> {
+        val all = ArrayList<T>()
+        var page = 1
+        while (page <= maxPages) {
+            val result = fetch(page)
+            all += result.items
+            if (!result.hasMore) break
+            page++
+        }
+        return all
+    }
+
     /**
      * Fetches the log of [jobId] (default: first failed job, else the last job) to a temp file and
      * builds the error excerpt. Throws a GitHubError (404/410 = logs expired).
@@ -66,5 +143,11 @@ class GitHubRepository(
         val tail = LogFiles.readTail(file)
         val excerpt = LogExtractor.excerpt(tail.lines, header.copy(failedStep = job.failedStepName))
         return RunLog(jobs, job, file, truncated, excerpt)
+    }
+
+    companion object {
+        /** Artifact zips above this are refused (an APK is capped lower after extraction). */
+        const val MAX_ARTIFACT_BYTES = 320L * 1024 * 1024
+        private const val SCAN_MAX_PAGES = 10
     }
 }

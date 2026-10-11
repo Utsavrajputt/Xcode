@@ -1,0 +1,120 @@
+package com.invictus.kodex.github.install
+
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
+
+/** Outcome reported by the system installer (plan 8.4). */
+sealed interface InstallResult {
+    data object Success : InstallResult
+    data object Cancelled : InstallResult
+    data class Failed(val message: String?) : InstallResult
+}
+
+/** Process-wide bridge from [InstallResultReceiver] to whoever started the install. */
+object InstallEvents {
+    private val _results = MutableSharedFlow<InstallResult>(extraBufferCapacity = 4)
+    val results: SharedFlow<InstallResult> = _results.asSharedFlow()
+    internal fun emit(r: InstallResult) { _results.tryEmit(r) }
+}
+
+/**
+ * Installs through the PackageInstaller session API (update-in-place, status callbacks). Never
+ * installs on its own: [install] is only called after the user taps Install, and the system
+ * still shows its own confirmation. Falls back to ACTION_VIEW + FileProvider if a session
+ * cannot be created.
+ */
+class ApkInstaller(private val context: Context) {
+
+    fun canRequestInstalls(): Boolean = context.packageManager.canRequestPackageInstalls()
+
+    /** Settings screen where the user allows this app to install packages. */
+    fun unknownSourcesIntent(): Intent =
+        Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+    suspend fun install(apk: File) = withContext(Dispatchers.IO) {
+        try {
+            installWithSession(apk)
+        } catch (e: IOException) {
+            installWithIntent(apk)
+        } catch (e: SecurityException) {
+            installWithIntent(apk)
+        }
+    }
+
+    private fun installWithSession(apk: File) {
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        params.setSize(apk.length())
+        val id = installer.createSession(params)
+        var session: PackageInstaller.Session? = null
+        try {
+            val s = installer.openSession(id)
+            session = s
+            apk.inputStream().use { input ->
+                s.openWrite("base.apk", 0, apk.length()).use { out ->
+                    input.copyTo(out)
+                    s.fsync(out)
+                }
+            }
+            val intent = Intent(context, InstallResultReceiver::class.java).setPackage(context.packageName)
+            val pi = PendingIntent.getBroadcast(
+                context, id, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+            )
+            s.commit(pi.intentSender)
+        } catch (e: Exception) {
+            runCatching { session?.abandon() }
+            if (session == null) runCatching { installer.abandonSession(id) }
+            throw if (e is IOException || e is SecurityException) e else IOException(e)
+        } finally {
+            session?.close()
+        }
+    }
+
+    private fun installWithIntent(apk: File) {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.ghfiles", apk)
+        val view = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(view)
+    }
+}
+
+/** Receives the PackageInstaller status; launches the system confirmation when asked to. */
+class InstallResultReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                val confirm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                } else {
+                    @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                }
+                confirm?.let {
+                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { context.startActivity(it) }
+                }
+            }
+            PackageInstaller.STATUS_SUCCESS -> InstallEvents.emit(InstallResult.Success)
+            PackageInstaller.STATUS_FAILURE_ABORTED -> InstallEvents.emit(InstallResult.Cancelled)
+            else -> InstallEvents.emit(
+                InstallResult.Failed(intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)),
+            )
+        }
+    }
+}
